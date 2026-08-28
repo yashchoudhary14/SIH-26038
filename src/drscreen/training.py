@@ -21,9 +21,8 @@ from torch.utils.data import DataLoader
 
 
 def device_of(prefer: str = "auto") -> torch.device:
-    if prefer != "auto":
-        return torch.device(prefer)
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    from .pipeline import resolve_device
+    return torch.device(resolve_device(prefer))
 
 
 class EMA:
