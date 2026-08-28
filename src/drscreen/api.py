@@ -9,6 +9,10 @@ Endpoints
 ``GET  /demo/{grade}``   run a generated phantom of a given grade
 ``POST /review``         record an ophthalmologist's agree/disagree decision
 ``GET  /audit``          the review log, for programme-level monitoring
+``GET  /simulation``     district telemedicine scenario results
+``GET  /optimisation``   cheapest feasible programme configuration
+``GET  /validation``     clinical validation report
+``GET  /assets``         which generated artefacts are present on disk
 
 The review log is the piece most prototypes omit and every real deployment
 needs: a screening AI that is never told when it was wrong cannot be
@@ -27,6 +31,7 @@ import cv2
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from .constants import ICDR_GRADES
 from .explain.report import build_review_panel, render_html
@@ -39,6 +44,37 @@ _PIPELINE: DRScreeningPipeline | None = None
 _ARTIFACTS_DIR = Path("outputs/artifacts")
 _AUDIT_LOG = Path("outputs/audit/reviews.jsonl")
 _WEB_DIR = Path(__file__).resolve().parents[2] / "web"
+_SIM_DIR = Path("outputs/simulation")
+_VAL_DIR = Path("outputs/validation")
+
+if _WEB_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_WEB_DIR)), name="static")
+
+
+def _load_json(path: Path, how: str) -> dict:
+    if not path.exists():
+        raise HTTPException(404, f"{path} not found. Generate it with: {how}")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(500, f"{path} is not valid JSON: {exc}")
+
+
+def _encode_capture(artifacts: dict) -> str | None:
+    img = artifacts.get("standardized")
+    if img is None:
+        img = artifacts.get("raw")
+    if img is None:
+        return None
+    h, w = img.shape[:2]
+    if max(h, w) > 640:
+        scale = 640.0 / max(h, w)
+        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 86])
+    if not ok:
+        return None
+    import base64
+    return base64.b64encode(buf.tobytes()).decode()
 
 
 def get_pipeline() -> DRScreeningPipeline:
@@ -91,6 +127,7 @@ async def screen(file: UploadFile = File(...), explain: bool = True) -> JSONResp
     result, artifacts = p.run(img, image_id=Path(file.filename or "case").stem,
                               explain=explain)
     payload = result.to_dict()
+    payload["capture_jpeg_b64"] = _encode_capture(artifacts)
     try:
         panel = build_review_panel(result, artifacts)
         ok, buf = cv2.imencode(".jpg", panel, [cv2.IMWRITE_JPEG_QUALITY, 88])
@@ -112,7 +149,7 @@ async def screen_report(file: UploadFile = File(...)) -> str:
 
 @app.get("/demo/{grade}")
 def demo(grade: int, severity: float = 0.3, seed: int | None = None,
-         report: bool = False):
+         report: bool = False, explain: bool = True):
     """Run a generated phantom of the requested ICDR grade.
 
     Present so the service is demonstrable with no data on disk; it is never
@@ -125,13 +162,16 @@ def demo(grade: int, severity: float = 0.3, seed: int | None = None,
                   seed=seed if seed is not None else int(time.time()) % 100000,
                   severity=float(np.clip(severity, 0, 1)))
     p = get_pipeline()
-    result, artifacts = p.run(ph.image, image_id=f"phantom_g{grade}")
+    result, artifacts = p.run(ph.image, image_id=f"phantom_g{grade}", explain=explain)
     if report:
         return HTMLResponse(render_html(result, artifacts))
     payload = result.to_dict()
     payload["synthetic"] = True
     payload["ground_truth"] = {"grade": ph.grade, "lesion_counts": ph.lesion_counts,
                                "camera": ph.camera, "quality_label": ph.quality_label}
+    payload["capture_jpeg_b64"] = _encode_capture(artifacts)
+    if not explain:
+        return JSONResponse(payload)
     try:
         import base64
         panel = build_review_panel(result, artifacts)
@@ -188,3 +228,39 @@ def audit(limit: int = 500) -> dict:
             "under_30s_fraction": float(np.mean([t <= 30 for t in times])) if times else None,
         },
     }
+
+
+@app.get("/simulation")
+def simulation() -> JSONResponse:
+    return JSONResponse(_load_json(
+        _SIM_DIR / "scenarios.json",
+        "python scripts/run_simulation.py --scenarios"))
+
+
+@app.get("/optimisation")
+def optimisation() -> JSONResponse:
+    return JSONResponse(_load_json(
+        _SIM_DIR / "optimisation.json",
+        "python scripts/run_simulation.py --optimise"))
+
+
+@app.get("/validation")
+def validation() -> JSONResponse:
+    return JSONResponse(_load_json(
+        _VAL_DIR / "validation.json",
+        "python scripts/validate.py --cohort data/cohort_synth "
+        "--grader outputs/artifacts/grader.pt --seg outputs/artifacts/segmentation.pt"))
+
+
+@app.get("/assets")
+def assets() -> dict:
+    files = {
+        "scenarios": _SIM_DIR / "scenarios.json",
+        "optimisation": _SIM_DIR / "optimisation.json",
+        "validation": _VAL_DIR / "validation.json",
+        "matlab": Path("matlab/build_dr_screening_model.m"),
+    }
+    return {k: {"present": v.exists(),
+                "path": str(v),
+                "bytes": v.stat().st_size if v.exists() else 0}
+            for k, v in files.items()}

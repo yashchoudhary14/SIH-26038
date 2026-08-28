@@ -245,9 +245,13 @@ def main():
     # Deployable artefact bundle
     a.artifacts.mkdir(parents=True, exist_ok=True)
     import shutil
-    if a.seg.exists():
-        shutil.copy(a.seg, a.artifacts / "segmentation.pt")
-    shutil.copy(a.grader, a.artifacts / "grader.pt")
+
+    def stage(src: Path, dst: Path) -> None:
+        if src.exists() and src.resolve() != dst.resolve():
+            shutil.copy(src, dst)
+
+    stage(a.seg, a.artifacts / "segmentation.pt")
+    stage(a.grader, a.artifacts / "grader.pt")
     (a.artifacts / "pipeline.json").write_text(json.dumps({
         "referral_threshold": op.threshold,
         "temperature": T,

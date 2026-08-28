@@ -24,7 +24,7 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"}
 def load_pipeline(artifacts: Path, size: int, device: str) -> DRScreeningPipeline:
     if artifacts.exists() and any(artifacts.iterdir()):
         pipe = DRScreeningPipeline.load(artifacts)
-        pipe.cfg.device = device
+        pipe.to(device)
         print(f"Loaded artefacts from {artifacts}")
         print(f"  segmentation: {'yes' if pipe.seg else 'no'}   "
               f"grader: {'yes' if pipe.grader else 'no'}   "

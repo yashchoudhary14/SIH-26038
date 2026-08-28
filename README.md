@@ -23,6 +23,10 @@ pip install -r requirements.txt && pip install -e .
 
 > The `cu128` index is required for RTX 50-series (Blackwell) GPUs. On older
 > CUDA or CPU-only machines, install PyTorch from the default index instead.
+> **On Apple Silicon** that index has no wheels at all — use the default index
+> (`pip install torch torchvision`) and Python 3.11/3.12. The pipeline selects
+> Metal automatically: ~500 ms/image on an M-series laptop against ~1,700 ms on
+> CPU. Force a backend with `--device cpu|mps|cuda` where a script accepts it.
 
 Run the whole pipeline on generated data:
 
@@ -40,6 +44,18 @@ Then the demo and the console:
 python scripts/run_demo.py --demo
 python -m uvicorn drscreen.api:app --port 8000     # open http://localhost:8000
 ```
+
+The console has six tabs. **Screen**, **Capture** and **Worklist** work as soon as the
+server is up. **Validation** and **Programme** read artefacts that scripts write to
+disk, so run those once first:
+
+```bash
+python scripts/run_simulation.py --scenarios
+python scripts/run_simulation.py --optimise
+python scripts/validate.py --cohort data/cohort_synth --grader outputs/artifacts/grader.pt --seg outputs/artifacts/segmentation.pt
+```
+
+Each tab says which command populates it if the file is missing, so nothing fails silently.
 
 Simulation and the MATLAB bridge:
 
@@ -526,7 +542,10 @@ src/drscreen/
 scripts/                    build_cohort, train_seg, precompute_features,
                             train_grader, validate, run_demo, run_simulation,
                             eval_landmarks
-web/index.html              review console
+web/
+  index.html                six-tab console shell
+  app.js                    console logic
+  style.css                 console styling
 matlab/                     generated Simulink bridge
 tests/                      27 regression tests on clinical invariants
 ```

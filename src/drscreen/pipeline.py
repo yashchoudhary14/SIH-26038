@@ -97,16 +97,40 @@ class PipelineConfig:
     model_version: str = "drscreen-1.0.0"
 
 
+def resolve_device(spec: str) -> str:
+    """Turn "auto" into the best available backend.
+
+    Apple Silicon is a first-class target here: a district programme is far more
+    likely to be demonstrated on a laptop than on a datacentre GPU, and MPS is
+    about four times faster than CPU for this pipeline.
+    """
+    if spec != "auto":
+        return spec
+    if torch.cuda.is_available():
+        return "cuda"
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
 class DRScreeningPipeline:
     """Loads the trained components and runs the full screening flow."""
 
     def __init__(self, seg_model=None, grader=None, cfg: PipelineConfig | None = None):
         self.cfg = cfg or PipelineConfig()
-        self.device = torch.device(
-            "cuda" if (self.cfg.device == "auto" and torch.cuda.is_available())
-            else ("cpu" if self.cfg.device == "auto" else self.cfg.device))
+        self.device = torch.device(resolve_device(self.cfg.device))
         self.seg = seg_model.to(self.device).eval() if seg_model is not None else None
         self.grader = grader.to(self.device).eval() if grader is not None else None
+
+    def to(self, device: str) -> "DRScreeningPipeline":
+        """Move the loaded models onto `device`, resolving "auto"."""
+        self.cfg.device = device
+        self.device = torch.device(resolve_device(device))
+        if self.seg is not None:
+            self.seg = self.seg.to(self.device)
+        if self.grader is not None:
+            self.grader = self.grader.to(self.device)
+        return self
 
     # -- loading ----------------------------------------------------------
     @classmethod
