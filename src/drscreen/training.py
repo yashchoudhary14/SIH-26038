@@ -1,0 +1,316 @@
+"""Training loops for the segmentation and grading stages.
+
+Shared conventions: AMP on CUDA, cosine schedule with warmup, EMA weights,
+gradient clipping, and early stopping on the metric that actually matters for
+each stage (Dice for segmentation, referable-DR AUC for grading -- *not*
+accuracy, which a model can maximise by never predicting the minority grades).
+"""
+from __future__ import annotations
+
+import copy
+import json
+import math
+import time
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+
+
+def device_of(prefer: str = "auto") -> torch.device:
+    if prefer != "auto":
+        return torch.device(prefer)
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+class EMA:
+    """Exponential moving average of weights.
+
+    Worth the few lines: with the small effective batch sizes that
+    high-resolution fundus training forces, the raw weights bounce enough that
+    the last checkpoint is often measurably worse than the average.
+    """
+
+    def __init__(self, model: torch.nn.Module, decay: float = 0.999):
+        self.decay = decay
+        self.shadow = copy.deepcopy(model).eval()
+        for p in self.shadow.parameters():
+            p.requires_grad_(False)
+
+    @torch.no_grad()
+    def update(self, model: torch.nn.Module):
+        for s, m in zip(self.shadow.state_dict().values(), model.state_dict().values()):
+            if s.dtype.is_floating_point:
+                s.mul_(self.decay).add_(m.detach(), alpha=1 - self.decay)
+            else:
+                s.copy_(m)
+
+
+def cosine_warmup(optimizer, total_steps: int, warmup_frac: float = 0.05,
+                  min_lr_frac: float = 0.02):
+    warmup = max(1, int(total_steps * warmup_frac))
+
+    def fn(step: int) -> float:
+        if step < warmup:
+            return step / warmup
+        t = (step - warmup) / max(1, total_steps - warmup)
+        return min_lr_frac + (1 - min_lr_frac) * 0.5 * (1 + math.cos(math.pi * min(t, 1.0)))
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, fn)
+
+
+@dataclass
+class TrainLog:
+    epochs: list = field(default_factory=list)
+    best_metric: float = -1e9
+    best_epoch: int = -1
+    elapsed_s: float = 0.0
+    config: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+# --------------------------------------------------------------------------
+# Segmentation
+# --------------------------------------------------------------------------
+@torch.no_grad()
+def dice_per_class(logits: torch.Tensor, target: torch.Tensor,
+                   thr: float = 0.5, eps: float = 1e-6) -> torch.Tensor:
+    p = (torch.sigmoid(logits) > thr).float()
+    dims = (0, 2, 3)
+    inter = (p * target).sum(dims)
+    denom = p.sum(dims) + target.sum(dims)
+    return (2 * inter + eps) / (denom + eps)
+
+
+def train_segmentation(model, train_ds, val_ds, *, mask_key: str = "lesion_mask",
+                       epochs: int = 12, batch_size: int = 8, lr: float = 3e-4,
+                       weight_decay: float = 1e-4, num_workers: int = 4,
+                       device: str = "auto", out_dir: str | Path = "outputs/seg",
+                       amp: bool = True, pos_weight: float | None = None,
+                       log_every: int = 20, ema_decay: float = 0.999) -> TrainLog:
+    from .models.segmentation import segmentation_loss
+
+    dev = device_of(device)
+    out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
+    model = model.to(dev)
+
+    tl = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+                    pin_memory=(dev.type == "cuda"), drop_last=True,
+                    persistent_workers=num_workers > 0)
+    vl = DataLoader(val_ds, batch_size=max(1, batch_size), shuffle=False,
+                    num_workers=num_workers, pin_memory=(dev.type == "cuda"),
+                    persistent_workers=num_workers > 0)
+
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    sched = cosine_warmup(opt, epochs * max(1, len(tl)))
+    scaler = torch.amp.GradScaler("cuda", enabled=amp and dev.type == "cuda")
+    ema = EMA(model, ema_decay)
+
+    pw = None
+    if pos_weight is not None:
+        pw = torch.tensor(float(pos_weight), device=dev)
+
+    log = TrainLog(config={"epochs": epochs, "batch_size": batch_size, "lr": lr,
+                           "mask_key": mask_key, "device": str(dev)})
+    t_start = time.time()
+
+    for ep in range(epochs):
+        if hasattr(train_ds, "set_epoch"):
+            train_ds.set_epoch(ep)
+        model.train()
+        running, nb = 0.0, 0
+        for i, batch in enumerate(tl):
+            x = batch["image"].to(dev, non_blocking=True)
+            y = batch[mask_key].to(dev, non_blocking=True)
+            opt.zero_grad(set_to_none=True)
+            with torch.amp.autocast("cuda", enabled=amp and dev.type == "cuda"):
+                out = model(x)
+                if isinstance(out, tuple):
+                    logits, aux = out
+                else:
+                    logits, aux = out, None
+                loss = segmentation_loss(logits.float(), y,
+                                         [a.float() for a in aux] if aux else None,
+                                         pos_weight=pw)
+            scaler.scale(loss).backward()
+            scaler.unscale_(opt)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+            scaler.step(opt); scaler.update(); sched.step()
+            ema.update(model)
+            running += float(loss.item()); nb += 1
+            if log_every and i % log_every == 0:
+                print(f"  ep{ep+1} step {i}/{len(tl)} loss {running/max(nb,1):.4f}", flush=True)
+
+        # --- validation on the EMA weights -------------------------------
+        ema.shadow.eval()
+        dices = []
+        with torch.no_grad():
+            for batch in vl:
+                x = batch["image"].to(dev, non_blocking=True)
+                y = batch[mask_key].to(dev, non_blocking=True)
+                with torch.amp.autocast("cuda", enabled=amp and dev.type == "cuda"):
+                    logits = ema.shadow(x)
+                if isinstance(logits, tuple):
+                    logits = logits[0]
+                dices.append(dice_per_class(logits.float(), y).cpu().numpy())
+        per_class = np.mean(np.stack(dices), axis=0) if dices else np.zeros(1)
+        mean_dice = float(per_class.mean())
+
+        rec = {"epoch": ep + 1, "train_loss": running / max(nb, 1),
+               "val_dice_mean": mean_dice,
+               "val_dice_per_class": [round(float(v), 4) for v in per_class]}
+        log.epochs.append(rec)
+        print(f"[seg] epoch {ep+1}/{epochs} loss {rec['train_loss']:.4f} "
+              f"dice {mean_dice:.4f} {rec['val_dice_per_class']}", flush=True)
+
+        if mean_dice > log.best_metric:
+            log.best_metric, log.best_epoch = mean_dice, ep + 1
+            torch.save({"model": ema.shadow.state_dict(), "epoch": ep + 1,
+                        "dice": mean_dice, "config": log.config},
+                       out_dir / "best.pt")
+
+    log.elapsed_s = time.time() - t_start
+    (out_dir / "train_log.json").write_text(json.dumps(log.to_dict(), indent=2))
+    return log
+
+
+# --------------------------------------------------------------------------
+# Grading
+# --------------------------------------------------------------------------
+def train_grader(model, train_ds, val_ds, *, epochs: int = 15, batch_size: int = 16,
+                 lr: float = 3e-4, backbone_lr_mult: float = 0.25,
+                 weight_decay: float = 1e-4, num_workers: int = 4,
+                 device: str = "auto", out_dir: str | Path = "outputs/grader",
+                 amp: bool = True, class_weights: np.ndarray | None = None,
+                 clinical_fn=None, log_every: int = 20,
+                 ema_decay: float = 0.999) -> TrainLog:
+    """Train the ordinal grader.
+
+    ``clinical_fn(batch) -> Tensor`` supplies the clinical feature vector; pass
+    ``None`` to train the image-only ablation arm.
+
+    The backbone gets a lower learning rate than the head: the pretrained
+    features are already good and a full-rate update in the first epochs
+    destroys them, which is the usual reason transfer learning underperforms
+    on medical images.
+    """
+    from .models.grader import corn_loss, corn_predict, referable_prob
+    from .constants import REFERABLE_THRESHOLD
+    from sklearn.metrics import roc_auc_score
+
+    dev = device_of(device)
+    out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
+    model = model.to(dev)
+
+    tl = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+                    pin_memory=(dev.type == "cuda"), drop_last=True,
+                    persistent_workers=num_workers > 0)
+    vl = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers,
+                    pin_memory=(dev.type == "cuda"), persistent_workers=num_workers > 0)
+
+    backbone_params, head_params = [], []
+    for n, p in model.named_parameters():
+        (backbone_params if n.startswith("backbone.") else head_params).append(p)
+    opt = torch.optim.AdamW(
+        [{"params": backbone_params, "lr": lr * backbone_lr_mult},
+         {"params": head_params, "lr": lr}], weight_decay=weight_decay)
+    sched = cosine_warmup(opt, epochs * max(1, len(tl)))
+    scaler = torch.amp.GradScaler("cuda", enabled=amp and dev.type == "cuda")
+    ema = EMA(model, ema_decay)
+
+    cw = None
+    if class_weights is not None:
+        cw = torch.tensor(np.asarray(class_weights, np.float32), device=dev)
+
+    log = TrainLog(config={"epochs": epochs, "batch_size": batch_size, "lr": lr,
+                           "device": str(dev), "use_clinical": clinical_fn is not None})
+    t_start = time.time()
+
+    for ep in range(epochs):
+        if hasattr(train_ds, "set_epoch"):
+            train_ds.set_epoch(ep)
+        model.train()
+        running, nb = 0.0, 0
+        for i, batch in enumerate(tl):
+            x = batch["image"].to(dev, non_blocking=True)
+            y = batch["grade"].to(dev, non_blocking=True)
+            c = clinical_fn(batch).to(dev, non_blocking=True) if clinical_fn else None
+            opt.zero_grad(set_to_none=True)
+            with torch.amp.autocast("cuda", enabled=amp and dev.type == "cuda"):
+                logits = model(x, c)
+                loss = corn_loss(logits.float(), y, model.num_classes, cw)
+            scaler.scale(loss).backward()
+            scaler.unscale_(opt)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+            scaler.step(opt); scaler.update(); sched.step()
+            ema.update(model)
+            running += float(loss.item()); nb += 1
+            if log_every and i % log_every == 0:
+                print(f"  ep{ep+1} step {i}/{len(tl)} loss {running/max(nb,1):.4f}", flush=True)
+
+        # --- validation ---------------------------------------------------
+        ema.shadow.eval()
+        ys, preds, refs = [], [], []
+        with torch.no_grad():
+            for batch in vl:
+                x = batch["image"].to(dev, non_blocking=True)
+                y = batch["grade"]
+                c = clinical_fn(batch).to(dev, non_blocking=True) if clinical_fn else None
+                with torch.amp.autocast("cuda", enabled=amp and dev.type == "cuda"):
+                    logits = ema.shadow(x, c).float()
+                ys.append(y.numpy())
+                preds.append(corn_predict(logits).cpu().numpy())
+                refs.append(referable_prob(logits).cpu().numpy())
+
+        y_true = np.concatenate(ys); y_pred = np.concatenate(preds)
+        ref_score = np.concatenate(refs)
+        ref_true = (y_true >= REFERABLE_THRESHOLD).astype(int)
+
+        auc = float(roc_auc_score(ref_true, ref_score)) if 0 < ref_true.sum() < len(ref_true) else float("nan")
+        from .evaluation.metrics import quadratic_weighted_kappa
+        qwk = quadratic_weighted_kappa(y_true, y_pred)
+        acc = float((y_true == y_pred).mean())
+
+        rec = {"epoch": ep + 1, "train_loss": running / max(nb, 1),
+               "val_auc_referable": auc, "val_qwk": qwk, "val_accuracy": acc}
+        log.epochs.append(rec)
+        print(f"[grader] epoch {ep+1}/{epochs} loss {rec['train_loss']:.4f} "
+              f"AUC(ref) {auc:.4f} QWK {qwk:.4f} acc {acc:.4f}", flush=True)
+
+        # Selection metric is referable-DR AUC: it is the clinical decision and
+        # it is insensitive to the class imbalance that would let accuracy
+        # reward a model that never predicts grades 3-4.
+        score = auc if auc == auc else qwk
+        if score > log.best_metric:
+            log.best_metric, log.best_epoch = score, ep + 1
+            torch.save({"model": ema.shadow.state_dict(), "epoch": ep + 1,
+                        "auc": auc, "qwk": qwk, "config": log.config},
+                       out_dir / "best.pt")
+
+    log.elapsed_s = time.time() - t_start
+    (out_dir / "train_log.json").write_text(json.dumps(log.to_dict(), indent=2))
+    return log
+
+
+@torch.no_grad()
+def collect_logits(model, dataset, *, batch_size: int = 16, num_workers: int = 4,
+                   device: str = "auto", clinical_fn=None) -> dict:
+    """Run a model over a dataset and return logits/labels for calibration."""
+    dev = device_of(device)
+    model = model.to(dev).eval()
+    dl = DataLoader(dataset, batch_size=batch_size, shuffle=False,
+                    num_workers=num_workers, pin_memory=(dev.type == "cuda"))
+    L, Y = [], []
+    for batch in dl:
+        x = batch["image"].to(dev, non_blocking=True)
+        c = clinical_fn(batch).to(dev, non_blocking=True) if clinical_fn else None
+        with torch.amp.autocast("cuda", enabled=dev.type == "cuda"):
+            logits = model(x, c).float()
+        L.append(logits.cpu())
+        Y.append(batch["grade"])
+    return {"logits": torch.cat(L), "labels": torch.cat(Y)}

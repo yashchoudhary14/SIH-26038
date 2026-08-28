@@ -1,0 +1,15 @@
+{
+  "referral_threshold": 0.24188803136348724,
+  "temperature": 0.4452590048313141,
+  "size": 512,
+  "backbone": "tf_efficientnet_b0",
+  "defer_band": [
+    0.09188803136348725,
+    0.39188803136348727
+  ],
+  "model_version": "drscreen-1.0.0",
+  "validated_on": {
+    "internal_n": 780,
+    "external_n": 720
+  }
+}

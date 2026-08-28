@@ -1,0 +1,3 @@
+{"timestamp": "2026-08-27T19:39:29.399680+00:00", "image_id": "t1", "model_grade": 2, "reviewer_grade": 2, "reviewer": "unknown", "review_seconds": 12.4, "notes": "", "agreement": "exact"}
+{"timestamp": "2026-08-28T08:59:01.141182+00:00", "image_id": "20051020_62385_0100_PP", "model_grade": 2, "reviewer_grade": 2, "reviewer": "unknown", "review_seconds": 4.3, "notes": "", "agreement": "exact"}
+{"timestamp": "2026-08-28T08:59:15.032070+00:00", "image_id": "20051020_62385_0100_PP", "model_grade": 0, "reviewer_grade": 2, "reviewer": "unknown", "review_seconds": 4.0, "notes": "", "agreement": "disagree"}

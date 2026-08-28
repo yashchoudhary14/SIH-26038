@@ -1,0 +1,419 @@
+"""End-to-end inference pipeline.
+
+One entry point, :meth:`DRScreeningPipeline.run`, takes a raw fundus image and
+returns a complete, auditable screening result:
+
+1. **Geometry** -- FOV detection, tight crop, square pad, resize.
+2. **Quality gate** -- interpretable criteria; ungradeable images stop here
+   and return recapture instructions rather than a guessed grade.
+3. **Adaptive enhancement** -- only the corrections the gate says are needed.
+4. **Landmarks** -- optic disc and fovea, establishing the clinical
+   coordinate frame the grading criteria are defined in.
+5. **Segmentation** -- vessels and the five lesion classes.
+6. **Clinical features** -- lesion counts per quadrant, NV location, exudate
+   distance from the fovea.
+7. **Grading** -- ordinal CNN fused with those features, temperature-calibrated.
+8. **Decision** -- referral against a frozen operating point, with an
+   explicit abstain/defer band for the human-in-the-loop workflow.
+9. **Explanation** -- Grad-CAM++ over the referable log-odds, plus
+   lesion-level evidence in clinical language.
+
+Every stage records its latency, and the whole result is JSON-serialisable so
+it can be stored, audited, and replayed.
+"""
+from __future__ import annotations
+
+import json
+import time
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
+
+import cv2
+import numpy as np
+import torch
+
+from .constants import (ICDR_GRADES, LESION_CLASSES, NUM_LESION_CLASSES,
+                        RECAPTURE_ADVICE, REFERABLE_THRESHOLD,
+                        SIGHT_THREATENING_THRESHOLD)
+from .models.lesion_features import (ClinicalFeatures, extract, rule_grade,
+                                     dme_risk)
+from .preprocess.enhance import adaptive_enhance, to_model_input
+from .preprocess.fov import standardize
+from .preprocess.landmarks import Landmarks, locate
+from .preprocess.quality import assess, QualityReport, CORRECTABLE
+
+
+@dataclass
+class Timing:
+    stages: dict = field(default_factory=dict)
+    total_ms: float = 0.0
+
+
+@dataclass
+class ScreeningResult:
+    image_id: str = ""
+    gradeable: bool = True
+    quality: dict = field(default_factory=dict)
+    enhancement_applied: list = field(default_factory=list)
+    landmarks: dict = field(default_factory=dict)
+    grade: int = -1
+    grade_label: str = ""
+    class_probabilities: list = field(default_factory=list)
+    referable: bool = False
+    referable_probability: float = 0.0
+    confidence: float = 0.0
+    uncertainty: dict = field(default_factory=dict)
+    decision: str = ""            # auto_report | refer | defer_to_human | recapture
+    urgency: str = "routine"      # routine | soon | urgent
+    dme_risk: int = 0
+    clinical_features: dict = field(default_factory=dict)
+    evidence: list = field(default_factory=list)
+    rule_based_grade: int = -1
+    rule_based_reasons: list = field(default_factory=list)
+    agreement: str = ""
+    recapture_advice: list = field(default_factory=list)
+    timing_ms: dict = field(default_factory=dict)
+    model_version: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def to_json(self, **kw) -> str:
+        return json.dumps(self.to_dict(), indent=2, default=float, **kw)
+
+
+@dataclass
+class PipelineConfig:
+    size: int = 512
+    device: str = "auto"
+    lesion_threshold: float = 0.5
+    referral_threshold: float = 0.5      # overwritten by the calibrated value
+    defer_band: tuple[float, float] = (0.35, 0.65)
+    temperature: float = 1.0
+    mc_samples: int = 8
+    uncertainty_defer: float = 0.05      # epistemic variance above which we defer
+    enable_cam: bool = True
+    cam_method: str = "gradcam++"
+    model_version: str = "drscreen-1.0.0"
+
+
+class DRScreeningPipeline:
+    """Loads the trained components and runs the full screening flow."""
+
+    def __init__(self, seg_model=None, grader=None, cfg: PipelineConfig | None = None):
+        self.cfg = cfg or PipelineConfig()
+        self.device = torch.device(
+            "cuda" if (self.cfg.device == "auto" and torch.cuda.is_available())
+            else ("cpu" if self.cfg.device == "auto" else self.cfg.device))
+        self.seg = seg_model.to(self.device).eval() if seg_model is not None else None
+        self.grader = grader.to(self.device).eval() if grader is not None else None
+
+    # -- loading ----------------------------------------------------------
+    @classmethod
+    def load(cls, artifacts_dir: str | Path, cfg: PipelineConfig | None = None,
+             backbone: str = "tf_efficientnet_b0") -> "DRScreeningPipeline":
+        from .models.grader import DRGrader
+        from .models.segmentation import build_unet
+
+        d = Path(artifacts_dir)
+        cfg = cfg or PipelineConfig()
+
+        meta_path = d / "pipeline.json"
+        if meta_path.exists():
+            meta = json.loads(meta_path.read_text())
+            cfg.referral_threshold = float(meta.get("referral_threshold", cfg.referral_threshold))
+            cfg.temperature = float(meta.get("temperature", cfg.temperature))
+            cfg.size = int(meta.get("size", cfg.size))
+            cfg.defer_band = tuple(meta.get("defer_band", cfg.defer_band))
+            backbone = meta.get("backbone", backbone)
+            cfg.model_version = meta.get("model_version", cfg.model_version)
+
+        seg = None
+        seg_ckpt = d / "segmentation.pt"
+        if seg_ckpt.exists():
+            ck = torch.load(seg_ckpt, map_location="cpu", weights_only=False)
+            seg = build_unet("lesion", width=int(ck.get("width", 24)))
+            seg.load_state_dict(ck["model"])
+
+        grader = None
+        g_ckpt = d / "grader.pt"
+        if g_ckpt.exists():
+            ck = torch.load(g_ckpt, map_location="cpu", weights_only=False)
+            grader = DRGrader(backbone=backbone, pretrained=False,
+                              use_clinical=bool(ck.get("use_clinical", True)))
+            grader.load_state_dict(ck["model"])
+
+        return cls(seg, grader, cfg)
+
+    # -- stages -----------------------------------------------------------
+    def _to_tensor(self, img_rgb: np.ndarray) -> torch.Tensor:
+        from .data.torch_data import to_tensor
+        return to_tensor(img_rgb).unsqueeze(0).to(self.device)
+
+    @torch.no_grad()
+    def _segment(self, x: torch.Tensor) -> np.ndarray:
+        if self.seg is None:
+            return np.zeros((x.shape[-2], x.shape[-1], NUM_LESION_CLASSES), np.float32)
+        logits = self.seg(x)
+        if isinstance(logits, tuple):
+            logits = logits[0]
+        probs = torch.sigmoid(logits.float())[0].permute(1, 2, 0).cpu().numpy()
+        return probs
+
+    # -- main -------------------------------------------------------------
+    def run(self, image: np.ndarray | str | Path, image_id: str = "",
+            explain: bool = True) -> tuple[ScreeningResult, dict]:
+        """Run the full pipeline.
+
+        Returns ``(result, artifacts)`` where artifacts carries the arrays a
+        report needs (enhanced image, CAM, overlays) but which do not belong
+        in a JSON record.
+        """
+        t_all = time.perf_counter()
+        timing: dict[str, float] = {}
+        res = ScreeningResult(image_id=image_id or "case",
+                              model_version=self.cfg.model_version)
+        artifacts: dict = {}
+
+        if isinstance(image, (str, Path)):
+            res.image_id = image_id or Path(image).stem
+            raw = cv2.imread(str(image), cv2.IMREAD_COLOR)
+            if raw is None:
+                raise FileNotFoundError(f"Cannot read image: {image}")
+        else:
+            raw = image
+        artifacts["raw"] = raw
+
+        # 1. geometry ------------------------------------------------------
+        t = time.perf_counter()
+        img, fov_mask, fov = standardize(raw, size=self.cfg.size)
+        timing["geometry"] = (time.perf_counter() - t) * 1000
+        artifacts["standardized"] = img
+        artifacts["fov_mask"] = fov_mask
+
+        # 2. landmarks (needed by the quality gate) ------------------------
+        t = time.perf_counter()
+        lm = locate(img, fov_mask)
+        timing["landmarks"] = (time.perf_counter() - t) * 1000
+        res.landmarks = lm.to_dict()
+        artifacts["landmarks"] = lm
+
+        # 3. quality gate --------------------------------------------------
+        t = time.perf_counter()
+        q: QualityReport = assess(img, fov_mask, fov, landmarks=lm)
+        timing["quality"] = (time.perf_counter() - t) * 1000
+        res.quality = q.to_dict()
+        res.gradeable = q.gradeable
+
+        if not q.gradeable:
+            res.decision = "recapture"
+            res.recapture_advice = q.advice
+            res.grade_label = "Ungradeable"
+            timing["total"] = (time.perf_counter() - t_all) * 1000
+            res.timing_ms = {k: round(v, 2) for k, v in timing.items()}
+            return res, artifacts
+
+        # 4. adaptive enhancement, then re-check the correctable criteria ---
+        t = time.perf_counter()
+        enhanced, applied = adaptive_enhance(img, fov_mask, q.issues)
+        timing["enhancement"] = (time.perf_counter() - t) * 1000
+        res.enhancement_applied = applied
+        artifacts["enhanced"] = enhanced
+
+        # The first pass treats correctable defects (uneven flash, exposure,
+        # low contrast, noise) as "enhance", not "reject" -- software can undo
+        # them, and sending a patient home for a fixable image wastes a visit.
+        # Whether it *actually* fixed them is an empirical question, so re-run
+        # the gate on the enhanced image and reject only what survived.
+        if applied:
+            t = time.perf_counter()
+            q2 = assess(enhanced, fov_mask, fov, landmarks=lm)
+            timing["quality_recheck"] = (time.perf_counter() - t) * 1000
+            still_failing = [k for k, v in q2.verdicts.items()
+                             if v == "fail" and k in CORRECTABLE]
+            res.quality = q2.to_dict()
+            res.quality["first_pass"] = {
+                "overall": q.overall,
+                "issues": q.issues,
+                "scores": q.scores,
+            }
+            if still_failing:
+                res.gradeable = False
+                res.decision = "recapture"
+                res.recapture_advice = [
+                    RECAPTURE_ADVICE.get(k, f"Recapture: {k} inadequate.")
+                    for k in still_failing]
+                res.recapture_advice.insert(0, (
+                    "Enhancement was applied (" + ", ".join(applied) +
+                    ") but the image is still not gradeable."))
+                res.grade_label = "Ungradeable"
+                timing["total"] = (time.perf_counter() - t_all) * 1000
+                res.timing_ms = {k: round(v, 2) for k, v in timing.items()}
+                return res, artifacts
+            q = q2
+
+        model_in = to_model_input(enhanced, fov_mask, mode="hybrid")
+        artifacts["model_input"] = model_in
+
+        x = self._to_tensor(model_in)
+
+        # 5. segmentation --------------------------------------------------
+        t = time.perf_counter()
+        lesion_probs = self._segment(x)
+        timing["segmentation"] = (time.perf_counter() - t) * 1000
+        artifacts["lesion_probs"] = lesion_probs
+
+        # 6. clinical features ---------------------------------------------
+        t = time.perf_counter()
+        vessel = self._vessel_proxy(enhanced, fov_mask)
+        feats = extract(lesion_probs, lm, fov_mask, vessel,
+                        threshold=self.cfg.lesion_threshold)
+        timing["clinical_features"] = (time.perf_counter() - t) * 1000
+        res.clinical_features = {
+            "counts": feats.counts,
+            "per_quadrant": feats.per_quadrant,
+            "quadrants_with_hemorrhage": feats.quadrants_with_hemorrhage,
+            "quadrants_with_beading": feats.quadrants_with_beading,
+            "nv_at_disc": feats.nv_at_disc,
+            "nv_elsewhere": feats.nv_elsewhere,
+            "lesions_within_1dd_of_fovea": feats.lesions_within_1dd_of_fovea,
+            "nearest_lesion_dd": round(feats.nearest_lesion_dd, 2),
+        }
+        artifacts["features"] = feats
+        artifacts["vessel_mask"] = vessel
+
+        # 7. rule-based grade (classical arm + the audit trail) ------------
+        rg, reasons = rule_grade(feats)
+        res.rule_based_grade = rg
+        res.rule_based_reasons = reasons
+        dme, dme_reason = dme_risk(feats)
+        res.dme_risk = dme
+
+        # 8. neural grading -------------------------------------------------
+        t = time.perf_counter()
+        if self.grader is not None:
+            c = torch.from_numpy(feats.to_vector()).unsqueeze(0).to(self.device)
+            pred = self.grader.predict(x, c, mc_samples=self.cfg.mc_samples,
+                                       temperature=self.cfg.temperature)
+            probs = pred["class_probs"][0].cpu().numpy()
+            res.grade = int(np.argmax(probs))
+            res.class_probabilities = [round(float(p), 4) for p in probs]
+            res.referable_probability = float(pred["referable_prob"][0])
+            res.confidence = float(probs.max())
+            res.uncertainty = {
+                "entropy": round(float(pred["entropy"][0]), 4),
+                "epistemic_variance": round(float(pred["epistemic"][0]), 5),
+            }
+        else:
+            # No trained grader: fall back to the rule engine so the pipeline
+            # still returns a defensible answer rather than nothing.
+            res.grade = rg
+            probs = np.zeros(len(ICDR_GRADES), np.float32); probs[rg] = 1.0
+            res.class_probabilities = probs.tolist()
+            res.referable_probability = float(rg >= REFERABLE_THRESHOLD)
+            res.confidence = 0.5
+            res.uncertainty = {"entropy": 0.0, "epistemic_variance": 0.0}
+        timing["grading"] = (time.perf_counter() - t) * 1000
+
+        res.grade_label = ICDR_GRADES[res.grade]
+        res.referable = res.referable_probability >= self.cfg.referral_threshold
+
+        # 9. decision & urgency ---------------------------------------------
+        res.decision, res.urgency = self._decide(res, feats)
+        res.agreement = self._agreement(res.grade, rg)
+
+        # 10. evidence -------------------------------------------------------
+        res.evidence = self._build_evidence(feats, reasons, dme_reason, res)
+
+        # 11. explanation ----------------------------------------------------
+        if explain and self.cfg.enable_cam and self.grader is not None:
+            t = time.perf_counter()
+            try:
+                from .explain.cam import compute_cam
+                c = torch.from_numpy(feats.to_vector()).unsqueeze(0).to(self.device)
+                cam = compute_cam(self.grader, x, c, method=self.cfg.cam_method,
+                                  target="referable",
+                                  referable_index=REFERABLE_THRESHOLD - 1,
+                                  fov_mask=fov_mask)
+                artifacts["cam"] = cam
+            except Exception as e:                # never let XAI break screening
+                artifacts["cam_error"] = str(e)
+            timing["explanation"] = (time.perf_counter() - t) * 1000
+
+        timing["total"] = (time.perf_counter() - t_all) * 1000
+        res.timing_ms = {k: round(v, 2) for k, v in timing.items()}
+        return res, artifacts
+
+    # -- helpers ----------------------------------------------------------
+    @staticmethod
+    def _vessel_proxy(image: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        """Morphological vessel map, used when no vessel network is loaded.
+
+        The clinical features only need vessel *calibre statistics*, which a
+        bottom-hat + hysteresis threshold estimates adequately; a full U-Net
+        is used when one is trained on DRIVE.
+        """
+        g = image[..., 1].astype(np.float32)
+        k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+        bg = cv2.morphologyEx(g, cv2.MORPH_CLOSE, k)
+        resp = np.clip(bg - g, 0, None)
+        resp[mask == 0] = 0
+        if resp.max() <= 0:
+            return np.zeros(g.shape, np.uint8)
+        norm = (resp / resp.max() * 255).astype(np.uint8)
+        hi = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+        return cv2.morphologyEx(hi, cv2.MORPH_OPEN,
+                                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+
+    def _decide(self, res: ScreeningResult, feats: ClinicalFeatures) -> tuple[str, str]:
+        lo, hi = self.cfg.defer_band
+        p = res.referable_probability
+        eps = res.uncertainty.get("epistemic_variance", 0.0)
+
+        # Anything sight-threatening or with macular involvement always sees a
+        # human, no matter how confident the model is. Confidence is not a
+        # licence to auto-report a potentially blinding finding.
+        if res.grade >= SIGHT_THREATENING_THRESHOLD or feats.nv_at_disc or feats.nv_elsewhere:
+            return "refer", "urgent"
+        if res.dme_risk >= 2:
+            return "refer", "urgent"
+
+        if lo <= p <= hi or eps > self.cfg.uncertainty_defer:
+            return "defer_to_human", ("soon" if p >= self.cfg.referral_threshold else "routine")
+        if p >= self.cfg.referral_threshold:
+            return "refer", "soon"
+        return "auto_report", "routine"
+
+    @staticmethod
+    def _agreement(neural: int, rule: int) -> str:
+        d = abs(neural - rule)
+        if d == 0:
+            return "exact"
+        if d == 1:
+            return "within_one_grade"
+        return "disagree"
+
+    def _build_evidence(self, feats: ClinicalFeatures, reasons: list[str],
+                        dme_reason: str, res: ScreeningResult) -> list[dict]:
+        ev: list[dict] = []
+        for name in LESION_CLASSES:
+            n = feats.counts.get(name, 0)
+            if n == 0:
+                continue
+            per_q = feats.per_quadrant.get(name, {})
+            ev.append({
+                "finding": name.replace("_", " "),
+                "count": n,
+                "per_quadrant": {k: v for k, v in per_q.items() if v},
+                "area_percent": round(feats.area_fraction.get(name, 0.0) * 100, 3),
+            })
+        for r in reasons:
+            ev.append({"criterion": r})
+        if dme_reason:
+            ev.append({"macular_assessment": dme_reason})
+        if res.agreement == "disagree":
+            ev.append({"caution": (
+                f"The deep model graded {res.grade} ({ICDR_GRADES[res.grade]}) while the "
+                f"rule-based criteria give {res.rule_based_grade} "
+                f"({ICDR_GRADES[res.rule_based_grade]}). Flagged for human adjudication.")})
+        return ev

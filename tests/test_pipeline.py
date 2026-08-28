@@ -1,0 +1,435 @@
+"""Regression tests for the invariants that matter clinically.
+
+These are not coverage theatre. Each test guards a property whose silent
+violation would produce a plausible-looking but wrong screening result --
+the failure mode that makes medical ML dangerous.
+
+    python -m pytest tests/ -v
+"""
+from __future__ import annotations
+
+import numpy as np
+import pytest
+import torch
+
+from drscreen.constants import NUM_GRADES, NUM_LESION_CLASSES, REFERABLE_THRESHOLD
+
+
+# --------------------------------------------------------------------------
+# Ordinal head
+# --------------------------------------------------------------------------
+def test_corn_probabilities_are_a_distribution():
+    from drscreen.models.grader import corn_class_probs
+    logits = torch.randn(64, NUM_GRADES - 1) * 3
+    p = corn_class_probs(logits)
+    assert p.shape == (64, NUM_GRADES)
+    assert torch.allclose(p.sum(1), torch.ones(64), atol=1e-5)
+    assert (p >= 0).all()
+
+
+def test_corn_cumulative_is_monotone():
+    """P(y>k) must never increase with k -- the guarantee softmax cannot give."""
+    from drscreen.models.grader import corn_cumulative_probs
+    logits = torch.randn(256, NUM_GRADES - 1) * 5
+    cum = corn_cumulative_probs(logits)
+    assert (torch.diff(cum, dim=1) <= 1e-6).all()
+
+
+def test_referable_probability_matches_class_sum():
+    from drscreen.models.grader import corn_class_probs, referable_prob
+    logits = torch.randn(128, NUM_GRADES - 1) * 2
+    direct = referable_prob(logits)
+    summed = corn_class_probs(logits)[:, REFERABLE_THRESHOLD:].sum(1)
+    assert torch.allclose(direct, summed, atol=1e-5)
+
+
+def test_corn_loss_decreases_on_correct_ordering():
+    from drscreen.models.grader import corn_loss
+    y = torch.tensor([0, 1, 2, 3, 4])
+    good = torch.tensor([[-5., -5, -5, -5], [5., -5, -5, -5], [5., 5, -5, -5],
+                         [5., 5, 5, -5], [5., 5, 5, 5]])
+    bad = -good
+    assert float(corn_loss(good, y)) < float(corn_loss(bad, y))
+
+
+# --------------------------------------------------------------------------
+# Statistics
+# --------------------------------------------------------------------------
+def test_delong_auc_matches_sklearn():
+    from sklearn.metrics import roc_auc_score
+    from drscreen.evaluation.metrics import delong_auc_ci
+    rng = np.random.default_rng(0)
+    y = (rng.random(500) < 0.3).astype(int)
+    s = rng.normal(y, 1.0)
+    auc, lo, hi = delong_auc_ci(s, y)
+    assert abs(auc - roc_auc_score(y, s)) < 1e-9
+    assert lo < auc < hi
+
+
+def test_wilson_interval_bounded_at_extremes():
+    from drscreen.evaluation.metrics import wilson_interval
+    lo, hi = wilson_interval(100, 100)
+    assert 0.0 <= lo <= 1.0 and hi == pytest.approx(1.0, abs=1e-9)
+    lo, hi = wilson_interval(0, 50)
+    assert lo == pytest.approx(0.0, abs=1e-9) and hi < 1.0
+
+
+def test_threshold_selection_respects_sensitivity_constraint():
+    """Sensitivity is the binding constraint; the selector must never trade it away."""
+    from drscreen.models.calibration import select_threshold
+    rng = np.random.default_rng(1)
+    y = (rng.random(2000) < 0.25).astype(int)
+    p = np.clip(rng.normal(0.35 + 0.4 * y, 0.16), 0, 1)
+    op = select_threshold(p, y, min_sensitivity=0.90, min_specificity=0.85)
+    assert op.sensitivity >= 0.90 - 1e-9, op.rationale
+
+
+def test_temperature_effect_on_corn_ranking_is_negligible():
+    """Temperature scaling is NOT exactly rank-preserving for a CORN head.
+
+    For a single logit, z -> z/T is monotone and AUC is invariant. For CORN the
+    referable score is a product of sigmoids, and T does not factor out of that
+    product, so the ranking can change. This test pins the magnitude: the shift
+    must stay far below the sampling error of any realistic test set, and it
+    documents the property so nobody later "fixes" a discrepancy that is real.
+    """
+    from sklearn.metrics import roc_auc_score
+    from drscreen.models.grader import referable_prob
+    torch.manual_seed(0)
+    logits = torch.randn(4000, NUM_GRADES - 1) * 2.5
+    y = (torch.randint(0, NUM_GRADES, (4000,)) >= REFERABLE_THRESHOLD).numpy().astype(int)
+    a = referable_prob(logits).numpy()
+    b = referable_prob(logits / 2.5).numpy()
+    assert 0 < y.sum() < len(y)
+    assert abs(roc_auc_score(y, a) - roc_auc_score(y, b)) < 5e-3
+
+
+def test_isotonic_recalibration_never_inverts_a_pair():
+    """The binary referral decision must keep its ordering under recalibration.
+
+    The property is *non-inversion*, not rank identity: isotonic regression is a
+    step function, so it legitimately maps distinct inputs to equal outputs.
+    Those ties lower Spearman's rho without ever swapping two cases, and a naive
+    rho > 0.999 assertion would fail on correct behaviour. What must never
+    happen is a lower-scored case coming out above a higher-scored one, because
+    that would reorder the review queue.
+    """
+    from drscreen.models.calibration import IsotonicCalibrator
+    rng = np.random.default_rng(0)
+    p = rng.random(1000)
+    y = (rng.random(1000) < p).astype(int)
+    q = IsotonicCalibrator().fit(p, y)(p)
+
+    order = np.argsort(p)
+    assert np.all(np.diff(q[order]) >= -1e-12), "isotonic inverted a pair"
+
+    # AUC is *not* bit-identical afterwards, and that is correct rather than a
+    # bug. Isotonic collapses ~1000 distinct scores onto ~18 levels, and AUC
+    # scores a tie as half credit. So a pair that was ordered correctly loses
+    # half its credit, and a pair that was ordered *incorrectly* gains half --
+    # which means AUC can move in either direction. Fitting in-sample as we do
+    # here, it typically edges up. Bound the magnitude both ways rather than
+    # asserting a direction that does not hold.
+    from sklearn.metrics import roc_auc_score
+    before, after = roc_auc_score(y, p), roc_auc_score(y, q)
+    assert abs(after - before) < 0.02, f"AUC moved too far ({before:.4f} -> {after:.4f})"
+    assert len(np.unique(q)) < len(np.unique(p)), "isotonic should quantise the scale"
+
+
+# --------------------------------------------------------------------------
+# Preprocessing and geometry
+# --------------------------------------------------------------------------
+def test_fov_detection_finds_the_aperture():
+    from drscreen.data.synthetic import generate
+    from drscreen.preprocess.fov import detect_fov
+    p = generate(grade=0, size=512, seed=3)
+    fov = detect_fov(p.image)
+    assert 0.25 < fov.fill_ratio < 1.0
+    assert fov.radius > 512 * 0.25
+
+
+def test_standardize_is_square_and_masked():
+    from drscreen.data.synthetic import generate
+    from drscreen.preprocess.fov import standardize
+    p = generate(grade=1, size=700, seed=4)
+    img, mask, _ = standardize(p.image, size=384)
+    assert img.shape == (384, 384, 3)
+    assert mask.shape == (384, 384)
+    assert (img[mask == 0] == 0).all()
+
+
+def test_landmarks_locate_disc_and_fovea():
+    """Both landmarks within 1 disc diameter on a clean phantom."""
+    import math
+    from drscreen.data.synthetic import generate
+    from drscreen.preprocess.fov import standardize
+    from drscreen.preprocess.landmarks import locate
+
+    hits_d = hits_f = 0
+    n = 12
+    for i in range(n):
+        p = generate(size=512, seed=500 + i, severity=0.15)
+        img, mask, fov = standardize(p.image, size=512)
+        x0, y0, x1, y1 = fov.bbox
+        px, py = int(0.02 * (x1 - x0)), int(0.02 * (y1 - y0))
+        X0, Y0 = max(0, x0 - px), max(0, y0 - py)
+        X1 = min(p.image.shape[1], x1 + px); Y1 = min(p.image.shape[0], y1 + py)
+        ch, cw = Y1 - Y0, X1 - X0
+        side = max(ch, cw); top, left = (side - ch) // 2, (side - cw) // 2
+        sc = 512 / side
+        gd = ((p.disc_xy[0] - X0 + left) * sc, (p.disc_xy[1] - Y0 + top) * sc)
+        gf = ((p.fovea_xy[0] - X0 + left) * sc, (p.fovea_xy[1] - Y0 + top) * sc)
+        lm = locate(img, mask)
+        dd = p.disc_radius * 2 * sc
+        hits_d += math.dist(lm.disc_xy, gd) / dd <= 1.0
+        hits_f += math.dist(lm.fovea_xy, gf) / dd <= 1.0
+    assert hits_d >= int(0.80 * n), f"optic disc {hits_d}/{n}"
+    assert hits_f >= int(0.80 * n), f"fovea {hits_f}/{n}"
+
+
+def test_quality_gate_rejects_what_enhancement_cannot_fix():
+    """Severely degraded images must be refused -- *after* enhancement is tried.
+
+    The gate distinguishes correctable defects (uneven flash, exposure, low
+    contrast, noise) from unrecoverable ones (defocus, clipped field, absent
+    macula, saturation). Rejecting on a correctable defect would send a patient
+    back for a second visit over something the illumination normaliser fixes in
+    40 ms, so the contract is: enhance first, then reject only what survived.
+
+    This test therefore runs the full pipeline rather than a bare `assess`,
+    because a bare first-pass verdict is deliberately permissive now.
+    """
+    from drscreen.data.synthetic import generate
+    from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
+    pipe = DRScreeningPipeline(None, None, PipelineConfig(size=512, enable_cam=False))
+    rejected = 0
+    for i in range(8):
+        p = generate(grade=0, size=512, seed=700 + i, severity=1.0,
+                     camera="smartphone_ro")
+        r, _ = pipe.run(p.image)
+        if not r.gradeable:
+            rejected += 1
+            assert r.recapture_advice, "rejection must come with actionable advice"
+    assert rejected >= 3, "quality gate is too permissive on severe degradation"
+
+
+def test_correctable_defects_do_not_trigger_recapture():
+    """An uneven flash is a software problem, not a second patient visit.
+
+    Regression guard for a real bug: the gate used to reject on `illumination`
+    before enhancement ran, so a perfectly gradeable proliferative-DR image
+    from a high-vignette handheld camera came back as "recapture" -- the worst
+    possible failure, since that patient most needs the referral.
+    """
+    from drscreen.data.synthetic import generate
+    from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
+    pipe = DRScreeningPipeline(None, None, PipelineConfig(size=512, enable_cam=False))
+    for cam in ("handheld_b", "handheld_a"):
+        for g in (2, 4):
+            p = generate(grade=g, size=640, seed=100 + g, severity=0.2, camera=cam)
+            r, _ = pipe.run(p.image)
+            assert r.gradeable, (
+                f"{cam} grade {g} rejected on correctable defects: "
+                f"{[k for k, v in r.quality['verdicts'].items() if v == 'fail']}")
+
+
+def test_quality_gate_accepts_clean_images():
+    from drscreen.data.synthetic import generate
+    from drscreen.preprocess.fov import standardize
+    from drscreen.preprocess.quality import assess
+    accepted = 0
+    for i in range(8):
+        p = generate(grade=0, size=512, seed=800 + i, severity=0.0,
+                     camera="topcon_nw400")
+        img, mask, fov = standardize(p.image, size=512)
+        q = assess(img, mask, fov)
+        accepted += q.gradeable
+    assert accepted >= 7, "quality gate rejects clean images"
+
+
+def test_ungradeable_images_produce_advice_not_a_grade():
+    """The gate must never let a rejected image emerge with a confident grade."""
+    from drscreen.data.synthetic import generate
+    from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
+    pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
+    p = generate(grade=3, size=640, seed=13, severity=1.0, camera="smartphone_ro")
+    res, _ = pipe.run(p.image)
+    if not res.gradeable:
+        assert res.decision == "recapture"
+        assert res.recapture_advice
+        assert res.grade == -1
+
+
+# --------------------------------------------------------------------------
+# Clinical rules
+# --------------------------------------------------------------------------
+def test_rule_grader_follows_icdr_ordering():
+    from drscreen.models.lesion_features import ClinicalFeatures, rule_grade, QUADRANTS
+    from drscreen.constants import LESION_CLASSES
+
+    def make(**counts) -> ClinicalFeatures:
+        f = ClinicalFeatures()
+        f.counts = {c: counts.get(c, 0) for c in LESION_CLASSES}
+        f.per_quadrant = {c: dict.fromkeys(QUADRANTS, 0) for c in LESION_CLASSES}
+        f.area_fraction = {c: 0.0 for c in LESION_CLASSES}
+        return f
+
+    assert rule_grade(make())[0] == 0
+    assert rule_grade(make(microaneurysm=3))[0] == 1
+    assert rule_grade(make(microaneurysm=12, hemorrhage=4))[0] == 2
+    f = make(microaneurysm=40, hemorrhage=40); f.quadrants_with_hemorrhage = 4
+    assert rule_grade(f)[0] == 3
+    f = make(neovascularization=2); f.nv_at_disc = True
+    assert rule_grade(f)[0] == 4
+
+
+def test_no_beading_false_positive_on_healthy_vessels():
+    """The 4-2-1 'venous beading' arm must not fire on normal anatomy."""
+    from drscreen.data.synthetic import generate
+    from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
+    pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
+    fired = checked = 0
+    for i in range(10):
+        p = generate(grade=0, size=640, seed=300 + i, severity=0.10)
+        res, art = pipe.run(p.image)
+        if "features" not in art:      # gate rejected it; nothing to check
+            continue
+        checked += 1
+        fired += art["features"].quadrants_with_beading >= 2
+    assert checked >= 5, "too few gradeable phantoms to test"
+    assert fired == 0, "venous-beading detector fires on healthy retinas"
+
+
+def test_clinical_feature_vector_is_fixed_length():
+    from drscreen.models.lesion_features import ClinicalFeatures
+    f = ClinicalFeatures()
+    f.per_quadrant = {}
+    v = f.to_vector()
+    assert v.shape == (ClinicalFeatures.vector_size(),)
+    assert len(ClinicalFeatures.feature_names()) == ClinicalFeatures.vector_size()
+    assert np.isfinite(v).all()
+
+
+# --------------------------------------------------------------------------
+# Split hygiene
+# --------------------------------------------------------------------------
+def test_messidor2_cannot_enter_the_training_pool():
+    from drscreen.data.registry import Sample, assert_no_leakage, SplitViolation
+    from pathlib import Path
+    train = [Sample(Path("a.png"), grade=0, dataset="messidor2", subject_id="a")]
+    with pytest.raises(SplitViolation):
+        assert_no_leakage(train)
+
+
+def test_group_split_keeps_subjects_together():
+    from drscreen.data.registry import Sample, group_split
+    from pathlib import Path
+    samples = [Sample(Path(f"{i}_{eye}.png"), grade=0, dataset="aptos2019",
+                      subject_id=str(i))
+               for i in range(200) for eye in ("left", "right")]
+    train, val = group_split(samples, 0.2)
+    assert {s.subject_id for s in train}.isdisjoint({s.subject_id for s in val})
+
+
+# --------------------------------------------------------------------------
+# Models
+# --------------------------------------------------------------------------
+def test_unet_shapes_and_deep_supervision():
+    from drscreen.models.segmentation import build_unet
+    m = build_unet("lesion", width=8)
+    x = torch.randn(2, 3, 128, 128)
+    m.train()
+    out, aux = m(x)
+    assert out.shape == (2, NUM_LESION_CLASSES, 128, 128)
+    assert all(a.shape[1] == NUM_LESION_CLASSES for a in aux)
+    m.eval()
+    assert m(x).shape == (2, NUM_LESION_CLASSES, 128, 128)
+
+
+def test_tversky_penalises_false_negatives_more():
+    """The asymmetry that protects microaneurysm sensitivity."""
+    from drscreen.models.segmentation import tversky_loss
+    target = torch.zeros(1, 1, 16, 16); target[..., 4:8, 4:8] = 1
+    miss = torch.full_like(target, -6.0)                      # predicts nothing
+    over = torch.full_like(target, 6.0)                       # predicts everything
+    assert float(tversky_loss(miss, target)) > float(tversky_loss(over, target))
+
+
+def test_clinical_arm_is_actually_blind_to_the_image():
+    """The ablation is only meaningful if each arm uses what it claims to.
+
+    A "clinical features only" baseline that quietly still sees the image would
+    make the fusion model's advantage look smaller than it is; one that also
+    ignored the clinical vector would make it look larger. Both directions
+    corrupt the headline claim, so both are pinned here. Must be checked in
+    eval mode -- dropout alone makes train-mode outputs differ run to run.
+    """
+    from drscreen.models.grader import DRGrader
+    from drscreen.models.lesion_features import ClinicalFeatures
+    m = DRGrader(backbone="resnet18", pretrained=False,
+                 use_clinical=True, use_image=False).eval()
+    x = torch.randn(2, 3, 128, 128)
+    c = torch.randn(2, ClinicalFeatures.vector_size())
+    assert torch.allclose(m(x, c), m(torch.randn_like(x) * 7, c), atol=1e-6),         "clinical-only arm is still reading the image"
+    assert not torch.allclose(m(x, c), m(x, torch.randn_like(c)), atol=1e-4),         "clinical-only arm ignores the clinical features"
+
+    import copy
+    assert copy.deepcopy(m).use_image is False, "EMA deepcopy loses use_image"
+
+
+def test_pipeline_runs_without_trained_models():
+    """The service must degrade to the rule engine, never crash."""
+    from drscreen.data.synthetic import generate
+    from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
+    pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
+    p = generate(grade=2, size=600, seed=21, severity=0.2)
+    res, art = pipe.run(p.image, image_id="t")
+    assert res.image_id == "t"
+    assert "total" in res.timing_ms
+    assert res.rule_based_grade in range(NUM_GRADES)
+
+
+def test_report_renders_without_a_cam():
+    from drscreen.data.synthetic import generate
+    from drscreen.explain.report import render_html
+    from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
+    pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
+    p = generate(grade=1, size=600, seed=22, severity=0.2)
+    res, art = pipe.run(p.image, image_id="r")
+    html = render_html(res, art)
+    assert "<!doctype html>" in html.lower()
+    assert "Diabetic Retinopathy Screening Report" in html
+
+
+# --------------------------------------------------------------------------
+# Simulation
+# --------------------------------------------------------------------------
+def test_simulation_conserves_patients():
+    from drscreen.sim.telemedicine import simulate, SimConfig
+    r = simulate(SimConfig(sim_days=30, warmup_days=3, n_phc=4,
+                           annual_patients=8000, seed=0))
+    assert r.n_captured + r.n_rejected_ungradeable <= r.n_arrived
+    assert r.n_auto_reported + r.n_human_reviewed <= r.n_graded
+
+
+def test_ai_triage_reduces_reviewer_load():
+    """The central capacity claim of the whole system."""
+    from drscreen.sim.telemedicine import simulate, SimConfig
+    base = dict(sim_days=45, warmup_days=5, n_phc=12, annual_patients=100_000,
+                ophthalmologists=2.0, seed=0)
+    manual = simulate(SimConfig(**base, auto_report_coverage=0.0, review_time_min=2.5))
+    ai = simulate(SimConfig(**base, auto_report_coverage=0.70, review_time_min=0.5))
+    assert ai.utilisation["reviewer"] < manual.utilisation["reviewer"] * 0.5
+
+
+def test_simulink_export_writes_valid_matlab():
+    import tempfile
+    from pathlib import Path
+    from drscreen.sim.simulink_export import export_all
+    from drscreen.sim.telemedicine import SimConfig
+    with tempfile.TemporaryDirectory() as d:
+        paths = export_all(SimConfig(), d)
+        params = Path(paths["params"]).read_text()
+        assert "function p = dr_screening_params()" in params
+        assert "p.mean_interarrival_min" in params
+        assert params.count("end") >= 1
