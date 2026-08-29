@@ -331,6 +331,51 @@ are excluded rather than scored as a sixth class.
 The referable prevalence also differs (45% internal vs 26% external), which
 changes PPV but not sensitivity.
 
+### Why moderate NPDR specifically — the reference standards disagree
+
+Median total lesion burden (MA + haemorrhage + exudate) detected by the *same*
+segmentation model, by the label each cohort assigns:
+
+| true grade | APTOS / IDRiD | Messidor-2 |
+|---|---|---|
+| 0 — no DR | 24 | 22 |
+| 1 — mild NPDR | 47 | 20 |
+| **2 — moderate NPDR** | **146** | **46** |
+| 3 — severe NPDR | 198 | 162 |
+| 4 — proliferative | 164 | 133 |
+
+Grade 0 is identical across cohorts (24 vs 22), which rules out the obvious
+suspect: the segmentation has **not** stopped working on Messidor-2 images.
+Grades 3 and 4 are comparable too. Only grade 2 diverges, by more than 3x —
+and a Messidor-2 "moderate NPDR" (46 lesions) carries *less* disease than an
+APTOS "mild NPDR" (47).
+
+So the model is not misreading the images. It is applying APTOS's *de facto*
+definition of moderate NPDR, which reserves grade 2 for visibly heavy disease,
+to a cohort graded by three retinal specialists applying ICDR *de jure*, where
+moderate NPDR can be a single haemorrhage. APTOS ships one grader per image
+with documented label noise; Messidor-2 ships adjudicated consensus. Those are
+different populations wearing the same label.
+
+The ranking survives — on Messidor-2 the median P(referable) is 0.000 for
+grade 1 and 0.250 for grade 2, correctly ordered, just sitting below a
+threshold learned from a stricter-looking population. Which means the fix is
+recalibration, not retraining:
+
+| threshold | sens (all referable) | sens (grade 2) | sens (grade ≥3) | specificity | % flagged |
+|---|---|---|---|---|---|
+| 0.657 *(frozen)* | 35.7% | 19.6% | 86.4% | 98.8% | 10.3% |
+| 0.400 | 42.7% | 27.7% | 90.0% | 97.7% | 12.8% |
+| **0.250** | 61.5% | 50.7% | **95.5%** | **92.3%** | 21.8% |
+| 0.150 | 73.5% | 66.0% | 97.3% | 83.2% | 31.7% |
+| 0.050 | 88.6% | 85.3% | 99.1% | 64.0% | 49.8% |
+
+At 0.250 the system catches **95.5% of sight-threatening disease at 92.3%
+specificity** while flagging only 22% of the population for review — a
+deployable operating point, reached by moving one number. This is the concrete
+argument for fitting the threshold per site against a few hundred local
+labels, and for the audit log that collects them.
+
 **This is the honest state of the system**: usable as a triage aid on
 populations resembling its training data, not yet deployable on unseen
 cameras. Closing it needs domain adaptation, multi-source training, or
