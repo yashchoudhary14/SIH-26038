@@ -14,12 +14,28 @@ Messidor-2 held out for blind external validation.
 | Internal test (n=631) | **0.930** | **0.939** | 0.986 | ✅ both met |
 | **External, Messidor-2 (n=1,744)** | **0.427** | 0.978 | 0.875 | ❌ **not met** |
 
-**Read the second row before the first.** The model meets both
-problem-statement targets on held-out data from the corpora it was trained on,
-and **misses 57% of referable disease** on a French cohort captured with
-different cameras and graded by a different panel. That gap is the single most
-important number in this repository, and it is exactly what external
-validation exists to expose.
+**Read the second row before the first** — and then read the breakdown below
+it, because the aggregate sensitivity is misleading on its own.
+
+Externally the misses are almost entirely **moderate NPDR**, not blinding
+disease:
+
+| true severity | n | flagged referable |
+|---|---|---|
+| 0 — no DR | 1,017 | 2.1% *(correctly not flagged)* |
+| 1 — mild NPDR | 270 | 2.6% *(correctly not flagged)* |
+| 2 — moderate NPDR | 347 | **27.7%** ← the failure |
+| 3 — severe NPDR | 75 | **93.3%** |
+| 4 — proliferative DR | 35 | **82.9%** |
+
+**Sight-threatening disease (grade ≥ 3): sensitivity 0.900 [0.830–0.943] at
+97.8% specificity** — on a cohort from a different country, different cameras
+and a different grading panel, with nothing fitted on it.
+
+Grade 2 is 76% of the referable cases, which is why it drags the aggregate to
+0.427. The clinical weight of those two failure modes is not equal: a missed
+proliferative DR can cost sight within months, a missed moderate NPDR is
+caught at the next annual screen.
 
 It also **runs on a fresh clone with no downloads**: a procedural fundus
 phantom generator exercises every stage for real, so the system is
