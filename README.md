@@ -41,6 +41,11 @@ It also **runs on a fresh clone with no downloads**: a procedural fundus
 phantom generator exercises every stage for real, so the system is
 demonstrable in minutes before any dataset arrives.
 
+> **[→ RESULTS.md](RESULTS.md)** — full results, the verdict on whether the
+> system works, root-cause analysis of the moderate-NPDR gap, and the nine
+> bugs real data exposed. Start there if you want the findings rather than the
+> build instructions.
+
 ---
 
 ## Quick start
