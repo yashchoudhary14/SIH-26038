@@ -80,11 +80,29 @@ class TrainLog:
 @torch.no_grad()
 def dice_per_class(logits: torch.Tensor, target: torch.Tensor,
                    thr: float = 0.5, eps: float = 1e-6) -> torch.Tensor:
+    """Per-class Dice, with undefined cases returned as NaN rather than 1.0.
+
+    The smoothed form ``(2*inter + eps) / (denom + eps)`` returns **1.0** when
+    both the prediction and the target are empty. That convention is common and
+    it is a trap: a model that has learned to predict nothing, evaluated on a
+    batch that happens to contain no positives, scores a perfect 1.0.
+
+    That is not hypothetical. It hid a real bug here: IDRiD encodes mask
+    foreground as pixel value 76, the loader thresholded at >127, every mask
+    became empty, and segmentation reported mean Dice 1.0000 across all five
+    lesion classes while the training loss sat flat at 0.95.
+
+    Dice is genuinely undefined with no positives, so it is reported as NaN and
+    the caller averages over the classes that were actually evaluable.
+    """
     p = (torch.sigmoid(logits) > thr).float()
     dims = (0, 2, 3)
     inter = (p * target).sum(dims)
     denom = p.sum(dims) + target.sum(dims)
-    return (2 * inter + eps) / (denom + eps)
+    dice = (2 * inter + eps) / (denom + eps)
+    # Undefined where the ground truth has no positives for that class.
+    return torch.where(target.sum(dims) > 0, dice,
+                       torch.full_like(dice, float("nan")))
 
 
 def train_segmentation(model, train_ds, val_ds, *, mask_key: str = "lesion_mask",
@@ -158,15 +176,30 @@ def train_segmentation(model, train_ds, val_ds, *, mask_key: str = "lesion_mask"
                 if isinstance(logits, tuple):
                     logits = logits[0]
                 dices.append(dice_per_class(logits.float(), y).cpu().numpy())
-        per_class = np.mean(np.stack(dices), axis=0) if dices else np.zeros(1)
-        mean_dice = float(per_class.mean())
+        # nanmean: classes absent from the whole validation split are
+        # undefined, not perfect. See dice_per_class.
+        stacked = np.stack(dices) if dices else np.full((1, 1), np.nan)
+        with np.errstate(invalid="ignore"):
+            per_class = np.nanmean(stacked, axis=0)
+        evaluable = int(np.sum(~np.isnan(per_class)))
+        mean_dice = float(np.nanmean(per_class)) if evaluable else 0.0
+
+        if evaluable == 0:
+            raise RuntimeError(
+                "No validation class has any positive ground-truth pixels, so "
+                "Dice is undefined for every class. The masks are almost "
+                "certainly empty -- check the foreground encoding of your "
+                "annotation files (IDRiD uses 76, not 255).")
 
         rec = {"epoch": ep + 1, "train_loss": running / max(nb, 1),
                "val_dice_mean": mean_dice,
-               "val_dice_per_class": [round(float(v), 4) for v in per_class]}
+               "val_classes_evaluable": evaluable,
+               "val_dice_per_class": [None if np.isnan(v) else round(float(v), 4)
+                                      for v in per_class]}
         log.epochs.append(rec)
         print(f"[seg] epoch {ep+1}/{epochs} loss {rec['train_loss']:.4f} "
-              f"dice {mean_dice:.4f} {rec['val_dice_per_class']}", flush=True)
+              f"dice {mean_dice:.4f} ({evaluable} cls) "
+              f"{rec['val_dice_per_class']}", flush=True)
 
         if mean_dice > log.best_metric:
             log.best_metric, log.best_epoch = mean_dice, ep + 1

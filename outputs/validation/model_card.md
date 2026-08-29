@@ -1,6 +1,6 @@
 # Model card -- DR screening pipeline
 
-Generated 2026-08-28 from `outputs/validation/validation.json`. Every number below is read from that file; none is hand-entered.
+Generated 2026-08-29 from `outputs/validation/validation.json`. Every number below is read from that file; none is hand-entered.
 
 ## 1. Intended use
 
@@ -17,17 +17,14 @@ Generated 2026-08-28 from `outputs/validation/validation.json`. Every number bel
 ## 2. Operating point
 
 - Referable DR is defined as grade >= 2 (Moderate NPDR or worse).
-- Referral threshold on P(referable): **0.2419**
-- Temperature: **0.4453**
+- Referral threshold on P(referable): **0.6571**
+- Temperature: **3.7969**
 - Both were selected on the validation split only, then frozen. Neither was tuned on the test or external splits.
 - Selection rationale: Meets both targets (sens>=90%, spec>=85%); maximises Youden's J among those. PPV/NPV restated at 18.0% deployment prevalence.
 
 ## 3. Validation population
 
-- Internal test: n = 780, grade distribution {0: 414, 1: 152, 2: 133, 3: 51, 4: 30}
-- External (zero-shot): n = 720, grade distribution {0: 387, 1: 122, 2: 125, 3: 48, 4: 38}
-
-> These figures were measured on procedurally generated fundus phantoms, not patients. They demonstrate that the pipeline is correctly wired and that the validation machinery works; they are NOT clinical performance. Re-run on APTOS/IDRiD with Messidor-2 held out for any clinical claim.
+- Internal test: n = 631, grade distribution {0: 292, 1: 55, 2: 179, 3: 47, 4: 58}
 
 ## 4. Performance
 
@@ -35,13 +32,13 @@ Targets: sensitivity >= 90%, specificity >= 85% for referable DR.
 
 | metric | internal test | external (zero-shot) |
 |---|---|---|
-| Sensitivity | 1.000 (95% CI 0.982-1.000) | 0.967 (95% CI 0.933-0.984) |
-| Specificity | 1.000 (95% CI 0.993-1.000) | 0.996 (95% CI 0.986-0.999) |
-| PPV | 1.000 (95% CI 0.982-1.000) | 0.990 (95% CI 0.965-0.997) |
-| NPV | 1.000 (95% CI 0.993-1.000) | 0.986 (95% CI 0.972-0.993) |
-| AUC | 1.0000 (1.0000-1.0000) | 0.9990 (0.9968-0.9997) |
-| QWK | 0.9814 | 0.9552 |
-| Within-one-grade | 1.000 (95% CI 0.995-1.000) | 0.990 (95% CI 0.980-0.995) |
+| Sensitivity | 0.930 (95% CI 0.894-0.954) | n/a |
+| Specificity | 0.939 (95% CI 0.909-0.960) | n/a |
+| PPV | 0.926 (95% CI 0.890-0.951) | n/a |
+| NPV | 0.942 (95% CI 0.912-0.962) | n/a |
+| AUC | 0.9850 (0.9744-0.9912) | n/a |
+| QWK | 0.8878 | n/a |
+| Within-one-grade | 0.956 (95% CI 0.937-0.969) | n/a |
 
 Targets met on internal test: sensitivity **yes**, specificity **yes**.
 
@@ -49,19 +46,19 @@ Targets met on internal test: sensitivity **yes**, specificity **yes**.
 
 | | before | after |
 |---|---|---|
-| ECE | 0.0427 | 0.0080 |
-| Brier | 0.0096 | 0.0030 |
+| ECE | 0.0503 | 0.0172 |
+| Brier | 0.0705 | 0.0633 |
 
 ## 5. Comparison against single techniques
 
-The integrated pipeline (fusion) does NOT beat every single technique: clinical_only scored higher. This must be reported as-is.
+The integrated pipeline (fusion) does NOT beat every single technique: cnn_only scored higher. This must be reported as-is.
 
 | arm | AUC | sensitivity | specificity |
 |---|---|---|---|
-| fusion **(deployed)** | 1.0000 | 1.000 | 1.000 |
-| clinical_only | 1.0000 | 1.000 | 1.000 |
-| cnn_only | 1.0000 | 0.995 | 1.000 |
-| rule_based | 0.9988 | 0.995 | 1.000 |
+| cnn_only | 0.9853 | 0.972 | 0.905 |
+| fusion **(deployed)** | 0.9850 | 0.930 | 0.939 |
+| clinical_only | 0.9293 | 0.923 | 0.795 |
+| rule_based | 0.9139 | 0.996 | 0.058 |
 
 ## 6. Known failure modes
 

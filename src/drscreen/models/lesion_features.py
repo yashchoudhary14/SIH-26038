@@ -130,7 +130,7 @@ MIN_AREA_512 = {
 def extract(lesion_probs: np.ndarray, lm: Landmarks,
             fov_mask: np.ndarray | None = None,
             vessel_mask: np.ndarray | None = None,
-            threshold: float = 0.5) -> ClinicalFeatures:
+            threshold: float | dict[str, float] = 0.5) -> ClinicalFeatures:
     """Turn per-class lesion probability maps into clinical features.
 
     Parameters
@@ -139,6 +139,11 @@ def extract(lesion_probs: np.ndarray, lm: Landmarks,
         ``(H, W, NUM_LESION_CLASSES)`` float array in [0, 1].
     lm
         Landmarks providing the clinical coordinate frame.
+    threshold
+        Scalar, or per-class mapping. A single 0.5 is the wrong default: fitted
+        on held-out IDRiD the F1-optimal cut-points are 0.85-0.95, and at 0.5
+        the exudate channel produced enough false positives on healthy retinas
+        to trip the macular-oedema rule and mark them urgent.
     """
     h, w = lesion_probs.shape[:2]
     scale = (h * w) / (512.0 * 512.0)
@@ -150,8 +155,9 @@ def extract(lesion_probs: np.ndarray, lm: Landmarks,
     nearest = 99.0
 
     for ci, cname in enumerate(LESION_CLASSES):
+        thr = threshold.get(cname, 0.5) if isinstance(threshold, dict) else threshold
         prob = lesion_probs[..., ci]
-        binary = (prob >= threshold).astype(np.uint8)
+        binary = (prob >= thr).astype(np.uint8)
         if fov_mask is not None:
             binary &= (fov_mask > 0).astype(np.uint8)
         feats.area_fraction[cname] = float(binary.sum()) / retina_area

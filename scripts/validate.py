@@ -28,8 +28,9 @@ from drscreen.constants import (ICDR_GRADES, REFERABLE_THRESHOLD,
 from drscreen.data.cohort import CohortDataset, clinical_from_batch
 from drscreen.evaluation.ablation import compare_arms, format_table, save_report
 from drscreen.evaluation.metrics import evaluate_grading, binary_metrics
-from drscreen.models.calibration import (TemperatureScaler, calibration_report,
-                                         select_threshold, selective_risk_curve)
+from drscreen.models.calibration import (IsotonicCalibrator, TemperatureScaler,
+                                         calibration_report, select_threshold,
+                                         selective_risk_curve)
 from drscreen.models.grader import (DRGrader, corn_class_probs, corn_predict,
                                     referable_prob)
 from drscreen.training import collect_logits
@@ -54,11 +55,13 @@ def run_split(model, cohort, split, size, use_clinical, workers, device):
 
 
 def summarise(logits: torch.Tensor, labels: torch.Tensor, temperature: float,
-              threshold: float) -> dict:
+              threshold: float, iso=None) -> dict:
     z = logits / temperature
     probs = corn_class_probs(z).numpy()
     grades = corn_predict(z).numpy()
     ref = referable_prob(z).numpy()
+    if iso is not None:
+        ref = iso(ref)
     y = labels.numpy()
     res = evaluate_grading(y, grades, ref, threshold)
     res["calibration"] = calibration_report(
@@ -82,6 +85,9 @@ def main():
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--prevalence", type=float, default=0.18,
                     help="deployment prevalence of referable DR, for PPV/NPV")
+    ap.add_argument("--seg-cohort", type=Path, default=None,
+                    help="cohort holding the segmentation splits, if separate "
+                         "(the lesion model may run at a higher resolution)")
     ap.add_argument("--explain-n", type=int, default=40,
                     help="images used for the explanation-faithfulness study")
     ap.add_argument("--device", default="auto")
@@ -115,7 +121,35 @@ def main():
     print(f"  MCE  {cal_before.mce:.4f} -> {cal_after.mce:.4f}")
     print(f"  Brier {cal_before.brier:.4f} -> {cal_after.brier:.4f}")
 
-    op = select_threshold(ref_val_cal, y_val_ref, TARGET_SENSITIVITY,
+    # Temperature targets the multiclass CORN NLL; the referral decision uses
+    # the binary P(referable). Recalibrate that number directly with isotonic
+    # regression, which is monotone and so cannot reorder the review queue.
+    #
+    # Whether to adopt it must be decided OUT OF FOLD. Isotonic is a free-form
+    # monotone fit: scored on the same data it was fitted to, it drives ECE to
+    # ~0 by construction and would always look like an improvement. So fit on
+    # one half of val, score the other, both ways, and compare like for like.
+    rng = np.random.default_rng(0)
+    fold = rng.permutation(len(ref_val_cal)) % 2
+    oof = np.empty_like(ref_val_cal)
+    for k in (0, 1):
+        fit_m, score_m = (fold != k), (fold == k)
+        if y_val_ref[fit_m].sum() in (0, int(fit_m.sum())):
+            oof[score_m] = ref_val_cal[score_m]      # degenerate fold
+            continue
+        oof[score_m] = IsotonicCalibrator(min_samples=50).fit(
+            ref_val_cal[fit_m], y_val_ref[fit_m])(ref_val_cal[score_m])
+
+    ece_oof = calibration_report(oof, y_val_ref, T).ece
+    use_iso = ece_oof < cal_after.ece
+    print(f"  ECE for isotonic on P(referable), out-of-fold: {ece_oof:.4f} "
+          f"vs {cal_after.ece:.4f} temperature-only "
+          f"-> {'adopted' if use_iso else 'rejected'}")
+
+    iso = IsotonicCalibrator(min_samples=50).fit(ref_val_cal, y_val_ref) if use_iso else None
+    cal_iso = calibration_report(oof, y_val_ref, T)
+    ref_val_final = iso(ref_val_cal) if iso is not None else ref_val_cal
+    op = select_threshold(ref_val_final, y_val_ref, TARGET_SENSITIVITY,
                           TARGET_SPECIFICITY, prevalence=a.prevalence)
     print(f"  threshold = {op.threshold:.4f}   "
           f"sens {op.sensitivity:.3f}  spec {op.specificity:.3f}")
@@ -125,7 +159,7 @@ def main():
     print("\n[2/5] Internal held-out test")
     t_logits, t_labels, _ = run_split(model, a.cohort, "test", a.size,
                                       use_clinical, a.workers, a.device)
-    test_res = summarise(t_logits, t_labels, T, op.threshold)
+    test_res = summarise(t_logits, t_labels, T, op.threshold, iso)
     print(f"  n = {test_res['n']}   {test_res['referable_summary']}")
     print(f"  QWK {test_res['qwk']['value']:.4f} "
           f"[{test_res['qwk']['lower']:.4f}, {test_res['qwk']['upper']:.4f}]")
@@ -136,14 +170,22 @@ def main():
     try:
         e_logits, e_labels, _ = run_split(model, a.cohort, "external", a.size,
                                           use_clinical, a.workers, a.device)
-        ext_res = summarise(e_logits, e_labels, T, op.threshold)
+        n_labelled = int((e_labels.numpy() >= 0).sum())
+        if n_labelled == 0:
+            raise ValueError(
+                f"the external split has {len(e_labels)} images but no grades. "
+                "Messidor-2 from ADCIS ships images plus an eye-pairing CSV; the "
+                "adjudicated reference standard (Krause et al. 2018) is a "
+                "separate download. Inference and reports work; metrics cannot "
+                "be computed. See docs/DATASETS.md.")
+        ext_res = summarise(e_logits, e_labels, T, op.threshold, iso)
         print(f"  n = {ext_res['n']}   {ext_res['referable_summary']}")
         print(f"  QWK {ext_res['qwk']['value']:.4f}")
         print(f"  ECE {ext_res['calibration']['ece']:.4f}")
         drop = test_res["referable"]["auc"] - ext_res["referable"]["auc"]
         print(f"  AUC drop internal -> external: {drop:+.4f}")
     except Exception as e:
-        print(f"  skipped: {e}")
+        print(f"  NOT EVALUATED -- {e}")
         ext_res = None
 
     # ---------------- 4. ablation -------------------------------------------
@@ -151,9 +193,14 @@ def main():
     arms: dict[str, dict] = {}
     y_test = t_labels.numpy()
 
+    # Same transform as the threshold was chosen under, or the operating point
+    # is being applied to a different number line than it was selected on.
+    _fusion_ref = referable_prob(t_logits / T).numpy()
+    if iso is not None:
+        _fusion_ref = iso(_fusion_ref)
     arms["fusion"] = {
         "grades": corn_predict(t_logits / T).numpy().tolist(),
-        "referable_scores": referable_prob(t_logits / T).numpy().tolist(),
+        "referable_scores": _fusion_ref.tolist(),
         "threshold": op.threshold}
 
     for spec in a.arms:
@@ -173,11 +220,17 @@ def main():
         # and others handicapped by a threshold that does not suit them.
         vlg, vlb, _ = run_split(m, a.cohort, "val", a.size, uc, a.workers, a.device)
         s = TemperatureScaler(); t_arm = s.fit(vlg, vlb)
-        op_arm = select_threshold(referable_prob(vlg / t_arm).numpy(),
-                                  (vlb.numpy() >= REFERABLE_THRESHOLD).astype(int),
+        v_ref = referable_prob(vlg / t_arm).numpy()
+        v_y = (vlb.numpy() >= REFERABLE_THRESHOLD).astype(int)
+        iso_arm = IsotonicCalibrator().fit(v_ref, v_y)
+        if calibration_report(iso_arm(v_ref), v_y, t_arm).ece >= \
+           calibration_report(v_ref, v_y, t_arm).ece:
+            iso_arm = None
+        t_ref = referable_prob(lg / t_arm).numpy()
+        op_arm = select_threshold(iso_arm(v_ref) if iso_arm else v_ref, v_y,
                                   TARGET_SENSITIVITY, TARGET_SPECIFICITY)
         arms[name] = {"grades": corn_predict(lg / t_arm).numpy().tolist(),
-                      "referable_scores": referable_prob(lg / t_arm).numpy().tolist(),
+                      "referable_scores": (iso_arm(t_ref) if iso_arm else t_ref).tolist(),
                       "threshold": op_arm.threshold}
         print(f"  loaded arm '{name}' (T={t_arm:.3f}, thr={op_arm.threshold:.3f})")
 
@@ -215,8 +268,10 @@ def main():
         "grader_checkpoint": str(a.grader),
         "arm": ck.get("arm"),
         "calibration": {"temperature": T,
+                        "isotonic_applied": bool(iso is not None),
                         "before": cal_before.to_dict(),
-                        "after": cal_after.to_dict()},
+                        "after": (cal_iso if iso is not None else cal_after).to_dict(),
+                        "after_temperature_only": cal_after.to_dict()},
         "operating_point": op.to_dict(),
         "targets": {"sensitivity": TARGET_SENSITIVITY,
                     "specificity": TARGET_SPECIFICITY,
@@ -248,10 +303,27 @@ def main():
     if a.seg.exists():
         shutil.copy(a.seg, a.artifacts / "segmentation.pt")
     shutil.copy(a.grader, a.artifacts / "grader.pt")
+    lesion_thr = {}
+    if a.seg.exists():
+        try:
+            lesion_thr = fit_lesion_thresholds(a.seg, a.seg_cohort or a.cohort, a.device)
+            if lesion_thr:
+                print(f"  lesion thresholds (F1-optimal on held-out IDRiD): {lesion_thr}")
+        except Exception as e:
+            print(f"  lesion-threshold fit skipped: {type(e).__name__}: {e}")
+
+    seg_size = a.size
+    if a.seg.exists():
+        _sck = torch.load(a.seg, map_location="cpu", weights_only=False)
+        seg_size = int(_sck.get("size", a.size))
+
     (a.artifacts / "pipeline.json").write_text(json.dumps({
         "referral_threshold": op.threshold,
         "temperature": T,
+        "calibrator": (iso.to_dict() if iso is not None else {"kind": "identity"}),
+        "lesion_thresholds": lesion_thr or None,
         "size": a.size,
+        "seg_size": seg_size,
         "backbone": ck.get("backbone", "tf_efficientnet_b0"),
         "defer_band": [max(0.0, op.threshold - 0.15), min(1.0, op.threshold + 0.15)],
         "model_version": "drscreen-1.0.0",
@@ -324,6 +396,72 @@ def evaluate_explanation_quality(model, cohort: Path, split: str, size: int,
         masks.append(lm.numpy().max(axis=0) if lm is not None else None)
 
     return evaluate_explanations(model, images, cams, clinicals, masks, steps=16)
+
+
+def fit_lesion_thresholds(seg_ckpt: Path, cohort: Path, device: str = "auto",
+                          split: str = "seg_val") -> dict:
+    """F1-optimal per-class cut-points on the lesion probability maps.
+
+    A blanket 0.5 is not a neutral default, it is an unfitted parameter. On
+    held-out IDRiD the optimum sits at 0.85-0.95, and at 0.5 the exudate
+    channel produced enough false positives on healthy APTOS retinas to trip
+    the macular-oedema rule and label them urgent.
+
+    Fitted on the segmentation validation split -- never on the grading test
+    split the operating point is reported against.
+    """
+    import cv2
+    from drscreen.data.cohort import read_manifest
+    from drscreen.data.torch_data import to_tensor
+    from drscreen.models.segmentation import build_unet
+    from drscreen.constants import LESION_CLASSES
+    from drscreen.training import device_of
+
+    ck = torch.load(seg_ckpt, map_location="cpu", weights_only=False)
+    seg_size = int(ck.get("size", 512))
+    seg_cohort = cohort
+    if not (seg_cohort / "manifest.jsonl").exists():
+        return {}
+    recs = [r for r in read_manifest(seg_cohort) if r.split == split and r.has_masks]
+    if not recs:
+        return {}
+
+    dev = device_of(device)
+    m = build_unet("lesion", width=int(ck.get("width", 24)))
+    m.load_state_dict(ck["model"]); m = m.to(dev).eval()
+
+    P, Y = [], []
+    for r in recs:
+        img = cv2.imread(str(seg_cohort / "images" / f"{r.uid}.png"))
+        z = np.load(seg_cohort / "masks" / f"{r.uid}.npz")
+        if img.shape[0] != seg_size:
+            img = cv2.resize(img, (seg_size, seg_size), interpolation=cv2.INTER_CUBIC)
+        with torch.no_grad():
+            lo = m(to_tensor(img).unsqueeze(0).to(dev))
+            if isinstance(lo, tuple):
+                lo = lo[0]
+            pr = torch.sigmoid(lo.float())[0].permute(1, 2, 0).cpu().numpy()
+        gt = (z["lesions"] > 127).astype(np.uint8)
+        if gt.shape[0] != pr.shape[0]:
+            gt = cv2.resize(gt, pr.shape[:2][::-1], interpolation=cv2.INTER_NEAREST)
+        P.append(pr); Y.append(gt)
+    P, Y = np.stack(P), np.stack(Y)
+
+    out = {}
+    for c, name in enumerate(LESION_CLASSES):
+        if Y[..., c].sum() == 0:
+            continue                      # class not annotated in this corpus
+        best_f1, best_t = -1.0, 0.5
+        for t in np.arange(0.05, 0.99, 0.05):
+            pred = P[..., c] >= t
+            tp = float((pred & (Y[..., c] > 0)).sum())
+            fp = float((pred & (Y[..., c] == 0)).sum())
+            fn = float((~pred & (Y[..., c] > 0)).sum())
+            f1 = 2 * tp / max(2 * tp + fp + fn, 1.0)
+            if f1 > best_f1:
+                best_f1, best_t = f1, float(t)
+        out[name] = round(best_t, 2)
+    return out
 
 
 def rule_based_arm(cohort: Path, split: str, y_true: np.ndarray) -> dict | None:

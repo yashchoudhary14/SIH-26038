@@ -6,10 +6,14 @@ ordinal ICDR severity grading with calibrated confidence, lesion-grounded
 explainability, and a discrete-event model of a district telemedicine
 programme.
 
-**It runs on a fresh clone with no dataset downloads.** A procedural fundus
-phantom generator exercises every stage for real — training, calibration,
-explanation, validation and simulation — so the whole system is demonstrable
-in minutes, then swaps to APTOS/IDRiD/DRIVE/Messidor-2 without a code change.
+**Trained and validated on real patient data** — APTOS 2019 + IDRiD, with
+Messidor-2 held out — meeting both problem-statement targets: **sensitivity
+0.930** [0.894–0.954] and **specificity 0.939** [0.909–0.960] for referable DR
+on a subject-disjoint held-out test set.
+
+It also **runs on a fresh clone with no downloads**: a procedural fundus
+phantom generator exercises every stage for real, so the system is
+demonstrable in minutes before any dataset arrives.
 
 ---
 
@@ -24,7 +28,27 @@ pip install -r requirements.txt && pip install -e .
 > The `cu128` index is required for RTX 50-series (Blackwell) GPUs. On older
 > CUDA or CPU-only machines, install PyTorch from the default index instead.
 
-Run the whole pipeline on generated data:
+### On real data (what the reported numbers come from)
+
+Place the corpora under `data/` and unpack them (see `docs/DATASETS.md`):
+
+```bash
+python scripts/extract_datasets.py --src data --out data/raw
+```
+
+```bash
+# grading cohort at 512; lesion cohort at 1024, where microaneurysms survive
+python scripts/build_cohort.py --source real --data-root data/raw --out data/cohort_real --size 512 --workers 14
+python scripts/build_cohort.py --source real --data-root data/raw --out data/cohort_seg1024 --size 1024 --workers 12 --only-splits seg_train seg_val
+
+python scripts/train_seg.py --cohort data/cohort_seg1024 --epochs 160 --batch-size 3 --size 1024 --pos-weight 12
+python scripts/precompute_features.py --cohort data/cohort_real --seg outputs/segmentation/best.pt --size 1024 --feature-size 512
+python scripts/train_grader.py --cohort data/cohort_real --arm fusion --epochs 30
+
+python scripts/validate.py --cohort data/cohort_real --seg-cohort data/cohort_seg1024     --arms cnn_only=outputs/grader_cnn/best.pt clinical_only=outputs/grader_clinical/best.pt
+```
+
+### Without any downloads (synthetic phantoms)
 
 ```bash
 python scripts/build_cohort.py --source synthetic --n 6000 --out data/cohort_synth --workers 16
@@ -184,85 +208,127 @@ the uncertainty band are deferred. The risk-coverage curve
 hours it costs — which is the number the capacity model consumes.
 
 ---
+## Measured results (real data)
 
-## Measured results (phantom cohort, 6,000 cases)
+Trained on **APTOS 2019 + IDRiD**, with Messidor-2 held out. Produced by
+`scripts/run_all.py` against `data/cohort_real`.
 
-Produced by `scripts/run_all.py`. **These measure that the pipeline is
-correctly wired, not clinical performance** — see *Honest limitations*.
-
-| | internal test (n=780) | external, zero-shot (n=720) |
+| split | n | source |
 |---|---|---|
-| Sensitivity (referable) | 1.000 [0.982–1.000] | 0.967 [0.933–0.984] |
-| Specificity (referable) | 1.000 [0.993–1.000] | 0.996 [0.986–0.999] |
-| AUC | 1.0000 [1.0000–1.0000] | 0.9990 [0.9968–0.9997] |
-| QWK | 0.9814 [0.9761–0.9867] | 0.9552 |
-| ECE | 0.0055 | 0.0213 |
+| train | 2,925 | APTOS + IDRiD grading |
+| val (calibration + threshold) | 622 | APTOS + IDRiD grading |
+| test (reported below) | 631 | APTOS + IDRiD grading |
+| external | 1,748 | Messidor-2 — **held out, and unlabelled: see below** |
+| lesion segmentation | 64 / 17 | IDRiD pixel annotations |
+| vessels | 32 / 8 | DRIVE |
 
-Calibration on the validation split: **ECE 0.0427 → 0.0080**, MCE 0.175 →
-0.096, Brier 0.0096 → 0.0030 (T = 0.445). Selected referral threshold 0.242.
+Splits are subject-grouped; measured overlap between train/val/test is **zero**.
 
-Segmentation (mean Dice 0.748) by lesion class — the difficulty ordering
-matches clinical reality:
+### Referable DR (grade ≥ 2), internal held-out test — n = 631
 
-| MA | haemorrhage | hard exudate | cotton-wool | neovascularisation |
-|---|---|---|---|---|
-| 0.570 | 0.810 | 0.864 | 0.922 | 0.572 |
+| metric | value | 95% CI | target |
+|---|---|---|---|
+| **Sensitivity** | **0.930** | 0.894–0.954 | ≥ 0.90 ✅ |
+| **Specificity** | **0.939** | 0.909–0.960 | ≥ 0.85 ✅ |
+| AUC | 0.9850 | 0.9744–0.9912 | — |
+| QWK | 0.8878 | 0.8646–0.9082 | — |
+| ECE | 0.0285 | — | — |
 
-Landmarks: optic disc median error **0.015 DD**, fovea **0.077 DD** (97% of
-foveae within 1 DD). End-to-end latency **~500 ms/image** on an RTX 5080,
-of which the CPU-only quality gate is ~250 ms — that is the part that has to
-run on the capture device to give a technician recapture feedback.
+**Both problem-statement targets are met on real patient data.**
 
-### Two results worth reading carefully
+Calibration: temperature (T = 3.80) is fitted to the multiclass CORN NLL and
+actually made binary ECE slightly *worse* (0.0503 → 0.0519) while improving
+MCE and Brier. Isotonic regression on P(referable) — the number the referral
+decision uses — gives ECE **0.0172 out-of-fold** vs 0.0519, and is adopted.
+The adoption test is out-of-fold by necessity: isotonic scored on its own
+fitting split drives ECE to ~0 by construction.
 
-**1. The ablation could not demonstrate its claim, and says so.**
+### Lesion segmentation (IDRiD, 64 training images)
+
+| class | Dice @512 | Dice @1024 | published IDRiD range |
+|---|---|---|---|
+| Microaneurysm | 0.000 | **0.485** | 0.30–0.50 |
+| Haemorrhage | 0.248 | **0.521** | 0.50–0.65 |
+| Hard exudate | 0.272 | **0.575** | 0.70–0.80 |
+| Cotton-wool spot | 0.187 | **0.623** | 0.55–0.70 |
+| Neovascularisation | — | — | **not annotated in IDRiD** |
+
+Resolution is decisive: at 512 a microaneurysm survives downsampling from
+4288px as ~4 pixels and Dice is **0.000**. The lesion model therefore runs at
+1024 while the grader runs at 512.
+
+### Ablation
 
 ```
-arm                  AUC            95% CI    Sens    Spec     QWK
-fusion *          1.0000 [1.0000,1.0000]   1.000   1.000  0.9814
-clinical_only     1.0000 [1.0000,1.0000]   1.000   1.000  0.9772
-cnn_only          1.0000 [0.9998,1.0000]   0.995   1.000  0.9673
-rule_based        0.9988 [0.9913,0.9998]   0.995   1.000  0.9589
+arm                  AUC            95% CI    Sens    Spec     QWK  targets
+cnn_only          0.9853 [0.9752,0.9913]   0.972   0.905  0.8768     PASS
+fusion *          0.9850 [0.9744,0.9912]   0.930   0.939  0.8878     PASS
+clinical_only     0.9293 [0.9076,0.9463]   0.923   0.795  0.7087     fail
+rule_based        0.9139 [0.8890,0.9337]   0.996   0.058  0.0305     fail
 
 The integrated pipeline (fusion) does NOT beat every single technique:
-clinical_only scored higher. This must be reported as-is.
+cnn_only scored higher. This must be reported as-is.
 ```
 
-Every arm is at ceiling on referable-DR AUC, so there is nothing left to win
-and no difference reaches significance (DeLong p = 0.41, 1.00, 0.32). The
-verdict string is generated, not written — the code reports a failed claim
-rather than quietly picking a flattering comparison. QWK still separates the
-arms (0.981 vs 0.959), which is where the fusion advantage actually shows up.
+Fusion beats the two classical arms decisively (DeLong p = 4×10⁻¹⁰ and
+4×10⁻¹²) and is **statistically tied with the CNN-only arm** (Δ AUC 0.0003,
+p = 0.899). On this data the clinical-feature branch buys interpretability and
+a better QWK, not better referral discrimination. That is the honest finding.
 
-**2. The faithfulness metric caught a real bug in the explanations.**
+### Messidor-2 could not be scored
 
-The first measured run reported faithfulness +0.099 with a **pointing game of
-3.3%** — the Grad-CAM peak almost never landed on a lesion. Rendering the
-panel showed why: the map had a hot blob in the black corner *outside the
-retinal aperture*. The last conv layer's receptive field covers much of the
-frame and the map is upsampled ~32×, so activation bleeds into the surround
-and can peak there.
+The ADCIS distribution ships images plus a left/right **eye-pairing** CSV. It
+does **not** contain DR grades — the adjudicated reference standard (Krause et
+al. 2018) is a separate release. All 1,748 images run through the pipeline and
+produce reports; metrics are impossible without labels. The validation script
+says so explicitly rather than failing:
 
-Masking the CAM to the field of view before normalising
-(`compute_cam(..., fov_mask=...)`):
+```
+NOT EVALUATED -- the external split has 1748 images but no grades.
+```
 
-| | before | after |
+Get the grades from `kaggle datasets download google-brain/messidor2-dr-grades`
+and re-run; nothing else changes.
+
+## What real data broke that phantoms never could
+
+Eight bugs surfaced only once real corpora were loaded. They are listed
+because most are invisible failures — the kind that produce a plausible number
+rather than a crash.
+
+| # | bug | how it presented |
 |---|---|---|
-| Pointing game | 3.3% | **62.5%** |
-| Faithfulness (ins − del) | +0.099 | **+0.168** |
-| Attention mass on lesions | 12.9% | 15.1% |
-| Sparsity (Gini) | 0.517 | 0.566 |
+| 1 | IDRiD encodes mask foreground as **76**, loader thresholded at >127 | every mask loaded empty |
+| 2 | Dice scored empty-prediction-vs-empty-target as **1.0** | hid #1 as "mean Dice 1.0000" while loss sat flat at 0.95 |
+| 3 | Masks skipped the image's crop/pad/resize geometry | annotations offset from the pixels they describe |
+| 4 | Segmentation at 512 | microaneurysm Dice 0.000 |
+| 5 | Deployed pipeline segmented at 512 while features were trained at 1024 | deployed system disagreed with its own validation |
+| 6 | Calibrator not shipped with the model | threshold applied to a different probability scale |
+| 7 | `lesion_threshold = 0.5` never fitted | true optimum 0.85–0.95 |
+| 8 | FOV clipping penalty | rejected **34%** of real images whose coverage was 0.90–1.00 |
 
-Worth stating plainly because it nearly went the other way: the first reading
-looked like an *architectural* finding — "the fusion model reads the clinical
-feature vector, so the image heatmap has nothing to explain" — which is a
-tidy, plausible story that would have been written up and shipped. It was
-wrong. The model was reading the image fine; the explanation renderer was
-broken.
+Bugs 2 and 8 deserve emphasis. **#2 is the dangerous shape**: a metric
+reporting a perfect score for a model that had learned nothing, from data that
+contained nothing. **#8 was structurally invisible to the phantoms**, which
+always render a black margin — but a real fundus aperture is wider than the
+sensor is tall, so the retina touches the frame edge on almost every correct
+capture, and APTOS ships pre-cropped touching all four. Both now have
+regression tests.
 
-A heatmap nobody scores will happily point at the wall, and a metric nobody
-renders will happily be misread. `explain/faithfulness.py` exists for the
-first failure; looking at the actual panel is what caught the second.
+### Deployed behaviour on 120 real test images
+
+| | before fixes | after |
+|---|---|---|
+| Recapture rate | 34% | **0%** |
+| Cases flagged urgent | 100% | 23% |
+| Exact grade match | 59.5% | **68.3%** |
+
+The 100%-urgent figure was the rule engine — measured specificity **0.058** —
+unilaterally overriding a calibrated model with specificity 0.939. Lesion-based
+escalation now requires corroboration: it cannot override a *confidently*
+negative neural verdict, though the disagreement is still written into the
+report and the audit log. Neovascularisation remains an unconditional
+escalation, being both specific and sight-defining.
 
 ## Clinical validation
 

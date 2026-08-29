@@ -300,10 +300,10 @@ class FundusDataset(Dataset):
                 else:
                     m = cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)
                     m = cv2.resize(m, (self.size, self.size), interpolation=cv2.INTER_NEAREST)
-                    planes.append((m > 127).astype(np.float32))
+                    planes.append((m > 0).astype(np.float32))   # any non-zero is foreground
             out["lesion_mask"] = torch.from_numpy(np.stack(planes))
             if "vessel" in s.masks:
                 m = cv2.imread(str(s.masks["vessel"]), cv2.IMREAD_GRAYSCALE)
                 m = cv2.resize(m, (self.size, self.size), interpolation=cv2.INTER_NEAREST)
-                out["vessel_mask"] = torch.from_numpy((m > 127).astype(np.float32))[None]
+                out["vessel_mask"] = torch.from_numpy((m > 0).astype(np.float32))[None]
         return out

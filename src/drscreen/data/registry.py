@@ -36,7 +36,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".JPG", ".JPEG", ".PNG", ".TIF")
+#: ``.gif`` matters: DRIVE ships its vessel ground truth as ``21_manual1.gif``.
+#: Omitting it makes the vessel masks invisible while the images still load,
+#: so DRIVE appears present but silently contributes no supervision.
+IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".ppm", ".bmp",
+              ".JPG", ".JPEG", ".PNG", ".TIF", ".TIFF", ".GIF", ".PPM", ".BMP")
 
 
 class SplitViolation(RuntimeError):
@@ -126,12 +130,29 @@ def load_aptos(root: str | Path) -> list[Sample]:
 
 def load_idrid_grading(root: str | Path) -> list[Sample]:
     root = Path(root)
+    # Scope to the grading subtree. IDRiD ships three topic folders
+    # (A. Segmentation, B. Disease Grading, C. Localization) and *each* of
+    # them contains a directory literally named "a. Training Set". Searching
+    # the whole tree returns whichever one rglob reaches first, and the
+    # segmentation set uses IDRiD_01 while grading uses IDRiD_001, so the
+    # filename join silently produces zero samples rather than an error.
+    grading_root = _find_dir(root, r"^B\.?\s*Disease.?Grading$",
+                             r"Disease.?Grading$") or root
+
     out: list[Sample] = []
     for split in ("Training", "Testing"):
-        csv = _find_file(root, rf"Disease.?Grading.*{split}.*Labels.*\.csv$",
+        csv = _find_file(grading_root, rf"Disease.?Grading.*{split}.*Labels.*\.csv$",
                          rf"{split}.*Labels.*\.csv$")
-        img_dir = _find_dir(root, rf"{split[0].lower()}\.\s*{split}\s*Set$",
-                            rf"{split}\s*Set$")
+        # The "a."/"b." prefix indexes the split, it does not spell it, so
+        # match on the split word and require an Original Images ancestor.
+        img_dir = None
+        for d in grading_root.rglob("*"):
+            if (d.is_dir() and re.search(rf"{split}\s*Set$", d.name, re.I)
+                    and re.search(r"Original", str(d.parent), re.I)):
+                img_dir = d
+                break
+        if img_dir is None:
+            img_dir = _find_dir(grading_root, rf"{split}\s*Set$")
         if csv is None or img_dir is None:
             continue
         df = pd.read_csv(csv)
@@ -275,13 +296,29 @@ LOADERS = {
 }
 
 
-def discover(data_root: str | Path) -> dict[str, list[Sample]]:
-    """Auto-detect whichever datasets are present under ``data_root``."""
+def discover(data_root: str | Path, strict: bool = True
+             ) -> dict[str, list[Sample]]:
+    """Auto-detect whichever datasets are present under ``data_root``.
+
+    Each loader is confined to its own named subdirectory
+    (``aptos2019/``, ``idrid/``, ``drive/``, ``messidor2/``).
+
+    An earlier version also tried ``data_root`` itself as a last resort, which
+    is actively dangerous: with ``messidor2/`` absent, the Messidor-2 loader
+    fell back to the whole tree, matched ``drive/test/images`` on its ``^images$``
+    pattern, and returned 20 DRIVE images labelled ``dataset="messidor2"``.
+    Held-out data silently becoming a different dataset is the exact failure
+    the split policy exists to prevent, so the fallback is gone.
+
+    Set ``strict=False`` only for a directory known to contain one dataset.
+    """
     data_root = Path(data_root)
     found: dict[str, list[Sample]] = {}
     for name, loader in LOADERS.items():
         base = data_root / name.split("_")[0]
-        candidates = [data_root / name, base, data_root]
+        candidates = [data_root / name, base]
+        if not strict:
+            candidates.append(data_root)
         for c in candidates:
             if not c.exists():
                 continue
@@ -290,6 +327,12 @@ def discover(data_root: str | Path) -> dict[str, list[Sample]]:
             except Exception:
                 samples = []
             if samples:
+                # A loader must only return files from inside its own subtree.
+                stray = [s for s in samples if c not in s.image_path.parents]
+                if stray:
+                    raise SplitViolation(
+                        f"loader '{name}' returned {len(stray)} file(s) from "
+                        f"outside {c}, e.g. {stray[0].image_path}")
                 found[name] = samples
                 break
     return found

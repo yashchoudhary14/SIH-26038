@@ -1,0 +1,1574 @@
+{
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 1.5629397332668304,
+      "val_dice_mean": 0.00991002842783928,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0268,
+        0.0084,
+        0.0025,
+        null
+      ]
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.5202264040708542,
+      "val_dice_mean": 0.009952639229595661,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0269,
+        0.0085,
+        0.0025,
+        null
+      ]
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.4647772312164307,
+      "val_dice_mean": 0.010035324841737747,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0271,
+        0.0086,
+        0.0025,
+        null
+      ]
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.4263857007026672,
+      "val_dice_mean": 0.010134493932127953,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0274,
+        0.0088,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.3963189721107483,
+      "val_dice_mean": 0.010315978899598122,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0277,
+        0.0092,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.374973103404045,
+      "val_dice_mean": 0.010504100471735,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0283,
+        0.0094,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 7,
+      "train_loss": 1.357053965330124,
+      "val_dice_mean": 0.010718690231442451,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0289,
+        0.0097,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 8,
+      "train_loss": 1.3418420553207397,
+      "val_dice_mean": 0.010895957238972187,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0293,
+        0.01,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 9,
+      "train_loss": 1.3263502269983292,
+      "val_dice_mean": 0.011102629825472832,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0299,
+        0.0103,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 10,
+      "train_loss": 1.3144125193357468,
+      "val_dice_mean": 0.011289415881037712,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0304,
+        0.0105,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 11,
+      "train_loss": 1.2980272769927979,
+      "val_dice_mean": 0.011515608988702297,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0311,
+        0.0108,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 12,
+      "train_loss": 1.2859568297863007,
+      "val_dice_mean": 0.01174889039248228,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0317,
+        0.0111,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 13,
+      "train_loss": 1.2733044177293777,
+      "val_dice_mean": 0.012035715393722057,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0325,
+        0.0115,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 14,
+      "train_loss": 1.2604789286851883,
+      "val_dice_mean": 0.012242239899933338,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.033,
+        0.0118,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 15,
+      "train_loss": 1.2470908164978027,
+      "val_dice_mean": 0.012524754740297794,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0018,
+        0.0337,
+        0.0123,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 16,
+      "train_loss": 1.2392922192811966,
+      "val_dice_mean": 0.012744316831231117,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0018,
+        0.0344,
+        0.0125,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 17,
+      "train_loss": 1.225768968462944,
+      "val_dice_mean": 0.013026738539338112,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0018,
+        0.035,
+        0.013,
+        0.0022,
+        null
+      ]
+    },
+    {
+      "epoch": 18,
+      "train_loss": 1.2158748805522919,
+      "val_dice_mean": 0.013345405459403992,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0018,
+        0.0358,
+        0.0135,
+        0.0022,
+        null
+      ]
+    },
+    {
+      "epoch": 19,
+      "train_loss": 1.2063381969928741,
+      "val_dice_mean": 0.013653484173119068,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0018,
+        0.0364,
+        0.0142,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 20,
+      "train_loss": 1.196034923195839,
+      "val_dice_mean": 0.013989441096782684,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0018,
+        0.0373,
+        0.0146,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 21,
+      "train_loss": 1.1858531087636948,
+      "val_dice_mean": 0.014296433888375759,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0018,
+        0.0382,
+        0.0149,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 22,
+      "train_loss": 1.1746226251125336,
+      "val_dice_mean": 0.014547517523169518,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0017,
+        0.0388,
+        0.0153,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 23,
+      "train_loss": 1.1675415188074112,
+      "val_dice_mean": 0.014750407077372074,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0017,
+        0.0393,
+        0.0156,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 24,
+      "train_loss": 1.154355227947235,
+      "val_dice_mean": 0.014839086681604385,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0017,
+        0.0393,
+        0.0161,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 25,
+      "train_loss": 1.150508925318718,
+      "val_dice_mean": 0.01489181723445654,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0017,
+        0.0391,
+        0.0165,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 26,
+      "train_loss": 1.1436434090137482,
+      "val_dice_mean": 0.015038444660604,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0016,
+        0.0393,
+        0.0169,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 27,
+      "train_loss": 1.136501133441925,
+      "val_dice_mean": 0.015164115466177464,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0016,
+        0.0393,
+        0.0174,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 28,
+      "train_loss": 1.128183126449585,
+      "val_dice_mean": 0.015262275002896786,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0016,
+        0.0393,
+        0.0178,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 29,
+      "train_loss": 1.1189918965101242,
+      "val_dice_mean": 0.015308186411857605,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0016,
+        0.039,
+        0.0183,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 30,
+      "train_loss": 1.1107121109962463,
+      "val_dice_mean": 0.015380381606519222,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0015,
+        0.0388,
+        0.0188,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 31,
+      "train_loss": 1.0999926030635834,
+      "val_dice_mean": 0.015318320132791996,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0015,
+        0.0381,
+        0.0193,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 32,
+      "train_loss": 1.090761423110962,
+      "val_dice_mean": 0.015360981225967407,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0015,
+        0.0378,
+        0.0198,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 33,
+      "train_loss": 1.0856249779462814,
+      "val_dice_mean": 0.015383866615593433,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0014,
+        0.0375,
+        0.0203,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 34,
+      "train_loss": 1.0804704427719116,
+      "val_dice_mean": 0.015474023297429085,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0014,
+        0.0371,
+        0.0211,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 35,
+      "train_loss": 1.0699855387210846,
+      "val_dice_mean": 0.015548747964203358,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0014,
+        0.0368,
+        0.0217,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 36,
+      "train_loss": 1.0640279352664948,
+      "val_dice_mean": 0.015556410886347294,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0014,
+        0.0362,
+        0.0225,
+        0.0022,
+        null
+      ]
+    },
+    {
+      "epoch": 37,
+      "train_loss": 1.057144656777382,
+      "val_dice_mean": 0.015651406720280647,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0014,
+        0.0359,
+        0.0232,
+        0.0022,
+        null
+      ]
+    },
+    {
+      "epoch": 38,
+      "train_loss": 1.0560083389282227,
+      "val_dice_mean": 0.015831615775823593,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0014,
+        0.0357,
+        0.0241,
+        0.0022,
+        null
+      ]
+    },
+    {
+      "epoch": 39,
+      "train_loss": 1.0497986376285553,
+      "val_dice_mean": 0.01608099788427353,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0013,
+        0.0357,
+        0.0251,
+        0.0022,
+        null
+      ]
+    },
+    {
+      "epoch": 40,
+      "train_loss": 1.0427649319171906,
+      "val_dice_mean": 0.016275541856884956,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0013,
+        0.0354,
+        0.0262,
+        0.0022,
+        null
+      ]
+    },
+    {
+      "epoch": 41,
+      "train_loss": 1.039570927619934,
+      "val_dice_mean": 0.016390465199947357,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0013,
+        0.0347,
+        0.0273,
+        0.0022,
+        null
+      ]
+    },
+    {
+      "epoch": 42,
+      "train_loss": 1.0303642451763153,
+      "val_dice_mean": 0.016592755913734436,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0012,
+        0.0341,
+        0.0288,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 43,
+      "train_loss": 1.0285129398107529,
+      "val_dice_mean": 0.016964782029390335,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0012,
+        0.0342,
+        0.0301,
+        0.0023,
+        null
+      ]
+    },
+    {
+      "epoch": 44,
+      "train_loss": 1.0241345316171646,
+      "val_dice_mean": 0.017368078231811523,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0012,
+        0.0345,
+        0.0314,
+        0.0024,
+        null
+      ]
+    },
+    {
+      "epoch": 45,
+      "train_loss": 1.0106638967990875,
+      "val_dice_mean": 0.017772099003195763,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0012,
+        0.0345,
+        0.033,
+        0.0025,
+        null
+      ]
+    },
+    {
+      "epoch": 46,
+      "train_loss": 1.006739765405655,
+      "val_dice_mean": 0.018320417031645775,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0012,
+        0.0348,
+        0.0348,
+        0.0025,
+        null
+      ]
+    },
+    {
+      "epoch": 47,
+      "train_loss": 0.9997363910079002,
+      "val_dice_mean": 0.01875978708267212,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0013,
+        0.0345,
+        0.0367,
+        0.0025,
+        null
+      ]
+    },
+    {
+      "epoch": 48,
+      "train_loss": 0.991936556994915,
+      "val_dice_mean": 0.01919589191675186,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0014,
+        0.0341,
+        0.0387,
+        0.0025,
+        null
+      ]
+    },
+    {
+      "epoch": 49,
+      "train_loss": 0.9915064200758934,
+      "val_dice_mean": 0.019596176221966743,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0017,
+        0.0333,
+        0.0408,
+        0.0025,
+        null
+      ]
+    },
+    {
+      "epoch": 50,
+      "train_loss": 0.9842645972967148,
+      "val_dice_mean": 0.02003396674990654,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.002,
+        0.0323,
+        0.0432,
+        0.0026,
+        null
+      ]
+    },
+    {
+      "epoch": 51,
+      "train_loss": 0.9758110120892525,
+      "val_dice_mean": 0.020493295043706894,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0021,
+        0.0315,
+        0.0456,
+        0.0027,
+        null
+      ]
+    },
+    {
+      "epoch": 52,
+      "train_loss": 0.9701826721429825,
+      "val_dice_mean": 0.020951488986611366,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.002,
+        0.0309,
+        0.0481,
+        0.0029,
+        null
+      ]
+    },
+    {
+      "epoch": 53,
+      "train_loss": 0.9709062576293945,
+      "val_dice_mean": 0.021396325901150703,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0019,
+        0.0299,
+        0.0506,
+        0.0033,
+        null
+      ]
+    },
+    {
+      "epoch": 54,
+      "train_loss": 0.9696575254201889,
+      "val_dice_mean": 0.022085366770625114,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0018,
+        0.0292,
+        0.0534,
+        0.0039,
+        null
+      ]
+    },
+    {
+      "epoch": 55,
+      "train_loss": 0.9620339348912239,
+      "val_dice_mean": 0.022959716618061066,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0018,
+        0.0287,
+        0.0563,
+        0.005,
+        null
+      ]
+    },
+    {
+      "epoch": 56,
+      "train_loss": 0.957631804049015,
+      "val_dice_mean": 0.024211769923567772,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0016,
+        0.0287,
+        0.0593,
+        0.0072,
+        null
+      ]
+    },
+    {
+      "epoch": 57,
+      "train_loss": 0.950893446803093,
+      "val_dice_mean": 0.025585738942027092,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0015,
+        0.0278,
+        0.0623,
+        0.0107,
+        null
+      ]
+    },
+    {
+      "epoch": 58,
+      "train_loss": 0.9464742690324783,
+      "val_dice_mean": 0.027302149683237076,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.001,
+        0.0275,
+        0.0654,
+        0.0154,
+        null
+      ]
+    },
+    {
+      "epoch": 59,
+      "train_loss": 0.9543392136693001,
+      "val_dice_mean": 0.028996532782912254,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.001,
+        0.0273,
+        0.0681,
+        0.0196,
+        null
+      ]
+    },
+    {
+      "epoch": 60,
+      "train_loss": 0.9470421001315117,
+      "val_dice_mean": 0.030947957187891006,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0007,
+        0.0281,
+        0.0707,
+        0.0243,
+        null
+      ]
+    },
+    {
+      "epoch": 61,
+      "train_loss": 0.9448860809206963,
+      "val_dice_mean": 0.03259644657373428,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0005,
+        0.0277,
+        0.0737,
+        0.0284,
+        null
+      ]
+    },
+    {
+      "epoch": 62,
+      "train_loss": 0.9460827857255936,
+      "val_dice_mean": 0.03405793011188507,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0003,
+        0.0271,
+        0.0765,
+        0.0323,
+        null
+      ]
+    },
+    {
+      "epoch": 63,
+      "train_loss": 0.9396524280309677,
+      "val_dice_mean": 0.035920243710279465,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0001,
+        0.0272,
+        0.0795,
+        0.0368,
+        null
+      ]
+    },
+    {
+      "epoch": 64,
+      "train_loss": 0.9278184100985527,
+      "val_dice_mean": 0.03740277886390686,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0001,
+        0.0267,
+        0.0822,
+        0.0406,
+        null
+      ]
+    },
+    {
+      "epoch": 65,
+      "train_loss": 0.9280408248305321,
+      "val_dice_mean": 0.038815826177597046,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0001,
+        0.0267,
+        0.0851,
+        0.0433,
+        null
+      ]
+    },
+    {
+      "epoch": 66,
+      "train_loss": 0.9229879453778267,
+      "val_dice_mean": 0.0398336797952652,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0001,
+        0.0257,
+        0.0879,
+        0.0456,
+        null
+      ]
+    },
+    {
+      "epoch": 67,
+      "train_loss": 0.9197944551706314,
+      "val_dice_mean": 0.040740564465522766,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0252,
+        0.0907,
+        0.047,
+        null
+      ]
+    },
+    {
+      "epoch": 68,
+      "train_loss": 0.91141077876091,
+      "val_dice_mean": 0.0414382740855217,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0001,
+        0.0243,
+        0.0941,
+        0.0473,
+        null
+      ]
+    },
+    {
+      "epoch": 69,
+      "train_loss": 0.9095976129174232,
+      "val_dice_mean": 0.042286381125450134,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0001,
+        0.0238,
+        0.0972,
+        0.048,
+        null
+      ]
+    },
+    {
+      "epoch": 70,
+      "train_loss": 0.9133028909564018,
+      "val_dice_mean": 0.043416887521743774,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0242,
+        0.1009,
+        0.0486,
+        null
+      ]
+    },
+    {
+      "epoch": 71,
+      "train_loss": 0.9087269976735115,
+      "val_dice_mean": 0.04432811960577965,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0234,
+        0.1049,
+        0.049,
+        null
+      ]
+    },
+    {
+      "epoch": 72,
+      "train_loss": 0.9063481166958809,
+      "val_dice_mean": 0.045253586024045944,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0234,
+        0.1084,
+        0.0492,
+        null
+      ]
+    },
+    {
+      "epoch": 73,
+      "train_loss": 0.9006824493408203,
+      "val_dice_mean": 0.04618655517697334,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0238,
+        0.1118,
+        0.0492,
+        null
+      ]
+    },
+    {
+      "epoch": 74,
+      "train_loss": 0.8999753296375275,
+      "val_dice_mean": 0.04688791558146477,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0249,
+        0.1147,
+        0.048,
+        null
+      ]
+    },
+    {
+      "epoch": 75,
+      "train_loss": 0.8971733376383781,
+      "val_dice_mean": 0.04745049774646759,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0246,
+        0.1176,
+        0.0476,
+        null
+      ]
+    },
+    {
+      "epoch": 76,
+      "train_loss": 0.9008750841021538,
+      "val_dice_mean": 0.047925207763910294,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0253,
+        0.1203,
+        0.0461,
+        null
+      ]
+    },
+    {
+      "epoch": 77,
+      "train_loss": 0.8924914598464966,
+      "val_dice_mean": 0.0484500378370285,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.026,
+        0.1229,
+        0.0449,
+        null
+      ]
+    },
+    {
+      "epoch": 78,
+      "train_loss": 0.8913800418376923,
+      "val_dice_mean": 0.0490950345993042,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0277,
+        0.1252,
+        0.0434,
+        null
+      ]
+    },
+    {
+      "epoch": 79,
+      "train_loss": 0.8922419473528862,
+      "val_dice_mean": 0.04929550737142563,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0282,
+        0.1276,
+        0.0413,
+        null
+      ]
+    },
+    {
+      "epoch": 80,
+      "train_loss": 0.8884630873799324,
+      "val_dice_mean": 0.04989462345838547,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0295,
+        0.1299,
+        0.0402,
+        null
+      ]
+    },
+    {
+      "epoch": 81,
+      "train_loss": 0.8833412453532219,
+      "val_dice_mean": 0.05042474344372749,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0302,
+        0.1318,
+        0.0397,
+        null
+      ]
+    },
+    {
+      "epoch": 82,
+      "train_loss": 0.8831995949149132,
+      "val_dice_mean": 0.051176801323890686,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0319,
+        0.1343,
+        0.0386,
+        null
+      ]
+    },
+    {
+      "epoch": 83,
+      "train_loss": 0.8820377588272095,
+      "val_dice_mean": 0.05183297395706177,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0338,
+        0.1367,
+        0.0368,
+        null
+      ]
+    },
+    {
+      "epoch": 84,
+      "train_loss": 0.879290945827961,
+      "val_dice_mean": 0.0525650680065155,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0355,
+        0.1385,
+        0.0363,
+        null
+      ]
+    },
+    {
+      "epoch": 85,
+      "train_loss": 0.8799905627965927,
+      "val_dice_mean": 0.05359204113483429,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0383,
+        0.141,
+        0.0351,
+        null
+      ]
+    },
+    {
+      "epoch": 86,
+      "train_loss": 0.8765502497553825,
+      "val_dice_mean": 0.054515451192855835,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0414,
+        0.1434,
+        0.0333,
+        null
+      ]
+    },
+    {
+      "epoch": 87,
+      "train_loss": 0.8750356361269951,
+      "val_dice_mean": 0.05531821399927139,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0435,
+        0.1456,
+        0.0321,
+        null
+      ]
+    },
+    {
+      "epoch": 88,
+      "train_loss": 0.8761662915349007,
+      "val_dice_mean": 0.05614747479557991,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0455,
+        0.148,
+        0.0311,
+        null
+      ]
+    },
+    {
+      "epoch": 89,
+      "train_loss": 0.8701172396540642,
+      "val_dice_mean": 0.05685709789395332,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0485,
+        0.1508,
+        0.0281,
+        null
+      ]
+    },
+    {
+      "epoch": 90,
+      "train_loss": 0.8719701319932938,
+      "val_dice_mean": 0.05780864134430885,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.051,
+        0.1539,
+        0.0263,
+        null
+      ]
+    },
+    {
+      "epoch": 91,
+      "train_loss": 0.8686244711279869,
+      "val_dice_mean": 0.05939490348100662,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0545,
+        0.1565,
+        0.0266,
+        null
+      ]
+    },
+    {
+      "epoch": 92,
+      "train_loss": 0.8729251325130463,
+      "val_dice_mean": 0.06094687059521675,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0579,
+        0.16,
+        0.0259,
+        null
+      ]
+    },
+    {
+      "epoch": 93,
+      "train_loss": 0.8718589618802071,
+      "val_dice_mean": 0.06227308511734009,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.061,
+        0.1626,
+        0.0254,
+        null
+      ]
+    },
+    {
+      "epoch": 94,
+      "train_loss": 0.8709972947835922,
+      "val_dice_mean": 0.06354645639657974,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0642,
+        0.1652,
+        0.0248,
+        null
+      ]
+    },
+    {
+      "epoch": 95,
+      "train_loss": 0.8699813410639763,
+      "val_dice_mean": 0.06563058495521545,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.068,
+        0.1683,
+        0.0263,
+        null
+      ]
+    },
+    {
+      "epoch": 96,
+      "train_loss": 0.8629236668348312,
+      "val_dice_mean": 0.06718392670154572,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0715,
+        0.1713,
+        0.0259,
+        null
+      ]
+    },
+    {
+      "epoch": 97,
+      "train_loss": 0.8685275688767433,
+      "val_dice_mean": 0.06979046761989594,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0765,
+        0.1747,
+        0.0279,
+        null
+      ]
+    },
+    {
+      "epoch": 98,
+      "train_loss": 0.8663623556494713,
+      "val_dice_mean": 0.07228526473045349,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0823,
+        0.1783,
+        0.0286,
+        null
+      ]
+    },
+    {
+      "epoch": 99,
+      "train_loss": 0.8663315176963806,
+      "val_dice_mean": 0.07434485852718353,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0868,
+        0.1812,
+        0.0294,
+        null
+      ]
+    },
+    {
+      "epoch": 100,
+      "train_loss": 0.8653703331947327,
+      "val_dice_mean": 0.07743265479803085,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.0926,
+        0.1849,
+        0.0322,
+        null
+      ]
+    },
+    {
+      "epoch": 101,
+      "train_loss": 0.8652181997895241,
+      "val_dice_mean": 0.08041540533304214,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.098,
+        0.1887,
+        0.0349,
+        null
+      ]
+    },
+    {
+      "epoch": 102,
+      "train_loss": 0.8587318733334541,
+      "val_dice_mean": 0.08309128880500793,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1032,
+        0.1919,
+        0.0372,
+        null
+      ]
+    },
+    {
+      "epoch": 103,
+      "train_loss": 0.8579831346869469,
+      "val_dice_mean": 0.08608067035675049,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.108,
+        0.1956,
+        0.0408,
+        null
+      ]
+    },
+    {
+      "epoch": 104,
+      "train_loss": 0.8618438467383385,
+      "val_dice_mean": 0.08955124020576477,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1134,
+        0.1996,
+        0.0452,
+        null
+      ]
+    },
+    {
+      "epoch": 105,
+      "train_loss": 0.8592856451869011,
+      "val_dice_mean": 0.09389291703701019,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1206,
+        0.204,
+        0.051,
+        null
+      ]
+    },
+    {
+      "epoch": 106,
+      "train_loss": 0.8582238554954529,
+      "val_dice_mean": 0.09836412221193314,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1275,
+        0.209,
+        0.0569,
+        null
+      ]
+    },
+    {
+      "epoch": 107,
+      "train_loss": 0.859111063182354,
+      "val_dice_mean": 0.10250266641378403,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1339,
+        0.2135,
+        0.0626,
+        null
+      ]
+    },
+    {
+      "epoch": 108,
+      "train_loss": 0.8614078983664513,
+      "val_dice_mean": 0.10762909054756165,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1424,
+        0.2175,
+        0.0705,
+        null
+      ]
+    },
+    {
+      "epoch": 109,
+      "train_loss": 0.8631469756364822,
+      "val_dice_mean": 0.11318470537662506,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1515,
+        0.2225,
+        0.0787,
+        null
+      ]
+    },
+    {
+      "epoch": 110,
+      "train_loss": 0.8611845597624779,
+      "val_dice_mean": 0.11874928325414658,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1594,
+        0.2274,
+        0.0882,
+        null
+      ]
+    },
+    {
+      "epoch": 111,
+      "train_loss": 0.8556187376379967,
+      "val_dice_mean": 0.12377720326185226,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1678,
+        0.2316,
+        0.0956,
+        null
+      ]
+    },
+    {
+      "epoch": 112,
+      "train_loss": 0.8567985594272614,
+      "val_dice_mean": 0.12868894636631012,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.176,
+        0.2362,
+        0.1026,
+        null
+      ]
+    },
+    {
+      "epoch": 113,
+      "train_loss": 0.8551697432994843,
+      "val_dice_mean": 0.134718120098114,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.1848,
+        0.241,
+        0.113,
+        null
+      ]
+    },
+    {
+      "epoch": 114,
+      "train_loss": 0.8556591421365738,
+      "val_dice_mean": 0.14063458144664764,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.193,
+        0.2453,
+        0.1242,
+        null
+      ]
+    },
+    {
+      "epoch": 115,
+      "train_loss": 0.8606746271252632,
+      "val_dice_mean": 0.14711034297943115,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.2025,
+        0.2494,
+        0.1365,
+        null
+      ]
+    },
+    {
+      "epoch": 116,
+      "train_loss": 0.8584533035755157,
+      "val_dice_mean": 0.15277498960494995,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.2097,
+        0.2544,
+        0.147,
+        null
+      ]
+    },
+    {
+      "epoch": 117,
+      "train_loss": 0.8587975651025772,
+      "val_dice_mean": 0.15883976221084595,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.2178,
+        0.2586,
+        0.1589,
+        null
+      ]
+    },
+    {
+      "epoch": 118,
+      "train_loss": 0.856546476483345,
+      "val_dice_mean": 0.1638927459716797,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.2259,
+        0.2631,
+        0.1666,
+        null
+      ]
+    },
+    {
+      "epoch": 119,
+      "train_loss": 0.8550844565033913,
+      "val_dice_mean": 0.16939038038253784,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.2357,
+        0.2672,
+        0.1747,
+        null
+      ]
+    },
+    {
+      "epoch": 120,
+      "train_loss": 0.8605311438441277,
+      "val_dice_mean": 0.17665457725524902,
+      "val_classes_evaluable": 4,
+      "val_dice_per_class": [
+        0.0,
+        0.2478,
+        0.272,
+        0.1868,
+        null
+      ]
+    }
+  ],
+  "best_metric": 0.17665457725524902,
+  "best_epoch": 120,
+  "elapsed_s": 352.4977345466614,
+  "config": {
+    "epochs": 120,
+    "batch_size": 8,
+    "lr": 0.0003,
+    "mask_key": "lesion_mask",
+    "device": "cuda"
+  }
+}

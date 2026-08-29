@@ -1,6 +1,6 @@
 {
   "arm": "fusion",
   "use_clinical": true,
-  "best_metric": 1.0,
-  "best_epoch": 6
+  "best_metric": 0.9731584280553351,
+  "best_epoch": 30
 }

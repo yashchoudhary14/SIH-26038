@@ -1,6 +1,6 @@
 {
   "arm": "cnn",
   "use_clinical": false,
-  "best_metric": 1.0,
-  "best_epoch": 7
+  "best_metric": 0.9758789320644992,
+  "best_epoch": 27
 }

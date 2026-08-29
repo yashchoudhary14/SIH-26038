@@ -127,7 +127,80 @@ def build_synthetic(out: Path, n_train: int, n_val: int, n_test: int,
     print(f"Wrote {done} cases to {out} in {time.time()-t0:.0f}s")
 
 
-def build_real(out: Path, data_root: Path, size: int, val_frac: float, enhance: bool):
+def _process_real(job: tuple):
+    """Worker: read one real image, standardise, assess, enhance, load masks.
+
+    Returns picklable arrays; the parent does all the disk writing so the
+    manifest stays a single append-ordered file.
+    """
+    s_path, s_dataset, s_grade, s_gradable, s_subject, s_masks, split, i, size, enhance = job
+    raw = cv2.imread(str(s_path), cv2.IMREAD_COLOR)
+    if raw is None:
+        return None
+    img, fov_mask, fov = standardize(raw, size=size)
+    q = assess(img, fov_mask, fov)
+    if enhance:
+        img, applied = adaptive_enhance(img, fov_mask, q.issues)
+        img = to_model_input(img, fov_mask, mode="hybrid")
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    else:
+        applied = []
+
+    # Masks must go through the SAME geometry as the image.
+    #
+    # `standardize` crops to the FOV bounding box, square-pads, then resizes.
+    # Resizing a mask straight from source to (size, size) skips the crop and
+    # the pad, so every annotation lands in the wrong place -- off by the crop
+    # offset and stretched by the aspect-ratio correction. The model then
+    # learns to associate lesions with whatever happens to sit at the shifted
+    # coordinates, which is worse than no supervision because it trains
+    # confidently on noise.
+    #
+    # Foreground encoding is also not standardised across corpora: IDRiD ships
+    # palette TIFFs whose foreground value is 76, DRIVE uses 255. Any non-zero
+    # pixel is foreground; thresholding at >127 silently empties IDRiD.
+    masks = None
+    if s_masks:
+        def _load(path) -> np.ndarray | None:
+            if path is None:
+                return None
+            m = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+            return None if m is None else (m > 0).astype(np.uint8) * 255
+
+        raw_h, raw_w = raw.shape[:2]
+        keys = ("microaneurysm", "hemorrhage", "hard_exudate",
+                "soft_exudate", "neovascularization")
+        planes = [_load(s_masks.get(k)) for k in keys]
+        vessel_raw = _load(s_masks.get("vessel"))
+        disc_raw = _load(s_masks.get("optic_disc"))
+
+        blank = np.zeros((raw_h, raw_w), np.uint8)
+        stack_raw = np.stack(
+            [vessel_raw if vessel_raw is not None else blank,
+             disc_raw if disc_raw is not None else blank] +
+            [p if p is not None else blank for p in planes], axis=-1)
+
+        # Some corpora annotate at a different resolution than the image.
+        if stack_raw.shape[:2] != (raw_h, raw_w):
+            stack_raw = cv2.resize(stack_raw, (raw_w, raw_h),
+                                   interpolation=cv2.INTER_NEAREST)
+
+        warped = _warp_masks(stack_raw, (raw_h, raw_w), fov, size)
+        masks = {"vessel": warped[..., 0], "disc": warped[..., 1],
+                 "lesions": warped[..., 2:]}
+
+    rec = CohortRecord(uid=f"{s_dataset}_{split}_{i:06d}",
+                       grade=s_grade if s_grade is not None else -1,
+                       split=split, source=s_dataset,
+                       quality_label=2 if s_gradable is not False else 0,
+                       meta={"applied": applied, "quality_overall": q.overall,
+                             "original": str(s_path), "subject": s_subject})
+    return rec, img, fov_mask, masks
+
+
+def build_real(out: Path, data_root: Path, size: int, val_frac: float,
+               enhance: bool, workers: int = 0,
+               only_splits: set[str] | None = None):
     from drscreen.data.registry import (discover, group_split, assert_no_leakage,
                                         grade_distribution)
     found = discover(data_root)
@@ -142,71 +215,82 @@ def build_real(out: Path, data_root: Path, size: int, val_frac: float, enhance: 
         dist = grade_distribution(v)
         print(f"  {k:22s} {len(v):6d} images   grades {dist or '(none)'}")
 
+    # --- grading pool: APTOS + IDRiD disease grading -----------------------
     train_pool: list = []
     for name in ("aptos2019", "idrid_grading"):
         train_pool += found.get(name, [])
     external = found.get("messidor2", [])
-    seg_pool = found.get("idrid_segmentation", []) + found.get("drive", [])
 
-    train, val = group_split(train_pool, val_frac)
-    assert_no_leakage(train, val, external)
-    print(f"\nSplit: train {len(train)}  val {len(val)}  external(messidor2) {len(external)}")
+    # --- segmentation pool, kept on its own splits -------------------------
+    # These are different tasks over different corpora and they must not be
+    # mixed. IDRiD segmentation carries pixel lesion masks; DRIVE carries
+    # vessel masks and no lesion annotation at all. Pooling them would feed
+    # the lesion head 40 images labelled "no lesions anywhere", teaching it
+    # that a whole imaging domain is disease-free. They also cannot live on
+    # the grading splits, because APTOS has no masks and the segmentation
+    # trainer would fail on the missing key.
+    seg_pool = found.get("idrid_segmentation", [])
+    vessel_pool = found.get("drive", [])
+    seg_train, seg_val = group_split(seg_pool, max(val_frac, 0.2))
+    ves_train, ves_val = group_split(vessel_pool, max(val_frac, 0.2))
+
+    # Three-way, not two. `val` fits the temperature and selects the referral
+    # threshold; `test` is the internal held-out estimate. Sharing one split
+    # between those two jobs is the single most common way DR results get
+    # inflated, so the cohort makes it structurally impossible rather than
+    # relying on the trainer to remember.
+    rest, test = group_split(train_pool, val_frac, salt="drscreen-test")
+    train, val = group_split(rest, val_frac / max(1.0 - val_frac, 1e-6))
+    assert_no_leakage(train, val, test, external)
+    print(f"\nGrading split : train {len(train)}  val {len(val)}  "
+          f"test {len(test)}  external/messidor2 {len(external)}")
+    print(f"Lesion  split : train {len(seg_train)}  val {len(seg_val)}   (IDRiD segmentation)")
+    print(f"Vessel  split : train {len(ves_train)}  val {len(ves_val)}   (DRIVE)")
     print("Messidor-2 is held out; it is never used for training or threshold selection.")
 
     t0 = time.time()
     written = 0
     with CohortWriter(out) as w:
-        for split, samples in (("train", train), ("val", val),
-                               ("external", external), ("seg", seg_pool)):
-            for i, s in enumerate(samples):
-                raw = cv2.imread(str(s.image_path), cv2.IMREAD_COLOR)
-                if raw is None:
-                    continue
-                img, fov_mask, fov = standardize(raw, size=size)
-                q = assess(img, fov_mask, fov)
-                if enhance:
-                    img, applied = adaptive_enhance(img, fov_mask, q.issues)
-                    img = to_model_input(img, fov_mask, mode="hybrid")
-                    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-                else:
-                    applied = []
+        plan = (("train", train), ("val", val), ("test", test),
+                ("external", external),
+                ("seg_train", seg_train), ("seg_val", seg_val),
+                ("vessel_train", ves_train), ("vessel_val", ves_val))
+        if only_splits:
+            plan = tuple(x for x in plan if x[0] in only_splits)
+            print(f"Restricted to splits: {sorted(only_splits)}")
 
-                masks = None
-                if s.masks:
-                    planes = []
-                    for key in ("microaneurysm", "hemorrhage", "hard_exudate",
-                                "soft_exudate", "neovascularization"):
-                        p = s.masks.get(key)
-                        if p is None:
-                            planes.append(np.zeros((size, size), np.uint8))
-                        else:
-                            m = cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)
-                            m = cv2.resize(m, (size, size), interpolation=cv2.INTER_NEAREST)
-                            planes.append((m > 127).astype(np.uint8) * 255)
-                    lesions = np.stack(planes, axis=-1)
-                    vessel = np.zeros((size, size), np.uint8)
-                    if "vessel" in s.masks:
-                        m = cv2.imread(str(s.masks["vessel"]), cv2.IMREAD_GRAYSCALE)
-                        vessel = (cv2.resize(m, (size, size),
-                                             interpolation=cv2.INTER_NEAREST) > 127).astype(np.uint8) * 255
-                    disc = np.zeros((size, size), np.uint8)
-                    if "optic_disc" in s.masks:
-                        m = cv2.imread(str(s.masks["optic_disc"]), cv2.IMREAD_GRAYSCALE)
-                        disc = (cv2.resize(m, (size, size),
-                                           interpolation=cv2.INTER_NEAREST) > 127).astype(np.uint8) * 255
-                    masks = {"vessel": vessel, "disc": disc, "lesions": lesions}
+        jobs = []
+        for split, samples in plan:
+            for i, sm in enumerate(samples):
+                jobs.append((sm.image_path, sm.dataset, sm.grade, sm.gradable,
+                             sm.subject_id, sm.masks, split, i, size, enhance))
+        total = len(jobs)
+        print(f"\nProcessing {total} images with {max(1, workers)} worker(s)...")
 
-                uid = f"{s.dataset}_{split}_{i:06d}"
-                rec = CohortRecord(uid=uid, grade=s.grade if s.grade is not None else -1,
-                                   split=split, source=s.dataset,
-                                   quality_label=2 if s.gradable is not False else 0,
-                                   meta={"applied": applied, "quality_overall": q.overall,
-                                         "original": str(s.image_path),
-                                         "subject": s.subject_id})
-                w.add(rec, img, fov_mask, masks)
-                written += 1
+        def _write(payload):
+            if payload is None:
+                return 0
+            rec, img, fov_mask, masks = payload
+            w.add(rec, img, fov_mask, masks)
+            return 1
+
+        if workers and workers > 1:
+            import multiprocessing as mp
+            with mp.Pool(workers) as pool:
+                for payload in pool.imap(_process_real, jobs, chunksize=4):
+                    written += _write(payload)
+                    if written % 200 == 0:
+                        el = time.time() - t0
+                        print(f"  {written}/{total}  ({el:.0f}s, {written/max(el,1):.1f}/s)",
+                              flush=True)
+        else:
+            for job in jobs:
+                written += _write(_process_real(job))
                 if written % 200 == 0:
-                    print(f"  {written} written ({time.time()-t0:.0f}s)", flush=True)
+                    el = time.time() - t0
+                    print(f"  {written}/{total}  ({el:.0f}s, {written/max(el,1):.1f}/s)",
+                          flush=True)
+
     print(f"Wrote {written} cases to {out} in {time.time()-t0:.0f}s")
     return 0
 
@@ -221,6 +305,10 @@ def main():
     ap.add_argument("--size", type=int, default=384)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--val-frac", type=float, default=0.15)
+    ap.add_argument("--only-splits", nargs="*", default=None,
+                    help="build only these splits, e.g. seg_train seg_val. Lets the "
+                         "lesion model use a higher resolution than the grading "
+                         "cohort without materialising every image twice.")
     ap.add_argument("--label-noise", type=float, default=0.0,
                     help="probability a case gets a +/-1 grade label error, "
                          "modelling real inter-grader disagreement (try 0.25)")
@@ -237,7 +325,9 @@ def main():
                         int(n * 0.12), a.size, a.seed, not a.no_enhance,
                         workers=a.workers, label_noise=a.label_noise)
         return 0
-    return build_real(a.out, a.data_root, a.size, a.val_frac, not a.no_enhance)
+    return build_real(a.out, a.data_root, a.size, a.val_frac,
+                      not a.no_enhance, workers=a.workers,
+                      only_splits=set(a.only_splits) if a.only_splits else None)
 
 
 if __name__ == "__main__":

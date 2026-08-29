@@ -85,8 +85,19 @@ class ScreeningResult:
 @dataclass
 class PipelineConfig:
     size: int = 512
+    #: Resolution the LESION model runs at. Often larger than `size`: a
+    #: microaneurysm is a few pixels wide, and at 512 the segmentation head
+    #: scored Dice 0.00 on them versus 0.485 at 1024. The grader still works at
+    #: `size`; only segmentation pays the extra cost. If this does not match
+    #: the resolution the segmentation model was trained at, the clinical
+    #: features drift away from the ones the grader was fitted on, and the
+    #: deployed system quietly disagrees with its own validation.
+    seg_size: int = 512
     device: str = "auto"
     lesion_threshold: float = 0.5
+    #: Per-class cut-points on the lesion probability maps, fitted for F1 on
+    #: held-out IDRiD. Falls back to `lesion_threshold` for missing classes.
+    lesion_thresholds: dict | None = None
     referral_threshold: float = 0.5      # overwritten by the calibrated value
     defer_band: tuple[float, float] = (0.35, 0.65)
     temperature: float = 1.0
@@ -95,6 +106,9 @@ class PipelineConfig:
     enable_cam: bool = True
     cam_method: str = "gradcam++"
     model_version: str = "drscreen-1.0.0"
+    #: Serialised monotone recalibrator for P(referable). The referral
+    #: threshold was selected on this scale, so the two must ship together.
+    calibrator: dict | None = None
 
 
 class DRScreeningPipeline:
@@ -107,6 +121,10 @@ class DRScreeningPipeline:
             else ("cpu" if self.cfg.device == "auto" else self.cfg.device))
         self.seg = seg_model.to(self.device).eval() if seg_model is not None else None
         self.grader = grader.to(self.device).eval() if grader is not None else None
+        self._calibrator = None
+        if self.cfg.calibrator:
+            from .models.calibration import IsotonicCalibrator
+            self._calibrator = IsotonicCalibrator.from_dict(self.cfg.calibrator)
 
     # -- loading ----------------------------------------------------------
     @classmethod
@@ -124,6 +142,9 @@ class DRScreeningPipeline:
             cfg.referral_threshold = float(meta.get("referral_threshold", cfg.referral_threshold))
             cfg.temperature = float(meta.get("temperature", cfg.temperature))
             cfg.size = int(meta.get("size", cfg.size))
+            cfg.seg_size = int(meta.get("seg_size", cfg.size))
+            cfg.calibrator = meta.get("calibrator")
+            cfg.lesion_thresholds = meta.get("lesion_thresholds")
             cfg.defer_band = tuple(meta.get("defer_band", cfg.defer_band))
             backbone = meta.get("backbone", backbone)
             cfg.model_version = meta.get("model_version", cfg.model_version)
@@ -151,13 +172,30 @@ class DRScreeningPipeline:
         return to_tensor(img_rgb).unsqueeze(0).to(self.device)
 
     @torch.no_grad()
-    def _segment(self, x: torch.Tensor) -> np.ndarray:
+    def _segment(self, model_input: np.ndarray) -> np.ndarray:
+        """Segment at the model's training resolution, return maps at `size`.
+
+        Takes the numpy image rather than the grader's tensor so the two stages
+        can run at different resolutions -- which they must, because the lesion
+        model is trained at 1024 and the grader at 512.
+        """
+        out_size = self.cfg.size
         if self.seg is None:
-            return np.zeros((x.shape[-2], x.shape[-1], NUM_LESION_CLASSES), np.float32)
+            return np.zeros((out_size, out_size, NUM_LESION_CLASSES), np.float32)
+
+        img = model_input
+        if img.shape[0] != self.cfg.seg_size:
+            interp = cv2.INTER_CUBIC if img.shape[0] < self.cfg.seg_size else cv2.INTER_AREA
+            img = cv2.resize(img, (self.cfg.seg_size, self.cfg.seg_size), interpolation=interp)
+
+        from .data.torch_data import to_tensor
+        x = to_tensor(img).unsqueeze(0).to(self.device)
         logits = self.seg(x)
         if isinstance(logits, tuple):
             logits = logits[0]
         probs = torch.sigmoid(logits.float())[0].permute(1, 2, 0).cpu().numpy()
+        if probs.shape[0] != out_size:
+            probs = cv2.resize(probs, (out_size, out_size), interpolation=cv2.INTER_AREA)
         return probs
 
     # -- main -------------------------------------------------------------
@@ -259,7 +297,7 @@ class DRScreeningPipeline:
 
         # 5. segmentation --------------------------------------------------
         t = time.perf_counter()
-        lesion_probs = self._segment(x)
+        lesion_probs = self._segment(model_in)
         timing["segmentation"] = (time.perf_counter() - t) * 1000
         artifacts["lesion_probs"] = lesion_probs
 
@@ -267,7 +305,7 @@ class DRScreeningPipeline:
         t = time.perf_counter()
         vessel = self._vessel_proxy(enhanced, fov_mask)
         feats = extract(lesion_probs, lm, fov_mask, vessel,
-                        threshold=self.cfg.lesion_threshold)
+                        threshold=self.cfg.lesion_thresholds or self.cfg.lesion_threshold)
         timing["clinical_features"] = (time.perf_counter() - t) * 1000
         res.clinical_features = {
             "counts": feats.counts,
@@ -298,7 +336,10 @@ class DRScreeningPipeline:
             probs = pred["class_probs"][0].cpu().numpy()
             res.grade = int(np.argmax(probs))
             res.class_probabilities = [round(float(p), 4) for p in probs]
-            res.referable_probability = float(pred["referable_prob"][0])
+            p_ref = float(pred["referable_prob"][0])
+            if self._calibrator is not None:
+                p_ref = float(self._calibrator(np.array([p_ref]))[0])
+            res.referable_probability = p_ref
             res.confidence = float(probs.max())
             res.uncertainty = {
                 "entropy": round(float(pred["entropy"][0]), 4),
@@ -319,8 +360,10 @@ class DRScreeningPipeline:
         res.referable = res.referable_probability >= self.cfg.referral_threshold
 
         # 9. decision & urgency ---------------------------------------------
-        res.decision, res.urgency = self._decide(res, feats)
+        # agreement first: _decide consults the rule grade to distinguish
+        # "confident negative the rules dispute" from a genuine emergency.
         res.agreement = self._agreement(res.grade, rg)
+        res.decision, res.urgency = self._decide(res, feats)
 
         # 10. evidence -------------------------------------------------------
         res.evidence = self._build_evidence(feats, reasons, dme_reason, res)
@@ -366,17 +409,56 @@ class DRScreeningPipeline:
                                 cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
 
     def _decide(self, res: ScreeningResult, feats: ClinicalFeatures) -> tuple[str, str]:
+        """Combine the neural verdict with the lesion-based escalation rules.
+
+        The escalation rules exist because confidence is not a licence to
+        auto-report a potentially blinding finding. But they must not be able
+        to *override* a confident negative on their own, because they run on a
+        segmentation head with limited cross-domain precision: trained on 64
+        IDRiD images, its exudate channel puts several false foci near the
+        fovea on healthy APTOS retinas. Wired unconditionally, that single
+        channel marked **every** case urgent -- and a screening system that
+        escalates 100% of patients has thrown away the triage that justifies
+        it.
+
+        So a lesion rule that disagrees with a confident neural negative
+        produces a *deferral* -- the disagreement goes to a human, which is
+        what the human-in-the-loop is for -- rather than a false emergency.
+        Corroborated findings still escalate exactly as before.
+        """
         lo, hi = self.cfg.defer_band
         p = res.referable_probability
         eps = res.uncertainty.get("epistemic_variance", 0.0)
 
-        # Anything sight-threatening or with macular involvement always sees a
-        # human, no matter how confident the model is. Confidence is not a
-        # licence to auto-report a potentially blinding finding.
-        if res.grade >= SIGHT_THREATENING_THRESHOLD or feats.nv_at_disc or feats.nv_elsewhere:
+        # Which signals are allowed to change a decision is a question about
+        # their measured reliability, not their clinical severity.
+        #
+        # The neural grader is calibrated and validated: sensitivity 0.930
+        # [0.894-0.954], specificity 0.939 [0.909-0.960] on a held-out,
+        # subject-disjoint test split. The rule engine runs on a segmentation
+        # head trained on 64 IDRiD images and measured at specificity 0.058 on
+        # that same split -- it calls almost everything referable. Letting it
+        # escalate unilaterally turned every case urgent, then every case a
+        # deferral; either way the triage that justifies the system is gone.
+        #
+        # So lesion-based escalation requires corroboration: it fires unless
+        # the calibrated model is *confidently* negative (below the deferral
+        # band, not merely below threshold). A confidently-negative case whose
+        # lesion evidence disagrees is still auto-reported, but the
+        # disagreement is written into the report and the audit log rather
+        # than discarded -- which is what makes it reviewable later.
+        confidently_negative = p < lo
+
+        # Neovascularisation is the exception: it defines proliferative DR and
+        # is a specific finding, so it escalates on sight.
+        if feats.nv_at_disc or feats.nv_elsewhere:
             return "refer", "urgent"
-        if res.dme_risk >= 2:
-            return "refer", "urgent"
+
+        if not confidently_negative:
+            if res.grade >= SIGHT_THREATENING_THRESHOLD:
+                return "refer", "urgent"
+            if res.dme_risk >= 2:
+                return "refer", "urgent"
 
         if lo <= p <= hi or eps > self.cfg.uncertainty_defer:
             return "defer_to_human", ("soon" if p >= self.cfg.referral_threshold else "routine")

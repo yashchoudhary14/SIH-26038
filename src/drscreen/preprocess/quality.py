@@ -184,12 +184,30 @@ def contrast_score(image: np.ndarray, mask: np.ndarray) -> float:
 
 
 def fov_score(fov: FOVInfo) -> float:
-    """Fraction of the 45-degree field actually captured, penalised for clipping."""
-    score = fov.coverage
-    n_clipped = sum(fov.clipped_sides)
-    score *= (1.0 - 0.12 * n_clipped)
+    """Fraction of the 45-degree field actually captured.
+
+    ``coverage`` is the fraction of the fitted aperture circle that landed on
+    the sensor, which is precisely the quantity of interest.
+
+    An earlier version multiplied it by a per-edge clipping penalty. That was
+    wrong twice over: it double-counts what coverage already measures, and it
+    misreads normal fundus geometry as a defect. A fundus aperture is wider
+    than the sensor is tall, so the retina touches the top and bottom edges of
+    almost every correctly captured image -- and datasets like APTOS ship
+    pre-cropped, touching all four. On real data that penalty rejected 34% of
+    images whose coverage was 0.90-1.00, i.e. images that were completely fine.
+    The phantoms never caught it because they always render black margin.
+
+    Edge contact is retained only as a weak corroborating signal when coverage
+    is *already* poor, which is the case where the retina genuinely does run
+    off the sensor.
+    """
+    score = float(fov.coverage)
+    if score < 0.80:
+        n_clipped = sum(fov.clipped_sides)
+        score *= (1.0 - 0.05 * n_clipped)
     if fov.fill_ratio < 0.15:
-        score *= 0.4
+        score *= 0.4          # barely any retina in frame at all
     return float(np.clip(score, 0.0, 1.0))
 
 

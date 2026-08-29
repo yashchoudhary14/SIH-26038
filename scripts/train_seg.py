@@ -29,10 +29,26 @@ def main():
     ap.add_argument("--pos-weight", type=float, default=8.0,
                     help="BCE positive weight; lesions occupy <1% of pixels")
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--train-split", default=None,
+                    help="cohort split to train on (default: auto-detect)")
+    ap.add_argument("--val-split", default=None)
     a = ap.parse_args()
 
-    train_ds = CohortDataset(a.cohort, "train", size=a.size, train=True, with_masks=True)
-    val_ds = CohortDataset(a.cohort, "val", size=a.size, train=False,
+    # Real cohorts keep lesion segmentation on its own splits, because the
+    # grading corpora (APTOS) carry no masks and DRIVE carries vessel masks
+    # but no lesion annotation. Synthetic cohorts have masks on every split.
+    train_split, val_split = a.train_split, a.val_split
+    if train_split is None:
+        from drscreen.data.cohort import read_manifest
+        available = {r.split for r in read_manifest(a.cohort)}
+        if "seg_train" in available:
+            train_split, val_split = "seg_train", "seg_val"
+            print("Using the lesion-segmentation splits (seg_train/seg_val).")
+        else:
+            train_split, val_split = "train", "val"
+
+    train_ds = CohortDataset(a.cohort, train_split, size=a.size, train=True, with_masks=True)
+    val_ds = CohortDataset(a.cohort, val_split, size=a.size, train=False,
                            augment=False, with_masks=True)
     print(f"train {len(train_ds)}  val {len(val_ds)}  size {a.size}")
 
@@ -52,6 +68,11 @@ def main():
     ck = torch.load(a.out / "best.pt", map_location="cpu", weights_only=False)
     ck["width"] = a.width
     ck["lesion_classes"] = LESION_CLASSES
+    # The resolution matters at inference: a model trained at 1024 run at 512
+    # produces different lesion counts, so the clinical features drift away
+    # from the ones the grader was fitted on.
+    ck["size"] = a.size
+    ck["train_split"] = train_split
     torch.save(ck, a.out / "best.pt")
     print(f"Checkpoint: {a.out/'best.pt'}")
 

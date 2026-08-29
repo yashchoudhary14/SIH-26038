@@ -233,6 +233,40 @@ def test_correctable_defects_do_not_trigger_recapture():
                 f"{[k for k, v in r.quality['verdicts'].items() if v == 'fail']}")
 
 
+def test_precropped_fundus_is_not_rejected_for_touching_the_frame():
+    """A complete retina that fills the frame must pass the FOV criterion.
+
+    Regression guard for a bug that only real data could expose. A fundus
+    aperture is wider than the sensor is tall, so the retina touches the top
+    and bottom edges of nearly every correct capture; datasets like APTOS ship
+    pre-cropped and touch all four. The gate used to multiply coverage by a
+    per-edge clipping penalty, which rejected 34% of real test images whose
+    coverage was 0.90-1.00 -- images that were entirely gradeable. Phantoms
+    never caught it because they always render a black margin.
+    """
+    import cv2
+    from drscreen.preprocess.fov import detect_fov
+    from drscreen.preprocess.quality import fov_score
+
+    # A disc that exactly fills the frame: complete retina, all edges touched.
+    n = 512
+    img = np.zeros((n, n, 3), np.uint8)
+    cv2.circle(img, (n // 2, n // 2), n // 2 - 1, (60, 90, 180), -1)
+    fov = detect_fov(img)
+    assert sum(fov.clipped_sides) >= 2, "test image should touch the frame"
+    assert fov.coverage > 0.85, f"retina is complete, coverage {fov.coverage:.3f}"
+    assert fov_score(fov) > 0.55, (
+        f"complete-but-tight retina scored {fov_score(fov):.3f} and would be "
+        "sent back for recapture")
+
+    # A genuinely clipped retina -- circle centre pushed off the frame -- must
+    # still score poorly, or the criterion has been neutered rather than fixed.
+    img2 = np.zeros((n, n, 3), np.uint8)
+    cv2.circle(img2, (n // 2, n - 40), n // 2 + 120, (60, 90, 180), -1)
+    fov2 = detect_fov(img2)
+    assert fov_score(fov2) < fov_score(fov), "a truly clipped field must score lower"
+
+
 def test_quality_gate_accepts_clean_images():
     from drscreen.data.synthetic import generate
     from drscreen.preprocess.fov import standardize
@@ -344,6 +378,56 @@ def test_unet_shapes_and_deep_supervision():
     assert all(a.shape[1] == NUM_LESION_CLASSES for a in aux)
     m.eval()
     assert m(x).shape == (2, NUM_LESION_CLASSES, 128, 128)
+
+
+def test_dice_is_nan_not_one_when_ground_truth_is_empty():
+    """An empty prediction on an empty target must NOT score 1.0.
+
+    Regression guard for a bug that cost a full training run. IDRiD encodes
+    lesion-mask foreground as pixel value 76; the loader thresholded at >127,
+    so every mask loaded as empty. The model dutifully learned to predict
+    nothing, and the smoothed Dice `(2*inter+eps)/(denom+eps)` scored that
+    empty-vs-empty agreement as a perfect 1.0000 on all five classes -- while
+    the training loss sat flat at 0.95. The metric reported success for a
+    model that had learned nothing from data that contained nothing.
+    """
+    from drscreen.training import dice_per_class
+    empty_pred = torch.full((2, 3, 8, 8), -9.0)
+    empty_target = torch.zeros(2, 3, 8, 8)
+    d = dice_per_class(empty_pred, empty_target)
+    assert torch.isnan(d).all(), f"empty/empty must be undefined, got {d.tolist()}"
+
+    # A real overlap must still score, and absent classes stay NaN.
+    target = torch.zeros(2, 3, 8, 8); target[:, 1, 2:6, 2:6] = 1
+    logits = torch.full((2, 3, 8, 8), -9.0); logits[:, 1, 2:6, 2:6] = 9.0
+    d = dice_per_class(logits, target)
+    assert torch.isnan(d[0]) and torch.isnan(d[2])
+    assert abs(float(d[1]) - 1.0) < 1e-4
+
+    # A model predicting nothing where lesions DO exist must score ~0.
+    d = dice_per_class(torch.full((2, 3, 8, 8), -9.0), target)
+    assert float(d[1]) < 1e-3, "missed lesions must not score well"
+
+
+def test_annotation_masks_use_any_nonzero_as_foreground():
+    """Mask foreground encoding is not standardised across corpora.
+
+    IDRiD uses 76, DRIVE uses 255. Any threshold above the smallest foreground
+    value silently empties a whole dataset, which is invisible downstream
+    because an empty mask is a legal input.
+    """
+    import cv2
+    idrid_like = np.zeros((16, 16), np.uint8)
+    idrid_like[4:8, 4:8] = 76           # IDRiD palette value
+    drive_like = np.zeros((16, 16), np.uint8)
+    drive_like[4:8, 4:8] = 255
+
+    for name, m in (("IDRiD-like (76)", idrid_like), ("DRIVE-like (255)", drive_like)):
+        assert (m > 0).sum() == 16, name
+        binary = (m > 0).astype(np.uint8) * 255
+        assert binary.max() == 255, name
+        rs = cv2.resize(binary, (8, 8), interpolation=cv2.INTER_NEAREST)
+        assert rs.max() == 255, f"{name} lost its foreground on resize"
 
 
 def test_tversky_penalises_false_negatives_more():

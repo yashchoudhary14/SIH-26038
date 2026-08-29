@@ -111,6 +111,38 @@ class IsotonicCalibrator:
             return probs
         return self._iso.predict(probs.ravel()).reshape(probs.shape)
 
+    # -- serialisation ----------------------------------------------------
+    # The calibrator has to travel with the model. A referral threshold is
+    # only meaningful on the probability scale it was chosen on, so shipping
+    # the threshold without the recalibrator that produced that scale silently
+    # applies the operating point to a different number line.
+    def to_dict(self) -> dict:
+        if self._iso is None:
+            return {"kind": "identity"}
+        return {"kind": "isotonic",
+                "x": np.asarray(self._iso.X_thresholds_, float).tolist(),
+                "y": np.asarray(self._iso.y_thresholds_, float).tolist()}
+
+    @classmethod
+    def from_dict(cls, d: dict | None) -> "IsotonicCalibrator":
+        obj = cls()
+        if not d or d.get("kind") != "isotonic":
+            return obj
+        x = np.asarray(d["x"], float)
+        y = np.asarray(d["y"], float)
+
+        class _Interp:
+            """Replays the fitted step function without needing sklearn."""
+
+            X_thresholds_, y_thresholds_ = x, y
+
+            @staticmethod
+            def predict(p):
+                return np.interp(np.asarray(p, float), x, y, left=y[0], right=y[-1])
+
+        obj._iso = _Interp()
+        return obj
+
 
 # --------------------------------------------------------------------------
 # Calibration metrics
