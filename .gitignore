@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# Environments and build artefacts
+# ---------------------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# ---------------------------------------------------------------------------
+# Data: never committed.
+# ---------------------------------------------------------------------------
+# data/raw/    - the four public corpora. Each requires you to accept its own
+#                licence, and none may be redistributed. See docs/DATASETS.md.
+# data/cohort* - materialised cohorts (~2.6 GB for 6,000 cases). Regenerate
+#                with: python scripts/build_cohort.py
+data/
+
+# ---------------------------------------------------------------------------
+# Outputs: results ARE committed, bulk intermediates are not.
+# ---------------------------------------------------------------------------
+# Kept in the repo, because they are the evidence that the pipeline works:
+#   outputs/artifacts/    deployable bundle (segmentation + grader + operating point)
+#   outputs/validation/   metrics, ablation, model card
+#   outputs/simulation/   scenarios, optimisation
+#   outputs/reports/      rendered clinical reports and review panels
+#
+# Excluded: the per-arm training checkpoints (~95 MB) are reproducible from
+# scripts/run_all.py and duplicate what outputs/artifacts/ already holds.
+outputs/segmentation/*.pt
+outputs/grader_*/*.pt
+outputs/benchmark.json
+outputs/_*.txt
+
+# Scratch
+scripts/_chain.sh
+*.onnx

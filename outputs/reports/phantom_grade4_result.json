@@ -1,0 +1,212 @@
+{
+  "image_id": "phantom_grade4",
+  "gradeable": true,
+  "quality": {
+    "scores": {
+      "focus": 0.8165,
+      "illumination": 0.8315,
+      "contrast": 0.8664,
+      "fov": 0.9998,
+      "macula": 1.0,
+      "artifact": 1.0,
+      "under_exposure": 0.6669,
+      "over_exposure": 1.0,
+      "noise": 0.8137
+    },
+    "verdicts": {
+      "focus": "pass",
+      "illumination": "pass",
+      "contrast": "pass",
+      "fov": "pass",
+      "macula": "pass",
+      "artifact": "pass",
+      "under_exposure": "pass",
+      "over_exposure": "pass",
+      "noise": "pass"
+    },
+    "overall": "good",
+    "gradeable": true,
+    "needs_enhancement": false,
+    "issues": [],
+    "advice": [],
+    "confidence": 0.8342,
+    "first_pass": {
+      "overall": "borderline",
+      "issues": [
+        "illumination"
+      ],
+      "scores": {
+        "focus": 0.7388,
+        "illumination": 0.4466,
+        "contrast": 0.8622,
+        "fov": 0.9998,
+        "macula": 1.0,
+        "artifact": 1.0,
+        "under_exposure": 0.9087,
+        "over_exposure": 1.0,
+        "noise": 0.8817
+      }
+    }
+  },
+  "enhancement_applied": [
+    "grey_world",
+    "illumination_normalize"
+  ],
+  "landmarks": {
+    "disc_xy": [
+      359,
+      207
+    ],
+    "disc_radius": 19.93913357805586,
+    "disc_confidence": 1.0,
+    "fovea_xy": [
+      223,
+      211
+    ],
+    "fovea_confidence": 1.0,
+    "laterality": "OD",
+    "disc_diameter_px": 39.87826715611172
+  },
+  "grade": 4,
+  "grade_label": "Proliferative DR",
+  "class_probabilities": [
+    0.0119,
+    0.0002,
+    0.0001,
+    0.0013,
+    0.9866
+  ],
+  "referable": true,
+  "referable_probability": 0.9879279732704163,
+  "confidence": 0.986556351184845,
+  "uncertainty": {
+    "entropy": 0.0771,
+    "epistemic_variance": 0.00027
+  },
+  "decision": "refer",
+  "urgency": "urgent",
+  "dme_risk": 1,
+  "clinical_features": {
+    "counts": {
+      "microaneurysm": 6,
+      "hemorrhage": 65,
+      "hard_exudate": 33,
+      "soft_exudate": 6,
+      "neovascularization": 7
+    },
+    "per_quadrant": {
+      "microaneurysm": {
+        "superior": 0,
+        "inferior": 5,
+        "nasal": 0,
+        "temporal": 1
+      },
+      "hemorrhage": {
+        "superior": 10,
+        "inferior": 25,
+        "nasal": 19,
+        "temporal": 11
+      },
+      "hard_exudate": {
+        "superior": 7,
+        "inferior": 14,
+        "nasal": 6,
+        "temporal": 6
+      },
+      "soft_exudate": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 4,
+        "temporal": 2
+      },
+      "neovascularization": {
+        "superior": 0,
+        "inferior": 5,
+        "nasal": 2,
+        "temporal": 0
+      }
+    },
+    "quadrants_with_hemorrhage": 1,
+    "quadrants_with_beading": 0,
+    "nv_at_disc": true,
+    "nv_elsewhere": true,
+    "lesions_within_1dd_of_fovea": 1,
+    "nearest_lesion_dd": 0.88
+  },
+  "evidence": [
+    {
+      "finding": "microaneurysm",
+      "count": 6,
+      "per_quadrant": {
+        "inferior": 5,
+        "temporal": 1
+      },
+      "area_percent": 0.045
+    },
+    {
+      "finding": "hemorrhage",
+      "count": 65,
+      "per_quadrant": {
+        "superior": 10,
+        "inferior": 25,
+        "nasal": 19,
+        "temporal": 11
+      },
+      "area_percent": 5.053
+    },
+    {
+      "finding": "hard exudate",
+      "count": 33,
+      "per_quadrant": {
+        "superior": 7,
+        "inferior": 14,
+        "nasal": 6,
+        "temporal": 6
+      },
+      "area_percent": 1.876
+    },
+    {
+      "finding": "soft exudate",
+      "count": 6,
+      "per_quadrant": {
+        "nasal": 4,
+        "temporal": 2
+      },
+      "area_percent": 2.204
+    },
+    {
+      "finding": "neovascularization",
+      "count": 7,
+      "per_quadrant": {
+        "inferior": 5,
+        "nasal": 2
+      },
+      "area_percent": 2.583
+    },
+    {
+      "criterion": "Neovascularisation detected at the disc (NVD) and elsewhere (NVE) - defines proliferative DR."
+    },
+    {
+      "macular_assessment": "Hard exudates present but the nearest is 0.9 DD from the fovea."
+    }
+  ],
+  "rule_based_grade": 4,
+  "rule_based_reasons": [
+    "Neovascularisation detected at the disc (NVD) and elsewhere (NVE) - defines proliferative DR."
+  ],
+  "agreement": "exact",
+  "recapture_advice": [],
+  "timing_ms": {
+    "geometry": 50.18,
+    "landmarks": 67.68,
+    "quality": 47.86,
+    "enhancement": 93.27,
+    "quality_recheck": 46.19,
+    "segmentation": 11.63,
+    "clinical_features": 33.25,
+    "grading": 85.35,
+    "explanation": 32.85,
+    "total": 493.74
+  },
+  "model_version": "drscreen-1.0.0"
+}

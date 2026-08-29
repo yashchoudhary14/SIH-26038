@@ -1,0 +1,15 @@
+arm                  AUC            95% CI    Sens    Spec     QWK  targets
+---------------------------------------------------------------------------
+fusion *          1.0000 [1.0000,1.0000]   1.000   1.000  0.9814     PASS
+clinical_only     1.0000 [1.0000,1.0000]   1.000   1.000  0.9772     PASS
+cnn_only          1.0000 [0.9998,1.0000]   0.995   1.000  0.9673     PASS
+rule_based        0.9988 [0.9913,0.9998]   0.995   1.000  0.9589     PASS
+
+* = integrated pipeline (fusion)
+
+The integrated pipeline (fusion) does NOT beat every single technique: clinical_only scored higher. This must be reported as-is.
+
+Paired tests vs the integrated pipeline:
+  vs cnn_only         fusion has the higher AUC by 0.0000; the difference is not statistically significant (DeLong p = 0.4141).
+  vs clinical_only    clinical_only has the higher AUC by 0.0000; the difference is not statistically significant (DeLong p = 1).
+  vs rule_based       fusion has the higher AUC by 0.0012; the difference is not statistically significant (DeLong p = 0.3184).

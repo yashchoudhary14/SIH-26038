@@ -1,0 +1,79 @@
+{
+  "image_id": "phantom_grade3",
+  "gradeable": false,
+  "quality": {
+    "scores": {
+      "focus": 0.1859,
+      "illumination": 0.7524,
+      "contrast": 0.7897,
+      "fov": 0.8791,
+      "macula": 1.0,
+      "artifact": 1.0,
+      "under_exposure": 1.0,
+      "over_exposure": 1.0,
+      "noise": 1.0
+    },
+    "verdicts": {
+      "focus": "fail",
+      "illumination": "pass",
+      "contrast": "pass",
+      "fov": "pass",
+      "macula": "pass",
+      "artifact": "pass",
+      "under_exposure": "pass",
+      "over_exposure": "pass",
+      "noise": "pass"
+    },
+    "overall": "ungradeable",
+    "gradeable": false,
+    "needs_enhancement": true,
+    "issues": [
+      "focus"
+    ],
+    "advice": [
+      "Image is out of focus. Re-focus on the optic disc and hold steady before capture."
+    ],
+    "confidence": 0.4569
+  },
+  "enhancement_applied": [],
+  "landmarks": {
+    "disc_xy": [
+      131,
+      244
+    ],
+    "disc_radius": 32.20331674201883,
+    "disc_confidence": 1.0,
+    "fovea_xy": [
+      305,
+      241
+    ],
+    "fovea_confidence": 1.0,
+    "laterality": "OS",
+    "disc_diameter_px": 64.40663348403766
+  },
+  "grade": -1,
+  "grade_label": "Ungradeable",
+  "class_probabilities": [],
+  "referable": false,
+  "referable_probability": 0.0,
+  "confidence": 0.0,
+  "uncertainty": {},
+  "decision": "recapture",
+  "urgency": "routine",
+  "dme_risk": 0,
+  "clinical_features": {},
+  "evidence": [],
+  "rule_based_grade": -1,
+  "rule_based_reasons": [],
+  "agreement": "",
+  "recapture_advice": [
+    "Image is out of focus. Re-focus on the optic disc and hold steady before capture."
+  ],
+  "timing_ms": {
+    "geometry": 50.71,
+    "landmarks": 69.55,
+    "quality": 46.48,
+    "total": 166.83
+  },
+  "model_version": "drscreen-1.0.0"
+}
