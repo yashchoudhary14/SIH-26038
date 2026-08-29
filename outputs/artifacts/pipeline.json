@@ -1,8 +1,9 @@
 {
-  "referral_threshold": 0.6571428571428571,
+  "referral_threshold": 0.6569365808657237,
   "temperature": 3.7968785762786865,
   "calibrator": {
     "kind": "isotonic",
+    "tie_break": 0.001,
     "x": [
       0.002863767324015498,
       0.11840987950563431,
@@ -82,12 +83,12 @@
   "seg_size": 1024,
   "backbone": "tf_efficientnet_b0",
   "defer_band": [
-    0.5071428571428571,
-    0.8071428571428572
+    0.5069365808657237,
+    0.8069365808657237
   ],
   "model_version": "drscreen-1.0.0",
   "validated_on": {
     "internal_n": 631,
-    "external_n": 0
+    "external_n": 1744
   }
 }

@@ -46,6 +46,10 @@ def main():
     ap.add_argument("--save-preds", action="store_true",
                     help="persist the lesion probability maps (~5 MB each). Off "
                          "by default; only the report path reads them.")
+    ap.add_argument("--only-missing", action="store_true",
+                    help="skip cases that already have a cached feature vector")
+    ap.add_argument("--splits", nargs="*", default=None,
+                    help="restrict to these cohort splits")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     a = ap.parse_args()
@@ -60,6 +64,12 @@ def main():
 
     recs = read_manifest(a.cohort)
     feat_dir = a.cohort / "features"; feat_dir.mkdir(exist_ok=True)
+    if a.splits:
+        recs = [r for r in recs if r.split in set(a.splits)]
+    if a.only_missing:
+        before = len(recs)
+        recs = [r for r in recs if not (feat_dir / f"{r.uid}.npy").exists()]
+        print(f"{before - len(recs)} already cached, {len(recs)} to compute")
     pred_dir = a.cohort / "preds"
     if a.save_preds:
         pred_dir.mkdir(exist_ok=True)

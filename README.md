@@ -7,9 +7,19 @@ explainability, and a discrete-event model of a district telemedicine
 programme.
 
 **Trained and validated on real patient data** — APTOS 2019 + IDRiD, with
-Messidor-2 held out — meeting both problem-statement targets: **sensitivity
-0.930** [0.894–0.954] and **specificity 0.939** [0.909–0.960] for referable DR
-on a subject-disjoint held-out test set.
+Messidor-2 held out for blind external validation.
+
+| | sensitivity | specificity | AUC | targets |
+|---|---|---|---|---|
+| Internal test (n=631) | **0.930** | **0.939** | 0.986 | ✅ both met |
+| **External, Messidor-2 (n=1,744)** | **0.427** | 0.978 | 0.875 | ❌ **not met** |
+
+**Read the second row before the first.** The model meets both
+problem-statement targets on held-out data from the corpora it was trained on,
+and **misses 57% of referable disease** on a French cohort captured with
+different cameras and graded by a different panel. That gap is the single most
+important number in this repository, and it is exactly what external
+validation exists to expose.
 
 It also **runs on a fresh clone with no downloads**: a procedural fundus
 phantom generator exercises every stage for real, so the system is
@@ -275,20 +285,41 @@ Fusion beats the two classical arms decisively (DeLong p = 4×10⁻¹⁰ and
 p = 0.899). On this data the clinical-feature branch buys interpretability and
 a better QWK, not better referral discrimination. That is the honest finding.
 
-### Messidor-2 could not be scored
+### External validation: Messidor-2, zero-shot — n = 1,744
 
-The ADCIS distribution ships images plus a left/right **eye-pairing** CSV. It
-does **not** contain DR grades — the adjudicated reference standard (Krause et
-al. 2018) is a separate release. All 1,748 images run through the pipeline and
-produce reports; metrics are impossible without labels. The validation script
-says so explicitly rather than failing:
+Nothing was fitted on this split. Grades are the adjudicated reference
+standard (Krause et al. 2018); 4 images their adjudicators marked ungradable
+are excluded rather than scored as a sixth class.
 
-```
-NOT EVALUATED -- the external split has 1748 images but no grades.
-```
+| metric | internal test | **external** |
+|---|---|---|
+| Sensitivity | 0.930 [0.894–0.954] | **0.427** [0.382–0.472] |
+| Specificity | 0.939 [0.909–0.960] | 0.978 [0.969–0.985] |
+| AUC | 0.9859 [0.9763–0.9916] | 0.8751 [0.8548–0.8930] |
+| QWK | 0.8878 | 0.5859 |
+| ECE | 0.0276 | 0.0960 |
 
-Get the grades from `kaggle datasets download google-brain/messidor2-dr-grades`
-and re-run; nothing else changes.
+**What is actually failing.** Two things, and they need separating:
+
+1. **Real discrimination loss.** AUC 0.986 → 0.875. Even at the
+   sensitivity-optimal threshold *chosen on Messidor-2 itself* — an oracle, not
+   an achievable result — specificity at 90% sensitivity is only **0.628**. No
+   threshold on this distribution satisfies both targets. So this is not merely
+   a mis-set operating point.
+
+2. **Threshold transfer.** At the frozen threshold the model is far too
+   conservative here: specificity *rose* to 0.978 while sensitivity collapsed.
+   Median P(referable) among true positives is 0.889 internally and 0.370 on
+   Messidor-2 — the score distribution shifts down bodily.
+
+The referable prevalence also differs (45% internal vs 26% external), which
+changes PPV but not sensitivity.
+
+**This is the honest state of the system**: usable as a triage aid on
+populations resembling its training data, not yet deployable on unseen
+cameras. Closing it needs domain adaptation, multi-source training, or
+site-specific threshold re-fitting with local labels — and the audit log
+(`/audit`) exists precisely to detect this in the field before it harms anyone.
 
 ## What real data broke that phantoms never could
 
@@ -306,13 +337,20 @@ rather than a crash.
 | 6 | Calibrator not shipped with the model | threshold applied to a different probability scale |
 | 7 | `lesion_threshold = 0.5` never fitted | true optimum 0.85–0.95 |
 | 8 | FOV clipping penalty | rejected **34%** of real images whose coverage was 0.90–1.00 |
+| 9 | Isotonic calibration pinned the score floor to exactly 0.0 | on Messidor-2 that sent 10.3% of true positives to zero, unreachable by any threshold; specificity at 90% sensitivity fell 0.628 → **0.000** |
 
-Bugs 2 and 8 deserve emphasis. **#2 is the dangerous shape**: a metric
+Bugs 2, 8 and 9 deserve emphasis. **#2 is the dangerous shape**: a metric
 reporting a perfect score for a model that had learned nothing, from data that
 contained nothing. **#8 was structurally invisible to the phantoms**, which
 always render a black margin — but a real fundus aperture is wider than the
 sensor is tall, so the retina touches the frame edge on almost every correct
-capture, and APTOS ships pre-cropped touching all four. Both now have
+capture, and APTOS ships pre-cropped touching all four. **#9 is the one that
+only external validation could find**: isotonic recalibration measurably
+improved in-distribution ECE while silently destroying the model's operating
+range under distribution shift, because its ties are harmless until the score
+distribution moves. Blending a sliver of the raw score back in restores a
+strict total order and keeps both properties — ECE 0.0519 → 0.0130 *and*
+external AUC 0.875 with specificity 0.628 at 90% sensitivity. All three have
 regression tests.
 
 ### Deployed behaviour on 120 real test images

@@ -26,9 +26,20 @@ This module provides:
   decision -- the one with clinical consequences -- we recalibrate the scalar
   P(referable) with isotonic regression, which *is* exactly rank-preserving.
 
-* **Isotonic recalibration** of the binary referable probability. Applied on
-  top of the temperature-scaled score, it fixes the probability scale of the
-  referral decision without touching its ranking.
+* **Isotonic recalibration** of the binary referable probability, applied on
+  top of the temperature-scaled score.
+
+  Isotonic cannot *invert* a pair, but the textbook claim that it therefore
+  "leaves the ranking untouched" is too glib: it is a step function, so it
+  creates ties, and ties are not free. Fitted here it collapsed ~1,700 distinct
+  scores onto 32 levels and pinned the lowest to exactly 0.0. In distribution
+  that is harmless. On Messidor-2 it sent 49.3% of scores -- 10.3% of true
+  positives -- to exact zero, unreachable by any threshold above 0, and
+  specificity at 90% sensitivity collapsed from 0.628 to 0.000.
+
+  So a sliver of the raw score is blended back in (`tie_break`), restoring a
+  strict total order at a cost of <=1e-3 in calibrated value. That keeps the
+  ECE gain (0.0519 -> 0.0064) *and* the external operating range.
 * **ECE / MCE / Brier / reliability curves** to prove the calibration worked.
 * **Operating-point selection**: the threshold on P(referable) that meets the
   >=90% sensitivity constraint while maximising specificity, chosen on
@@ -90,8 +101,22 @@ class IsotonicCalibrator:
     scaling, so we fall back to identity when the split is small.
     """
 
-    def __init__(self, min_samples: int = 200):
+    def __init__(self, min_samples: int = 200, tie_break: float = 1e-3):
         self.min_samples = min_samples
+        #: Weight on the raw score, blended back in to break isotonic's ties.
+        #:
+        #: Plain isotonic is a step function: on real data it collapsed ~1,700
+        #: distinct scores onto 32 levels, and crucially pinned the bottom
+        #: level to *exactly* 0.0. In-distribution that is harmless. Under
+        #: distribution shift it is not: on Messidor-2 it drove 49.3% of scores
+        #: -- including 10.3% of true positives -- to exact zero, where no
+        #: threshold above 0 can ever recover them. Specificity at 90%
+        #: sensitivity fell from 0.628 to 0.000 purely from that quantisation.
+        #:
+        #: Blending a sliver of the raw score back in restores a strict total
+        #: order (so the ranking, and therefore AUC and threshold transfer,
+        #: survive) while moving the calibrated value by at most `tie_break`.
+        self.tie_break = tie_break
         self._iso = None
 
     def fit(self, probs: np.ndarray, labels: np.ndarray) -> "IsotonicCalibrator":
@@ -109,7 +134,10 @@ class IsotonicCalibrator:
         probs = np.asarray(probs, np.float64)
         if self._iso is None:
             return probs
-        return self._iso.predict(probs.ravel()).reshape(probs.shape)
+        out = self._iso.predict(probs.ravel()).reshape(probs.shape)
+        if self.tie_break > 0:
+            out = (1.0 - self.tie_break) * out + self.tie_break * probs
+        return np.clip(out, 0.0, 1.0)
 
     # -- serialisation ----------------------------------------------------
     # The calibrator has to travel with the model. A referral threshold is
@@ -120,12 +148,13 @@ class IsotonicCalibrator:
         if self._iso is None:
             return {"kind": "identity"}
         return {"kind": "isotonic",
+                "tie_break": float(self.tie_break),
                 "x": np.asarray(self._iso.X_thresholds_, float).tolist(),
                 "y": np.asarray(self._iso.y_thresholds_, float).tolist()}
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "IsotonicCalibrator":
-        obj = cls()
+        obj = cls(tie_break=float((d or {}).get("tie_break", 1e-3)))
         if not d or d.get("kind") != "isotonic":
             return obj
         x = np.asarray(d["x"], float)

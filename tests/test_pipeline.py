@@ -123,17 +123,21 @@ def test_isotonic_recalibration_never_inverts_a_pair():
     order = np.argsort(p)
     assert np.all(np.diff(q[order]) >= -1e-12), "isotonic inverted a pair"
 
-    # AUC is *not* bit-identical afterwards, and that is correct rather than a
-    # bug. Isotonic collapses ~1000 distinct scores onto ~18 levels, and AUC
-    # scores a tie as half credit. So a pair that was ordered correctly loses
-    # half its credit, and a pair that was ordered *incorrectly* gains half --
-    # which means AUC can move in either direction. Fitting in-sample as we do
-    # here, it typically edges up. Bound the magnitude both ways rather than
-    # asserting a direction that does not hold.
+    # The tie-breaking blend must preserve a STRICT total order. Plain isotonic
+    # collapses the bottom of the range to exactly 0.0; measured on Messidor-2
+    # that pinned 10.3% of true positives at zero, where no threshold above 0
+    # can recover them, and specificity at 90% sensitivity fell to 0.000. Ties
+    # are the mechanism, so the guard is on tie count and on the floor.
+    assert len(np.unique(q)) == len(np.unique(p)), (
+        "calibrator collapsed distinct scores into ties; threshold transfer "
+        "under distribution shift depends on the full ordering")
+    assert (q > 0).sum() >= (p > 0).sum(), "calibrator pinned scores to exact zero"
+
     from sklearn.metrics import roc_auc_score
     before, after = roc_auc_score(y, p), roc_auc_score(y, q)
-    assert abs(after - before) < 0.02, f"AUC moved too far ({before:.4f} -> {after:.4f})"
-    assert len(np.unique(q)) < len(np.unique(p)), "isotonic should quantise the scale"
+    assert abs(after - before) < 1e-9, (
+        f"a strictly monotone calibrator must preserve AUC exactly "
+        f"({before:.6f} -> {after:.6f})")
 
 
 # --------------------------------------------------------------------------

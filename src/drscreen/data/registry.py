@@ -263,13 +263,33 @@ def load_messidor2(root: str | Path) -> list[Sample]:
     """
     root = Path(root)
     img_dir = _find_dir(root, r"^IMAGES$", r"^images$") or root
-    csv = _find_file(root, r"messidor.*\.csv$", r".*grades?\.csv$")
+
+    # Pick the grades CSV by what it CONTAINS, not by what it is called.
+    #
+    # A Messidor-2 directory typically holds two CSVs whose names both look
+    # right: `messidor-2.csv` from ADCIS, which is a left;right eye-pairing
+    # table with no grades at all, and `messidor_data.csv` from the adjudicated
+    # release (Krause et al. 2018), which has the labels. Matching on filename
+    # picked the pairing file and silently produced 1,748 images with no
+    # grades -- present, loadable, and unscoreable.
     grades: dict[str, tuple[int | None, int | None, bool | None]] = {}
+    csv = None
+    for cand in sorted(root.rglob("*.csv")):
+        try:
+            head = pd.read_csv(cand, nrows=5)
+        except Exception:
+            continue
+        cols = [c.strip().lower() for c in head.columns]
+        if any("dr_grade" in c or "retinopathy" in c or "grade" == c for c in cols):
+            csv = cand
+            break
+
     if csv is not None:
         df = pd.read_csv(csv)
         df.columns = [c.strip().lower() for c in df.columns]
         id_col = next((c for c in df.columns if "image" in c or "id" in c), df.columns[0])
-        g_col = next((c for c in df.columns if "dr_grade" in c or "retinopathy" in c), None)
+        g_col = next((c for c in df.columns if "dr_grade" in c or "retinopathy" in c
+                      or c == "grade"), None)
         d_col = next((c for c in df.columns if "dme" in c or "edema" in c), None)
         q_col = next((c for c in df.columns if "gradab" in c), None)
         for _, r in df.iterrows():

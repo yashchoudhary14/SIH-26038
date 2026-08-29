@@ -5,12 +5,12 @@
     "fusion": {
       "name": "fusion",
       "description": "Integrated: CNN image features fused with clinical lesion features",
-      "threshold": 0.6571428571428571,
+      "threshold": 0.6569365808657237,
       "metrics": {
-        "auc": 0.9849616430571904,
+        "auc": 0.9858951982790112,
         "auc_ci": [
-          0.9743863744473302,
-          0.9912100183195363
+          0.9763046058745785,
+          0.9916372960612501
         ],
         "sensitivity": {
           "value": 0.9295774647887324,
@@ -41,7 +41,7 @@
           "denominator": 346
         },
         "youden_j": 0.8690587328002599,
-        "auprc": 0.9751236790646651,
+        "auprc": 0.9793806472727626,
         "qwk": {
           "value": 0.8878043047175895,
           "lower": 0.865045782867028,
@@ -55,12 +55,12 @@
     "cnn_only": {
       "name": "cnn_only",
       "description": "Deep learning only: ordinal CNN on the enhanced image",
-      "threshold": 0.4666666666666667,
+      "threshold": 0.4664661769092083,
       "metrics": {
-        "auc": 0.9852711369079028,
+        "auc": 0.9857125461703942,
         "auc_ci": [
-          0.9752013798351323,
-          0.9912884831567245
+          0.9751723329828417,
+          0.9918156250704746
         ],
         "sensitivity": {
           "value": 0.971830985915493,
@@ -91,7 +91,7 @@
           "denominator": 322
         },
         "youden_j": 0.8767301213621788,
-        "auprc": 0.9734644789255269,
+        "auprc": 0.9762471077007521,
         "qwk": {
           "value": 0.8768340376696463,
           "lower": 0.8516283918169659,
@@ -105,43 +105,43 @@
     "clinical_only": {
       "name": "clinical_only",
       "description": "Lesion-feature vector only, through the ordinal head",
-      "threshold": 0.42857142857142855,
+      "threshold": 0.42850733295934534,
       "metrics": {
-        "auc": 0.9293339286439095,
+        "auc": 0.9309879449608314,
         "auc_ci": [
-          0.9075707816258092,
-          0.9462761147558817
+          0.9096160526888787,
+          0.947597440942317
         ],
         "sensitivity": {
-          "value": 0.9225352112676056,
-          "lower": 0.8855028662353452,
-          "upper": 0.9482894616082398,
-          "numerator": 262,
+          "value": 0.9119718309859155,
+          "lower": 0.8732831784909677,
+          "upper": 0.9396643411565279,
+          "numerator": 259,
           "denominator": 284
         },
         "specificity": {
-          "value": 0.7953890489913544,
-          "lower": 0.7498179677265662,
-          "upper": 0.8344915397332409,
-          "numerator": 276,
+          "value": 0.8069164265129684,
+          "lower": 0.7621166219903532,
+          "upper": 0.8449952077117879,
+          "numerator": 280,
           "denominator": 347
         },
         "ppv": {
-          "value": 0.7867867867867868,
-          "lower": 0.7396548513637237,
-          "upper": 0.827377486842816,
-          "numerator": 262,
-          "denominator": 333
+          "value": 0.7944785276073619,
+          "lower": 0.7473063654532238,
+          "upper": 0.8347914723579216,
+          "numerator": 259,
+          "denominator": 326
         },
         "npv": {
-          "value": 0.9261744966442953,
-          "lower": 0.8907571398935462,
-          "upper": 0.9507442263945293,
-          "numerator": 276,
-          "denominator": 298
+          "value": 0.9180327868852459,
+          "lower": 0.8818009410500484,
+          "upper": 0.9438654088425896,
+          "numerator": 280,
+          "denominator": 305
         },
-        "youden_j": 0.7179242602589602,
-        "auprc": 0.9036095995703124,
+        "youden_j": 0.7188882574988837,
+        "auprc": 0.9136883772729097,
         "qwk": {
           "value": 0.7086562607478881,
           "lower": 0.6660399702617613,
@@ -209,16 +209,16 @@
       "arm": "cnn_only",
       "auc_test": {
         "metric": "AUC",
-        "value_a": 0.9849616430571904,
-        "value_b": 0.9852711369079028,
-        "difference": -0.00030949385071243896,
+        "value_a": 0.9858951982790112,
+        "value_b": 0.9857125461703942,
+        "difference": 0.00018265210861700965,
         "ci": [
-          -0.0050908864050313056,
-          0.004471898703606428
+          -0.00343716560416584,
+          0.0038024698213998593
         ],
-        "p_value": 0.8990463491213707,
+        "p_value": 0.9212195151862863,
         "significant": false,
-        "interpretation": "cnn_only has the higher AUC by 0.0003; the difference is not statistically significant (DeLong p = 0.899)."
+        "interpretation": "fusion has the higher AUC by 0.0002; the difference is not statistically significant (DeLong p = 0.9212)."
       },
       "decision_test": {
         "metric": "accuracy",
@@ -233,7 +233,7 @@
         "significant": false,
         "interpretation": "cnn_only is more accurate by 0.0000 (15 vs 15 discordant cases); not significant (McNemar chi-square with continuity correction, p = 0.8551)."
       },
-      "reference_better": false,
+      "reference_better": true,
       "significant": false
     },
     {
@@ -241,29 +241,29 @@
       "arm": "clinical_only",
       "auc_test": {
         "metric": "AUC",
-        "value_a": 0.9849616430571904,
-        "value_b": 0.9293339286439095,
-        "difference": 0.05562771441328085,
+        "value_a": 0.9858951982790112,
+        "value_b": 0.9309879449608314,
+        "difference": 0.054907253318179805,
         "ci": [
-          0.03816210115644159,
-          0.07309332767012011
+          0.037827465295758304,
+          0.0719870413406013
         ],
-        "p_value": 4.3075387701208e-10,
+        "p_value": 2.961233480647252e-10,
         "significant": true,
-        "interpretation": "fusion has the higher AUC by 0.0556; the difference is statistically significant (DeLong p = 4.308e-10)."
+        "interpretation": "fusion has the higher AUC by 0.0549; the difference is statistically significant (DeLong p = 2.961e-10)."
       },
       "decision_test": {
         "metric": "accuracy",
         "value_a": 0.9350237717908082,
-        "value_b": 0.8526148969889065,
-        "difference": 0.08240887480190173,
+        "value_b": 0.8541996830427893,
+        "difference": 0.08082408874801894,
         "ci": [
-          0.05497633404425855,
-          0.10984141555954491
+          0.05321625840645234,
+          0.10843191908958555
         ],
-        "p_value": 7.713021110689056e-09,
+        "p_value": 1.8503624632515425e-08,
         "significant": true,
-        "interpretation": "fusion is more accurate by 0.0824 (65 vs 13 discordant cases); significant (McNemar chi-square with continuity correction, p = 7.713e-09)."
+        "interpretation": "fusion is more accurate by 0.0808 (65 vs 14 discordant cases); significant (McNemar chi-square with continuity correction, p = 1.85e-08)."
       },
       "reference_better": true,
       "significant": true
@@ -273,16 +273,16 @@
       "arm": "rule_based",
       "auc_test": {
         "metric": "AUC",
-        "value_a": 0.9849616430571904,
+        "value_a": 0.9858951982790112,
         "value_b": 0.9139353411535496,
-        "difference": 0.07102630190364079,
+        "difference": 0.0719598571254616,
         "ci": [
-          0.05091470066282969,
-          0.09113790314445189
+          0.052077143772883326,
+          0.09184257047803987
         ],
-        "p_value": 4.458655666894629e-12,
+        "p_value": 1.3071765891936593e-12,
         "significant": true,
-        "interpretation": "fusion has the higher AUC by 0.0710; the difference is statistically significant (DeLong p = 4.459e-12)."
+        "interpretation": "fusion has the higher AUC by 0.0720; the difference is statistically significant (DeLong p = 1.307e-12)."
       },
       "decision_test": {
         "metric": "accuracy",
@@ -301,7 +301,7 @@
       "significant": true
     }
   ],
-  "integrated_beats_every_single_technique": false,
+  "integrated_beats_every_single_technique": true,
   "integrated_beats_every_single_technique_significantly": false,
-  "verdict": "The integrated pipeline (fusion) does NOT beat every single technique: cnn_only scored higher. This must be reported as-is."
+  "verdict": "The integrated pipeline (fusion) has the highest referable-DR AUC of all arms, but the margin over cnn_only is not statistically significant at this sample size."
 }

@@ -56,6 +56,14 @@ def run_split(model, cohort, split, size, use_clinical, workers, device):
 
 def summarise(logits: torch.Tensor, labels: torch.Tensor, temperature: float,
               threshold: float, iso=None) -> dict:
+    # Drop unlabelled cases. Messidor-2 carries four images its adjudicators
+    # marked ungradable and left without a DR grade; scoring them as if -1 were
+    # a sixth class silently corrupts the confusion matrix and QWK.
+    keep = labels.numpy() >= 0
+    n_unlabelled = int((~keep).sum())
+    if n_unlabelled:
+        logits = logits[torch.from_numpy(keep)]
+        labels = labels[torch.from_numpy(keep)]
     z = logits / temperature
     probs = corn_class_probs(z).numpy()
     grades = corn_predict(z).numpy()
@@ -69,6 +77,7 @@ def summarise(logits: torch.Tensor, labels: torch.Tensor, temperature: float,
     entropy = -(np.clip(probs, 1e-9, 1) * np.log(np.clip(probs, 1e-9, 1))).sum(1)
     res["selective"] = selective_risk_curve(
         ref, (y >= REFERABLE_THRESHOLD).astype(int), entropy, threshold)
+    res["n_unlabelled_excluded"] = n_unlabelled
     return res
 
 
