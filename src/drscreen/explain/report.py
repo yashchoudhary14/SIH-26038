@@ -181,7 +181,15 @@ def render_html(result, artifacts: dict, title: str = "DR Screening Report") -> 
 
     evidence_html = ""
     for e in r.evidence or []:
-        if "finding" in e:
+        if e.get("status") == "not assessed":
+            # Rendered as its own class, never as "0 detected". The distinction
+            # is the whole point: a lesion class with no pixel supervision is
+            # one the model cannot see, and for neovascularisation that is the
+            # difference between excluding proliferative DR and never having
+            # looked for it.
+            evidence_html += (f"<li class='caution'><b>{html.escape(str(e['finding']))}</b>: "
+                              f"NOT ASSESSED &mdash; {html.escape(str(e.get('detail','')))}</li>")
+        elif "finding" in e:
             q = ", ".join(f"{k} {v}" for k, v in (e.get("per_quadrant") or {}).items())
             evidence_html += (f"<li><b>{html.escape(str(e['finding']))}</b>: "
                               f"{e['count']} detected"

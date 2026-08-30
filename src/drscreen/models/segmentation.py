@@ -184,7 +184,22 @@ def tversky_loss(logits: torch.Tensor, target: torch.Tensor,
 
 def segmentation_loss(logits, target, aux: list | None = None,
                       bce_weight: float = 0.5, aux_weight: float = 0.4,
-                      pos_weight: torch.Tensor | None = None) -> torch.Tensor:
+                      pos_weight: torch.Tensor | None = None,
+                      channel_mask: torch.Tensor | None = None) -> torch.Tensor:
+    """Combined BCE + Tversky loss over the lesion channels.
+
+    ``channel_mask`` restricts the loss to channels that carry real annotation.
+    A channel whose target is all-zero across the whole corpus -- which is what
+    neovascularisation is on IDRiD -- otherwise contributes a confident-negative
+    gradient on every single step: the network spends capacity learning to never
+    fire, and the loss the annotated channels are scored on is diluted by a term
+    that can only ever go to zero.
+    """
+    if channel_mask is not None:
+        logits = logits[:, channel_mask]
+        target = target[:, channel_mask]
+        if aux:
+            aux = [a[:, channel_mask] for a in aux]
     bce = F.binary_cross_entropy_with_logits(logits, target, pos_weight=pos_weight)
     loss = bce_weight * bce + (1 - bce_weight) * tversky_loss(logits, target)
     if aux:

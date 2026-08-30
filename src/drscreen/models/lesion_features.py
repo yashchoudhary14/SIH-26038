@@ -53,6 +53,10 @@ class ClinicalFeatures:
     quadrants_with_beading: int = 0
     nv_at_disc: bool = False
     nv_elsewhere: bool = False
+    #: Lesion classes the segmentation model was never trained to detect, so a
+    #: count of zero for them means "not assessed", not "absent". Populated
+    #: from the segmentation checkpoint's ``supervised_lesion_classes``.
+    unassessed: tuple[str, ...] = ()
     lesions_within_1dd_of_fovea: int = 0
     exudates_within_1dd_of_fovea: int = 0
     nearest_lesion_dd: float = 99.0
@@ -130,7 +134,8 @@ MIN_AREA_512 = {
 def extract(lesion_probs: np.ndarray, lm: Landmarks,
             fov_mask: np.ndarray | None = None,
             vessel_mask: np.ndarray | None = None,
-            threshold: float | dict[str, float] = 0.5) -> ClinicalFeatures:
+            threshold: float | dict[str, float] = 0.5,
+            unassessed: tuple[str, ...] = ()) -> ClinicalFeatures:
     """Turn per-class lesion probability maps into clinical features.
 
     Parameters
@@ -151,6 +156,7 @@ def extract(lesion_probs: np.ndarray, lm: Landmarks,
     retina_area = max(retina_area, 1.0)
 
     feats = ClinicalFeatures()
+    feats.unassessed = tuple(unassessed)
     feats.per_quadrant = {c: dict.fromkeys(QUADRANTS, 0) for c in LESION_CLASSES}
     nearest = 99.0
 
@@ -276,7 +282,18 @@ def rule_grade(f: ClinicalFeatures) -> tuple[int, list[str]]:
     nv = f.counts.get("neovascularization", 0)
 
     # --- Grade 4: proliferative DR ------------------------------------
-    if nv > 0 or f.nv_at_disc or f.nv_elsewhere:
+    #
+    # If neovascularisation was never assessed, say so. This arm is the only
+    # route to grade 4, and on a model trained against IDRiD the NV channel has
+    # no annotated pixel anywhere in the corpus -- so it returns zero for every
+    # image and this branch silently never fires. A rule engine that cannot
+    # reach its own top grade must declare that, or a "grade 3" it returns
+    # reads as "assessed and not proliferative" when it means no such thing.
+    if "neovascularization" in f.unassessed:
+        reasons.append("Neovascularisation NOT ASSESSED - no pixel supervision "
+                       "for this class in the training corpus, so proliferative "
+                       "DR cannot be excluded by lesion evidence.")
+    elif nv > 0 or f.nv_at_disc or f.nv_elsewhere:
         where = []
         if f.nv_at_disc:
             where.append("at the disc (NVD)")

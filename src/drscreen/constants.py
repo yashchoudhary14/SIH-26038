@@ -36,6 +36,24 @@ LESION_CLASSES = [
 ]
 NUM_LESION_CLASSES = len(LESION_CLASSES)
 
+#: Lesion classes the public corpora used here actually annotate at pixel level.
+#: IDRiD -- the only lesion-annotated corpus in this project -- ships masks for
+#: MA, HE, EX and SE, and none for neovascularisation. On real data the NV
+#: channel therefore trains against all-zero targets, learns to predict nothing,
+#: and returns a count of zero for every image ever screened. That is not a "no
+#: neovascularisation" finding, it is an *unassessed* one -- and proliferative
+#: DR is defined by neovascularisation, so reporting the two as the same thing
+#: is the difference between "we looked and it is clear" and "we never looked".
+#:
+#: This tuple is the documented default for the real cohort. The authoritative
+#: value is detected from the training masks by ``scripts/train_seg.py`` and
+#: stored in the segmentation checkpoint as ``supervised_lesion_classes``; the
+#: pipeline reads it from there, so a cohort that *does* annotate NV -- the
+#: synthetic phantoms do -- lights the channel up on its own with no code change.
+PIXEL_ANNOTATED_LESION_CLASSES = (
+    "microaneurysm", "hemorrhage", "hard_exudate", "soft_exudate",
+)
+
 LESION_COLORS = {           # BGR, used for annotated overlays
     "microaneurysm":      (0, 0, 255),
     "hemorrhage":         (0, 96, 255),

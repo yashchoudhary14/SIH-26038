@@ -24,10 +24,13 @@ import numpy as np
 import torch
 
 from drscreen.constants import (ICDR_GRADES, REFERABLE_THRESHOLD,
+                                SIGHT_THREATENING_THRESHOLD,
                                 TARGET_SENSITIVITY, TARGET_SPECIFICITY)
 from drscreen.data.cohort import CohortDataset, clinical_from_batch
 from drscreen.evaluation.ablation import compare_arms, format_table, save_report
-from drscreen.evaluation.metrics import evaluate_grading, binary_metrics
+from drscreen.evaluation.metrics import (evaluate_grading, binary_metrics,
+                                         proportion, severity_breakdown,
+                                         threshold_sweep)
 from drscreen.models.calibration import (IsotonicCalibrator, TemperatureScaler,
                                          calibration_report, select_threshold,
                                          selective_risk_curve)
@@ -78,6 +81,8 @@ def summarise(logits: torch.Tensor, labels: torch.Tensor, temperature: float,
     res["selective"] = selective_risk_curve(
         ref, (y >= REFERABLE_THRESHOLD).astype(int), entropy, threshold)
     res["n_unlabelled_excluded"] = n_unlabelled
+    res["severity"] = severity_breakdown(y, ref, threshold)
+    res["threshold_sweep"] = threshold_sweep(y, ref, threshold)
     return res
 
 

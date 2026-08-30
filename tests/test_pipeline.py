@@ -521,3 +521,127 @@ def test_simulink_export_writes_valid_matlab():
         assert "function p = dr_screening_params()" in params
         assert "p.mean_interarrival_min" in params
         assert params.count("end") >= 1
+
+
+# --------------------------------------------------------------------------
+# Sight-threatening disease (grades 3-4)
+#
+# The model was returning 0.43 recall on both severe NPDR and proliferative DR
+# on the *internal* test split -- same cameras, same graders as training -- and
+# folding them into grade 2. Nothing in the training loop or the validation
+# artefact reported it. These four tests guard the four causes.
+# --------------------------------------------------------------------------
+def test_referable_auc_cannot_see_the_severity_axis():
+    """Why checkpoint selection must not be referable-DR AUC.
+
+    ``referable_prob`` is ``sigma(z0) * sigma(z1)``. It contains neither z2 nor
+    z3 -- the units that decide grades 3 and 4 -- so a model that collapses
+    every proliferative case into grade 2 scores *identically* to one that
+    grades them correctly. QWK does not have that blind spot.
+    """
+    from drscreen.models.grader import referable_prob, corn_predict
+    from drscreen.evaluation.metrics import quadratic_weighted_kappa
+
+    y = np.array([0, 1, 2, 3, 4] * 8)
+    graded = torch.full((len(y), NUM_GRADES - 1), -8.0)
+    for i, g in enumerate(y):
+        graded[i, :g] = 8.0
+    assert (corn_predict(graded).numpy() == y).all()
+
+    collapsed = graded.clone()
+    collapsed[:, 2:] = -8.0                      # never escalate past grade 2
+
+    assert torch.allclose(referable_prob(graded), referable_prob(collapsed)), (
+        "referable_prob reads z0/z1 only -- selecting on it cannot observe "
+        "grade 3/4 collapse, which is exactly how the collapse survived")
+    assert quadratic_weighted_kappa(y, corn_predict(collapsed).numpy()) < \
+        quadratic_weighted_kappa(y, corn_predict(graded).numpy()), \
+        "QWK must penalise the collapse the selection metric now guards against"
+
+
+def test_corn_loss_scale_is_independent_of_batch_composition():
+    """The loss must not rescale when a grade is absent or reweighted.
+
+    The old form averaged per-task means and skipped tasks whose subset was
+    empty, so the denominator moved with batch composition -- and it passed
+    class weights to ``binary_cross_entropy_with_logits``, which returns
+    ``mean(w * loss)`` without renormalising. Both made the effective learning
+    rate on the deep conditionals depend on which grades happened to be drawn.
+
+    With all-zero logits every conditional term is exactly ln 2, so a correctly
+    normalised loss is ln 2 for *any* batch and *any* weights.
+    """
+    import math
+    from drscreen.models.grader import corn_loss
+
+    logits = torch.zeros(4, NUM_GRADES - 1)
+    mixed = torch.tensor([0, 1, 2, 3])
+    assert abs(float(corn_loss(logits, mixed, NUM_GRADES)) - math.log(2)) < 1e-6
+
+    # Only task 0 has any samples; the other three are empty.
+    only_zero = torch.zeros(4, dtype=torch.long)
+    assert abs(float(corn_loss(logits, only_zero, NUM_GRADES)) - math.log(2)) < 1e-6
+
+    # Class weights must reweight the average, not rescale it.
+    cw = torch.tensor([5.0, 1.0, 1.0, 1.0, 1.0])
+    assert abs(float(corn_loss(logits, mixed, NUM_GRADES, cw)) - math.log(2)) < 1e-6
+
+
+def test_unassessed_lesion_class_is_never_reported_as_absent():
+    """A class with no pixel supervision must not read as a negative finding.
+
+    IDRiD annotates no neovascularisation, so that channel trains on all-zero
+    targets and returns a count of zero for every image ever screened. Since
+    neovascularisation *defines* proliferative DR, reporting that zero as
+    "none detected" claims an exclusion the model never made.
+    """
+    from drscreen.constants import LESION_CLASSES
+    from drscreen.models.lesion_features import ClinicalFeatures, rule_grade
+
+    f = ClinicalFeatures()
+    f.counts = {c: 0 for c in LESION_CLASSES}
+    f.unassessed = ("neovascularization",)
+    _, reasons = rule_grade(f)
+    assert any("NOT ASSESSED" in r for r in reasons), (
+        "the grade-4 arm is unreachable without NV supervision and must say so")
+
+    from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
+    pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
+    assert "neovascularization" in pipe.unassessed_lesions
+    from drscreen.data.synthetic import generate
+    p = generate(grade=2, size=600, seed=22, severity=0.4)
+    res, _ = pipe.run(p.image, image_id="nv")
+    assert res.gradeable, "need a gradeable image to reach the evidence block"
+    flagged = [e for e in (res.evidence or []) if e.get("status") == "not assessed"]
+    assert any(e["finding"] == "neovascularization".replace("_", " ") for e in flagged)
+
+
+def test_threshold_sweep_rows_describe_their_own_threshold():
+    """Each swept row must be computed at the threshold it is labelled with.
+
+    A sweep maintained by hand is one row-shift away from recommending an
+    operating point that was never measured -- and the deployed point must
+    always appear in it, so the document cannot quote a row that is not there.
+    """
+    from drscreen.evaluation.metrics import threshold_sweep, severity_breakdown
+
+    y = np.repeat([0, 1, 2, 3, 4], [40, 12, 20, 8, 6])
+    rng = np.random.default_rng(0)
+    ref = np.clip(y / 4.0 + rng.normal(0, 0.12, len(y)), 0, 1)
+
+    deployed = 0.657
+    rows = threshold_sweep(y, ref, deployed)
+    assert sum(r["deployed"] for r in rows) == 1
+
+    for r in rows:
+        f = ref >= r["threshold"]
+        assert abs(r["fraction_flagged"] - f.mean()) < 1e-12
+        assert abs(r["sens_sight_threatening"] - f[y >= 3].mean()) < 1e-12
+        assert abs(r["specificity"] - (~f[y < 2]).mean()) < 1e-12
+
+    # and the deployed row must agree with the headline breakdown
+    row = next(r for r in rows if r["deployed"])
+    sb = severity_breakdown(y, ref, deployed)
+    assert abs(row["sens_sight_threatening"]
+               - sb["sight_threatening"]["sensitivity"]["value"]) < 1e-12
+

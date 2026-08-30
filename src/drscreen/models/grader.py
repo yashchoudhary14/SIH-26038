@@ -48,24 +48,44 @@ def corn_loss(logits: torch.Tensor, targets: torch.Tensor,
     ``logits`` is ``(B, num_classes - 1)``; task *k* models
     P(y > k | y > k-1) and is trained **only on the subset with y > k-1**,
     which is what makes the chained product a valid probability.
+
+    Normalisation is a weighted mean over every ``(sample, task)`` conditional
+    term, not a mean of per-task means. The previous form gave every task equal
+    weight regardless of how many samples it had, and silently dropped tasks
+    whose subset was empty. Both effects concentrate on the deep conditionals:
+    task 3 only sees grades 3 and 4 (~17% of the cohort, two or three images in
+    a batch of 16), so its "mean" was taken over a handful of samples yet
+    carried the same weight as task 0's mean over the full batch, and the
+    changing number of surviving tasks made the denominator -- and so the
+    effective learning rate on z2 and z3 -- jitter from batch to batch. Those
+    are exactly the two logits that decide severe NPDR and proliferative DR.
+
+    ``class_weights`` are applied per sample and the result is divided by their
+    sum. ``F.binary_cross_entropy_with_logits(..., weight=w)`` does *not*
+    renormalise -- it returns ``mean(w * loss)`` -- so passing weights through
+    it made each task's loss magnitude depend on which grades happened to land
+    in the batch.
     """
-    losses = []
+    total = logits.new_zeros(())
+    denom = logits.new_zeros(())
     for k in range(num_classes - 1):
-        if k == 0:
-            sel = torch.ones_like(targets, dtype=torch.bool)
-        else:
-            sel = targets > (k - 1)
-        if sel.sum() == 0:
+        sel = (torch.ones_like(targets, dtype=torch.bool) if k == 0
+               else targets > (k - 1))
+        if not bool(sel.any()):
             continue
         z = logits[sel, k]
         y = (targets[sel] > k).float()
-        w = None
+        terms = F.binary_cross_entropy_with_logits(z, y, reduction="none")
         if class_weights is not None:
             w = class_weights[targets[sel]]
-        losses.append(F.binary_cross_entropy_with_logits(z, y, weight=w))
-    if not losses:
+            total = total + (terms * w).sum()
+            denom = denom + w.sum()
+        else:
+            total = total + terms.sum()
+            denom = denom + float(terms.numel())
+    if float(denom) == 0.0:
         return logits.sum() * 0.0
-    return torch.stack(losses).mean()
+    return total / denom
 
 
 def corn_cumulative_probs(logits: torch.Tensor) -> torch.Tensor:

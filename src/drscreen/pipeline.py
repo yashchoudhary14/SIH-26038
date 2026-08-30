@@ -33,8 +33,8 @@ import numpy as np
 import torch
 
 from .constants import (ICDR_GRADES, LESION_CLASSES, NUM_LESION_CLASSES,
-                        RECAPTURE_ADVICE, REFERABLE_THRESHOLD,
-                        SIGHT_THREATENING_THRESHOLD)
+                        PIXEL_ANNOTATED_LESION_CLASSES, RECAPTURE_ADVICE,
+                        REFERABLE_THRESHOLD, SIGHT_THREATENING_THRESHOLD)
 from .models.lesion_features import (ClinicalFeatures, extract, rule_grade,
                                      dme_risk)
 from .preprocess.enhance import adaptive_enhance, to_model_input
@@ -98,6 +98,13 @@ class PipelineConfig:
     #: Per-class cut-points on the lesion probability maps, fitted for F1 on
     #: held-out IDRiD. Falls back to `lesion_threshold` for missing classes.
     lesion_thresholds: dict | None = None
+    #: Lesion classes the loaded segmentation checkpoint was actually trained
+    #: on, read from the checkpoint. ``None`` means the checkpoint predates the
+    #: field, in which case ``PIXEL_ANNOTATED_LESION_CLASSES`` is assumed --
+    #: every such checkpoint was trained on IDRiD-derived masks, which carry no
+    #: neovascularisation. Assuming full supervision instead would restore the
+    #: exact silent failure this field exists to surface.
+    supervised_lesion_classes: tuple[str, ...] | None = None
     referral_threshold: float = 0.5      # overwritten by the calibrated value
     defer_band: tuple[float, float] = (0.35, 0.65)
     temperature: float = 1.0
@@ -155,6 +162,8 @@ class DRScreeningPipeline:
             ck = torch.load(seg_ckpt, map_location="cpu", weights_only=False)
             seg = build_unet("lesion", width=int(ck.get("width", 24)))
             seg.load_state_dict(ck["model"])
+            sup = ck.get("supervised_lesion_classes")
+            cfg.supervised_lesion_classes = tuple(sup) if sup else None
 
         grader = None
         g_ckpt = d / "grader.pt"
@@ -165,6 +174,18 @@ class DRScreeningPipeline:
             grader.load_state_dict(ck["model"])
 
         return cls(seg, grader, cfg)
+
+    @property
+    def unassessed_lesions(self) -> tuple[str, ...]:
+        """Lesion classes this model cannot detect, because it never saw one.
+
+        Kept distinct from "detected none" throughout the report and the audit
+        log. Neovascularisation defines proliferative DR, and IDRiD -- the only
+        lesion-annotated corpus here -- does not annotate it, so on real data
+        this is non-empty and the grade-4 rule arm is unreachable.
+        """
+        sup = self.cfg.supervised_lesion_classes or PIXEL_ANNOTATED_LESION_CLASSES
+        return tuple(c for c in LESION_CLASSES if c not in sup)
 
     # -- stages -----------------------------------------------------------
     def _to_tensor(self, img_rgb: np.ndarray) -> torch.Tensor:
@@ -305,7 +326,8 @@ class DRScreeningPipeline:
         t = time.perf_counter()
         vessel = self._vessel_proxy(enhanced, fov_mask)
         feats = extract(lesion_probs, lm, fov_mask, vessel,
-                        threshold=self.cfg.lesion_thresholds or self.cfg.lesion_threshold)
+                        threshold=self.cfg.lesion_thresholds or self.cfg.lesion_threshold,
+                        unassessed=self.unassessed_lesions)
         timing["clinical_features"] = (time.perf_counter() - t) * 1000
         res.clinical_features = {
             "counts": feats.counts,
@@ -314,6 +336,7 @@ class DRScreeningPipeline:
             "quadrants_with_beading": feats.quadrants_with_beading,
             "nv_at_disc": feats.nv_at_disc,
             "nv_elsewhere": feats.nv_elsewhere,
+            "unassessed": list(feats.unassessed),
             "lesions_within_1dd_of_fovea": feats.lesions_within_1dd_of_fovea,
             "nearest_lesion_dd": round(feats.nearest_lesion_dd, 2),
         }
@@ -478,7 +501,17 @@ class DRScreeningPipeline:
     def _build_evidence(self, feats: ClinicalFeatures, reasons: list[str],
                         dme_reason: str, res: ScreeningResult) -> list[dict]:
         ev: list[dict] = []
+        for name in feats.unassessed:
+            ev.append({
+                "finding": name.replace("_", " "),
+                "status": "not assessed",
+                "detail": "no pixel supervision for this class in the training "
+                          "corpus; absence of a detection is not evidence of "
+                          "absence of the lesion.",
+            })
         for name in LESION_CLASSES:
+            if name in feats.unassessed:
+                continue
             n = feats.counts.get(name, 0)
             if n == 0:
                 continue

@@ -26,7 +26,8 @@ from dataclasses import dataclass, asdict
 
 import numpy as np
 
-from ..constants import NUM_GRADES, REFERABLE_THRESHOLD
+from ..constants import (ICDR_GRADES, NUM_GRADES, REFERABLE_THRESHOLD,
+                         SIGHT_THREATENING_THRESHOLD)
 
 
 # --------------------------------------------------------------------------
@@ -402,3 +403,77 @@ def evaluate_grading(y_true: np.ndarray, y_pred: np.ndarray,
         "referable": bm.to_dict(),
         "referable_summary": bm.summary(),
     }
+
+
+#: Operating points swept on every split. The deployed threshold is inserted
+#: at run time so the sweep always contains the point actually in use.
+SWEEP_THRESHOLDS = (0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80)
+
+
+def severity_breakdown(y: np.ndarray, ref: np.ndarray, threshold: float) -> dict:
+    """Referral rate per true grade, and sensitivity on sight-threatening DR.
+
+    The aggregate referable sensitivity averages over populations that do not
+    carry equal clinical weight: a missed moderate NPDR is picked up at the next
+    annual screen, a missed proliferative DR can cost sight within months. The
+    split therefore belongs in the validation artefact, computed from the run --
+    not in a table transcribed into a document afterwards and kept in sync by
+    hand.
+    """
+    flagged = ref >= threshold
+    per_grade = {}
+    for g in sorted(ICDR_GRADES):
+        m = y == g
+        n = int(m.sum())
+        if n:
+            per_grade[str(g)] = proportion(int(flagged[m].sum()), n).to_dict()
+
+    out = {"threshold": float(threshold), "per_grade_flagged": per_grade}
+    st = y >= SIGHT_THREATENING_THRESHOLD
+    if int(st.sum()):
+        # Two specificity framings, both stated, because they differ materially
+        # and quoting the referable one against a grade>=3 sensitivity flatters
+        # the result: it counts flagged grade-2 eyes as true positives for a
+        # question that treats them as negatives.
+        neg_ref = y < REFERABLE_THRESHOLD                 # grades 0-1
+        neg_st = y < SIGHT_THREATENING_THRESHOLD          # grades 0-2
+        out["sight_threatening"] = {
+            "sensitivity": proportion(int(flagged[st].sum()), int(st.sum())).to_dict(),
+            "specificity_vs_grades_0_1": proportion(
+                int((~flagged[neg_ref]).sum()), int(neg_ref.sum())).to_dict(),
+            "specificity_vs_grades_0_2": proportion(
+                int((~flagged[neg_st]).sum()), int(neg_st.sum())).to_dict(),
+            "note": "sensitivity is the referable decision applied to true grade "
+                    ">= 3. specificity_vs_grades_0_2 is the honest denominator "
+                    "for a grade>=3 question; specificity_vs_grades_0_1 is the "
+                    "referable task's own specificity, quoted for comparison.",
+        }
+    return out
+
+
+def threshold_sweep(y: np.ndarray, ref: np.ndarray,
+                    deployed: float, extra=SWEEP_THRESHOLDS) -> list[dict]:
+    """Operating-point sweep, generated so the labels cannot drift.
+
+    Every row's metrics are computed from the threshold on that row, and the
+    deployed threshold is always present and flagged. A sweep maintained by
+    hand is one row-shift away from recommending an operating point that was
+    never measured.
+    """
+    pos = y >= REFERABLE_THRESHOLD
+    g2 = y == REFERABLE_THRESHOLD
+    st = y >= SIGHT_THREATENING_THRESHOLD
+    neg = ~pos
+    rows = []
+    for t in sorted({float(deployed), *(float(x) for x in extra)}):
+        f = ref >= t
+        rows.append({
+            "threshold": t,
+            "deployed": bool(abs(t - float(deployed)) < 1e-12),
+            "sens_referable": float(f[pos].mean()) if int(pos.sum()) else None,
+            "sens_grade2": float(f[g2].mean()) if int(g2.sum()) else None,
+            "sens_sight_threatening": float(f[st].mean()) if int(st.sum()) else None,
+            "specificity": float((~f[neg]).mean()) if int(neg.sum()) else None,
+            "fraction_flagged": float(f.mean()),
+        })
+    return rows

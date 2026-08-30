@@ -110,7 +110,8 @@ def train_segmentation(model, train_ds, val_ds, *, mask_key: str = "lesion_mask"
                        weight_decay: float = 1e-4, num_workers: int = 4,
                        device: str = "auto", out_dir: str | Path = "outputs/seg",
                        amp: bool = True, pos_weight: float | None = None,
-                       log_every: int = 20, ema_decay: float = 0.999) -> TrainLog:
+                       log_every: int = 20, ema_decay: float = 0.999,
+                       channel_mask=None) -> TrainLog:
     from .models.segmentation import segmentation_loss
 
     dev = device_of(device)
@@ -133,8 +134,14 @@ def train_segmentation(model, train_ds, val_ds, *, mask_key: str = "lesion_mask"
     if pos_weight is not None:
         pw = torch.tensor(float(pos_weight), device=dev)
 
+    cmask = None
+    if channel_mask is not None:
+        cmask = torch.as_tensor(channel_mask, dtype=torch.bool, device=dev)
+
     log = TrainLog(config={"epochs": epochs, "batch_size": batch_size, "lr": lr,
-                           "mask_key": mask_key, "device": str(dev)})
+                           "mask_key": mask_key, "device": str(dev),
+                           "supervised_channels": (None if channel_mask is None
+                                                   else [bool(b) for b in channel_mask])})
     t_start = time.time()
 
     for ep in range(epochs):
@@ -154,7 +161,7 @@ def train_segmentation(model, train_ds, val_ds, *, mask_key: str = "lesion_mask"
                     logits, aux = out, None
                 loss = segmentation_loss(logits.float(), y,
                                          [a.float() for a in aux] if aux else None,
-                                         pos_weight=pw)
+                                         pos_weight=pw, channel_mask=cmask)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
@@ -221,7 +228,8 @@ def train_grader(model, train_ds, val_ds, *, epochs: int = 15, batch_size: int =
                  device: str = "auto", out_dir: str | Path = "outputs/grader",
                  amp: bool = True, class_weights: np.ndarray | None = None,
                  clinical_fn=None, log_every: int = 20,
-                 ema_decay: float = 0.999) -> TrainLog:
+                 ema_decay: float = 0.999, sampler=None,
+                 select_on: str = "qwk") -> TrainLog:
     """Train the ordinal grader.
 
     ``clinical_fn(batch) -> Tensor`` supplies the clinical feature vector; pass
@@ -233,14 +241,19 @@ def train_grader(model, train_ds, val_ds, *, epochs: int = 15, batch_size: int =
     on medical images.
     """
     from .models.grader import corn_loss, corn_predict, referable_prob
-    from .constants import REFERABLE_THRESHOLD
+    from .constants import REFERABLE_THRESHOLD, SIGHT_THREATENING_THRESHOLD
     from sklearn.metrics import roc_auc_score
 
     dev = device_of(device)
     out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     model = model.to(dev)
 
-    tl = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+    # A grade-stratified sampler is what keeps the deep CORN conditionals fed:
+    # under natural sampling grades 3-4 are ~17% of the cohort, so task 3 sees
+    # two or three images per batch of 16 and its gradient is mostly noise.
+    tl = DataLoader(train_ds, batch_size=batch_size,
+                    shuffle=(sampler is None), sampler=sampler,
+                    num_workers=num_workers,
                     pin_memory=(dev.type == "cuda"), drop_last=True,
                     persistent_workers=num_workers > 0)
     vl = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers,
@@ -309,21 +322,59 @@ def train_grader(model, train_ds, val_ds, *, epochs: int = 15, batch_size: int =
         qwk = quadratic_weighted_kappa(y_true, y_pred)
         acc = float((y_true == y_pred).mean())
 
+        # Sight-threatening recall is tracked per epoch because it is the axis
+        # the model was failing on (0.43 on grades 3 and 4) and the axis the
+        # old selection metric was structurally unable to see.
+        st_true = y_true >= SIGHT_THREATENING_THRESHOLD
+        st_hit = int(((y_pred >= SIGHT_THREATENING_THRESHOLD) & st_true).sum())
+        sens_st = float(st_hit / int(st_true.sum())) if int(st_true.sum()) else float("nan")
+        per_grade = [float((y_pred[y_true == g] == g).mean())
+                     if int((y_true == g).sum()) else float("nan")
+                     for g in range(model.num_classes)]
+
         rec = {"epoch": ep + 1, "train_loss": running / max(nb, 1),
-               "val_auc_referable": auc, "val_qwk": qwk, "val_accuracy": acc}
+               "val_auc_referable": auc, "val_qwk": qwk, "val_accuracy": acc,
+               "val_sens_sight_threatening": sens_st,
+               "val_recall_per_grade": per_grade}
         log.epochs.append(rec)
         print(f"[grader] epoch {ep+1}/{epochs} loss {rec['train_loss']:.4f} "
-              f"AUC(ref) {auc:.4f} QWK {qwk:.4f} acc {acc:.4f}", flush=True)
+              f"AUC(ref) {auc:.4f} QWK {qwk:.4f} acc {acc:.4f} "
+              f"sens(g>=3) {sens_st:.4f}", flush=True)
 
-        # Selection metric is referable-DR AUC: it is the clinical decision and
-        # it is insensitive to the class imbalance that would let accuracy
-        # reward a model that never predicts grades 3-4.
-        score = auc if auc == auc else qwk
+        # Selection metric.
+        #
+        # This was referable-DR AUC, scored on ``referable_prob(logits)`` =
+        # ``corn_cumulative_probs(logits)[:, 1]`` = sigma(z0) * sigma(z1).
+        # That expression does not contain z2 or z3 -- the two output units
+        # that decide severe NPDR and proliferative DR -- so the criterion was
+        # mathematically incapable of observing the model collapse grades 3
+        # and 4 into grade 2. It duly preferred epoch 30 to epoch 18 for a
+        # 0.002 AUC gain while QWK fell. The old comment here claimed the
+        # metric protected against "a model that never predicts grades 3-4";
+        # it was the one metric on the list that could not.
+        #
+        # QWK weights errors quadratically, so calling a grade-4 eye "grade 2"
+        # costs four times what "grade 3" costs -- it reads the severity axis
+        # directly. Referable discrimination is not sacrificed: it plateaus by
+        # epoch 10, and the referral threshold is fitted afterwards on the
+        # validation split regardless of which epoch is kept.
+        scores = {"qwk": qwk, "referable_auc": auc,
+                  "composite": 0.5 * qwk + 0.5 * (sens_st if sens_st == sens_st else 0.0)}
+        if select_on not in scores:
+            raise ValueError(f"select_on must be one of {sorted(scores)}, got {select_on!r}")
+        score = scores[select_on]
+        if score != score:                            # NaN guard
+            score = auc if auc == auc else 0.0
+        ck = {"model": ema.shadow.state_dict(), "epoch": ep + 1,
+              "auc": auc, "qwk": qwk, "sens_sight_threatening": sens_st,
+              "select_on": select_on, "config": log.config}
         if score > log.best_metric:
             log.best_metric, log.best_epoch = score, ep + 1
-            torch.save({"model": ema.shadow.state_dict(), "epoch": ep + 1,
-                        "auc": auc, "qwk": qwk, "config": log.config},
-                       out_dir / "best.pt")
+            torch.save(ck, out_dir / "best.pt")
+        # Keep the final epoch too. Previously only ``best.pt`` was written and
+        # it was overwritten in place, so once a run finished, every other
+        # epoch was gone and revisiting the selection metric meant retraining.
+        torch.save(ck, out_dir / "last.pt")
 
     log.elapsed_s = time.time() - t_start
     (out_dir / "train_log.json").write_text(json.dumps(log.to_dict(), indent=2))
