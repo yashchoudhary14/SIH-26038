@@ -1,5 +1,6 @@
-# Explainable Diabetic Retinopathy Screening for Rural India
+#this is not the final readme, readme will be changed look at the codes for reference 
 
+# Explainable Diabetic Retinopathy Screening for Rural India
 An end-to-end, clinically-validated DR screening pipeline: image quality
 gating with recapture feedback, retinal structure and lesion segmentation,
 ordinal ICDR severity grading with calibrated confidence, lesion-grounded
