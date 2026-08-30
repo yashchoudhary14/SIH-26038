@@ -1,8 +1,8 @@
 arm                  AUC            95% CI    Sens    Spec     QWK  targets
 ---------------------------------------------------------------------------
-fusion *          0.9859 [0.9763,0.9916]   0.930   0.939  0.8878     PASS
-cnn_only          0.9857 [0.9752,0.9918]   0.972   0.905  0.8768     PASS
-clinical_only     0.9310 [0.9096,0.9476]   0.912   0.807  0.7087     fail
+fusion *          0.9862 [0.9760,0.9921]   0.975   0.905  0.8912     PASS
+cnn_only          0.9859 [0.9751,0.9921]   0.982   0.925  0.8941     PASS
+clinical_only     0.9329 [0.9118,0.9492]   0.891   0.830  0.7108     fail
 rule_based        0.9139 [0.8890,0.9337]   0.996   0.058  0.0305     fail
 
 * = integrated pipeline (fusion)
@@ -10,6 +10,6 @@ rule_based        0.9139 [0.8890,0.9337]   0.996   0.058  0.0305     fail
 The integrated pipeline (fusion) has the highest referable-DR AUC of all arms, but the margin over cnn_only is not statistically significant at this sample size.
 
 Paired tests vs the integrated pipeline:
-  vs cnn_only         fusion has the higher AUC by 0.0002; the difference is not statistically significant (DeLong p = 0.9212).
-  vs clinical_only    fusion has the higher AUC by 0.0549; the difference is statistically significant (DeLong p = 2.961e-10).
-  vs rule_based       fusion has the higher AUC by 0.0720; the difference is statistically significant (DeLong p = 1.307e-12).
+  vs cnn_only         fusion has the higher AUC by 0.0003; the difference is not statistically significant (DeLong p = 0.8574).
+  vs clinical_only    fusion has the higher AUC by 0.0533; the difference is statistically significant (DeLong p = 2.293e-09).
+  vs rule_based       fusion has the higher AUC by 0.0723; the difference is statistically significant (DeLong p = 5.339e-12).

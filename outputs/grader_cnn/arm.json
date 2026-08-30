@@ -1,6 +1,8 @@
 {
   "arm": "cnn",
   "use_clinical": false,
-  "best_metric": 0.9758789320644992,
-  "best_epoch": 27
+  "best_metric": 0.8945640018823339,
+  "best_epoch": 23,
+  "select_on": "qwk",
+  "balanced_sampler": true
 }

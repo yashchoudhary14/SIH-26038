@@ -11,8 +11,8 @@ Messidor-2 held out for blind external validation.
 
 | | sensitivity | specificity | AUC | targets |
 |---|---|---|---|---|
-| Internal test (n=631) | **0.930** | **0.939** | 0.986 | ✅ both met |
-| **External, Messidor-2 (n=1,744)** | **0.427** | 0.978 | 0.875 | ❌ **not met** |
+| Internal test (n=631) | **0.975** | **0.905** | 0.986 | ✅ both met |
+| **External, Messidor-2 (n=1,744)** | **0.619** | 0.941 | 0.901 | ❌ **sensitivity not met** |
 
 **Read the second row before the first** — and then read the breakdown below
 it, because the aggregate sensitivity is misleading on its own.
@@ -22,18 +22,19 @@ disease:
 
 | true severity | n | flagged referable |
 |---|---|---|
-| 0 — no DR | 1,017 | 2.1% *(correctly not flagged)* |
-| 1 — mild NPDR | 270 | 2.6% *(correctly not flagged)* |
-| 2 — moderate NPDR | 347 | **27.7%** ← the failure |
-| 3 — severe NPDR | 75 | **93.3%** |
-| 4 — proliferative DR | 35 | **82.9%** |
+| 0 — no DR | 1,017 | 5.2% *(correctly not flagged)* |
+| 1 — mild NPDR | 270 | 8.5% *(correctly not flagged)* |
+| 2 — moderate NPDR | 347 | **52.2%** ← still the weak point |
+| 3 — severe NPDR | 75 | **96.0%** |
+| 4 — proliferative DR | 35 | **85.7%** |
 
-**Sight-threatening disease (grade ≥ 3): sensitivity 0.900 [0.830–0.943] at
-97.8% specificity** — on a cohort from a different country, different cameras
-and a different grading panel, with nothing fitted on it.
+**Sight-threatening disease (grade ≥ 3): sensitivity 0.927 [0.863–0.963] at
+94.1% specificity** — on a cohort from a different country, different cameras
+and a different grading panel, with nothing fitted on it. On the internal test
+split it is **1.000 [0.965–1.000]**: all 105 sight-threatening eyes referred.
 
 Grade 2 is 76% of the referable cases, which is why it drags the aggregate to
-0.427. The clinical weight of those two failure modes is not equal: a missed
+0.619. The clinical weight of those two failure modes is not equal: a missed
 proliferative DR can cost sight within months, a missed moderate NPDR is
 caught at the next annual screen.
 
@@ -42,8 +43,9 @@ phantom generator exercises every stage for real, so the system is
 demonstrable in minutes before any dataset arrives.
 
 > **[→ RESULTS.md](RESULTS.md)** — full results, the verdict on whether the
-> system works, root-cause analysis of the moderate-NPDR gap, and the nine
-> bugs real data exposed. Start there if you want the findings rather than the
+> system works, root-cause analysis of the moderate-NPDR gap, why the *printed
+> grade* is less reliable than the referral flag, and the thirteen bugs real
+> data exposed. Start there if you want the findings rather than the
 > build instructions.
 
 ---
@@ -259,18 +261,18 @@ Splits are subject-grouped; measured overlap between train/val/test is **zero**.
 
 | metric | value | 95% CI | target |
 |---|---|---|---|
-| **Sensitivity** | **0.930** | 0.894–0.954 | ≥ 0.90 ✅ |
-| **Specificity** | **0.939** | 0.909–0.960 | ≥ 0.85 ✅ |
-| AUC | 0.9850 | 0.9744–0.9912 | — |
-| QWK | 0.8878 | 0.8646–0.9082 | — |
-| ECE | 0.0285 | — | — |
+| **Sensitivity** | **0.975** | 0.950–0.988 | ≥ 0.90 ✅ |
+| **Specificity** | **0.905** | 0.870–0.932 | ≥ 0.85 ✅ |
+| AUC | 0.9862 | 0.9760–0.9921 | — |
+| QWK | 0.8912 | 0.8619–0.9149 | — |
+| ECE | 0.0332 | — | — |
 
 **Both problem-statement targets are met on real patient data.**
 
-Calibration: temperature (T = 3.80) is fitted to the multiclass CORN NLL and
-actually made binary ECE slightly *worse* (0.0503 → 0.0519) while improving
-MCE and Brier. Isotonic regression on P(referable) — the number the referral
-decision uses — gives ECE **0.0172 out-of-fold** vs 0.0519, and is adopted.
+Calibration: temperature (T = 2.49) is fitted to the multiclass CORN NLL and
+improves binary ECE 0.0587 → 0.0306. Isotonic regression on P(referable) — the
+number the referral decision uses — gives ECE **0.0153 out-of-fold** vs 0.0306,
+and is adopted.
 The adoption test is out-of-fold by necessity: isotonic scored on its own
 fitting split drives ECE to ~0 by construction.
 
@@ -292,19 +294,23 @@ Resolution is decisive: at 512 a microaneurysm survives downsampling from
 
 ```
 arm                  AUC            95% CI    Sens    Spec     QWK  targets
-cnn_only          0.9853 [0.9752,0.9913]   0.972   0.905  0.8768     PASS
-fusion *          0.9850 [0.9744,0.9912]   0.930   0.939  0.8878     PASS
-clinical_only     0.9293 [0.9076,0.9463]   0.923   0.795  0.7087     fail
+fusion *          0.9862 [0.9760,0.9921]   0.975   0.905  0.8912     PASS
+cnn_only          0.9859 [0.9751,0.9921]   0.982   0.925  0.8941     PASS
+clinical_only     0.9329 [0.9118,0.9492]   0.891   0.830  0.7108     fail
 rule_based        0.9139 [0.8890,0.9337]   0.996   0.058  0.0305     fail
 
-The integrated pipeline (fusion) does NOT beat every single technique:
-cnn_only scored higher. This must be reported as-is.
+The integrated pipeline (fusion) has the highest referable-DR AUC of all arms,
+but the margin over cnn_only is not statistically significant at this sample
+size.
 ```
 
-Fusion beats the two classical arms decisively (DeLong p = 4×10⁻¹⁰ and
-4×10⁻¹²) and is **statistically tied with the CNN-only arm** (Δ AUC 0.0003,
-p = 0.899). On this data the clinical-feature branch buys interpretability and
-a better QWK, not better referral discrimination. That is the honest finding.
+Fusion beats the two classical arms decisively (DeLong p = 2×10⁻⁹ and
+5×10⁻¹²) and is **statistically tied with the CNN-only arm** (Δ AUC 0.0003,
+p = 0.857). Under the previous checkpoint the clinical branch at least bought a
+better QWK; it no longer does — `cnn_only` now edges fusion on QWK as well
+(0.8941 vs 0.8912). On this data the clinical-feature branch buys
+interpretability and an auditable rule trail, not better referral
+discrimination. That is the honest finding.
 
 ### External validation: Messidor-2, zero-shot — n = 1,744
 
@@ -314,24 +320,24 @@ are excluded rather than scored as a sixth class.
 
 | metric | internal test | **external** |
 |---|---|---|
-| Sensitivity | 0.930 [0.894–0.954] | **0.427** [0.382–0.472] |
-| Specificity | 0.939 [0.909–0.960] | 0.978 [0.969–0.985] |
-| AUC | 0.9859 [0.9763–0.9916] | 0.8751 [0.8548–0.8930] |
-| QWK | 0.8878 | 0.5859 |
-| ECE | 0.0276 | 0.0960 |
+| Sensitivity | 0.975 [0.950–0.988] | **0.619** [0.574–0.663] |
+| Specificity | 0.905 [0.870–0.932] | 0.941 [0.927–0.953] |
+| AUC | 0.9862 [0.9760–0.9921] | 0.9013 [0.8833–0.9167] |
+| QWK | 0.8912 | 0.6029 |
+| ECE | 0.0332 | 0.0951 |
 
 **What is actually failing.** Two things, and they need separating:
 
-1. **Real discrimination loss.** AUC 0.986 → 0.875. Even at the
-   sensitivity-optimal threshold *chosen on Messidor-2 itself* — an oracle, not
-   an achievable result — specificity at 90% sensitivity is only **0.628**. No
-   threshold on this distribution satisfies both targets. So this is not merely
-   a mis-set operating point.
+1. **Real discrimination loss.** AUC 0.986 → 0.901. 90% referable sensitivity
+   is not reachable anywhere in the swept operating range: even at a threshold
+   of 0.05, sensitivity is 0.840 and specificity has already fallen to 0.787.
+   No threshold on this distribution satisfies both targets, so this is not
+   merely a mis-set operating point.
 
-2. **Threshold transfer.** At the frozen threshold the model is far too
-   conservative here: specificity *rose* to 0.978 while sensitivity collapsed.
-   Median P(referable) among true positives is 0.889 internally and 0.370 on
-   Messidor-2 — the score distribution shifts down bodily.
+2. **Threshold transfer.** The score distribution shifts down bodily. At the
+   *same* deployed threshold the model flags 49.1% of the internal test split
+   but only 20.6% of Messidor-2, while true referable prevalence is 45% and 26%
+   respectively — so the gap is far larger than prevalence alone explains.
 
 The referable prevalence also differs (45% internal vs 26% external), which
 changes PPV but not sensitivity.
@@ -362,23 +368,32 @@ moderate NPDR can be a single haemorrhage. APTOS ships one grader per image
 with documented label noise; Messidor-2 ships adjudicated consensus. Those are
 different populations wearing the same label.
 
-The ranking survives — on Messidor-2 the median P(referable) is 0.000 for
-grade 1 and 0.250 for grade 2, correctly ordered, just sitting below a
-threshold learned from a stricter-looking population. Which means the fix is
-recalibration, not retraining:
+The ranking survives — on Messidor-2 the model flags 8.5% of grade 1, 52.2% of
+grade 2 and 92.7% of grade ≥ 3, correctly ordered, with the scores simply
+sitting lower against a threshold learned from a stricter-looking population.
+Which means the largest remaining lever is recalibration, not retraining:
 
 | threshold | sens (all referable) | sens (grade 2) | sens (grade ≥3) | specificity | % flagged |
 |---|---|---|---|---|---|
-| 0.657 *(frozen)* | 35.7% | 19.6% | 86.4% | 98.8% | 10.3% |
-| 0.400 | 42.7% | 27.7% | 90.0% | 97.7% | 12.8% |
-| **0.250** | 61.5% | 50.7% | **95.5%** | **92.3%** | 21.8% |
-| 0.150 | 73.5% | 66.0% | 97.3% | 83.2% | 31.7% |
-| 0.050 | 88.6% | 85.3% | 99.1% | 64.0% | 49.8% |
+| 0.050 | 84.0% | 79.3% | 99.1% | 78.7% | 37.7% |
+| 0.100 | 79.9% | 74.1% | 98.2% | 86.6% | 30.8% |
+| 0.150 | 70.5% | 62.8% | 94.6% | 91.8% | 24.5% |
+| 0.200 | 66.1% | 57.1% | 94.6% | 93.2% | 22.4% |
+| 0.250 | 62.4% | 52.7% | 92.7% | 93.9% | 20.8% |
+| **0.3998** *(deployed)* | **61.9%** | **52.2%** | **92.7%** | **94.1%** | **20.6%** |
+| 0.500 | 49.9% | 37.2% | 90.0% | 96.7% | 15.5% |
+| 0.700 | 46.4% | 32.6% | 90.0% | 97.8% | 13.8% |
+| 0.800 | 19.5% | 6.1% | 61.8% | 99.8% | 5.2% |
 
-At 0.250 the system catches **95.5% of sight-threatening disease at 92.3%
-specificity** while flagging only 22% of the population for review — a
-deployable operating point, reached by moving one number. This is the concrete
-argument for fitting the threshold per site against a few hundred local
+This table is **generated** into `validation.json` by `metrics.threshold_sweep`
+— every row is computed at the threshold it is labelled with, and the deployed
+point is always present. The hand-maintained version it replaces was shifted by
+one row, so the operating point it recommended had never been measured.
+
+Loosening to 0.150 buys sight-threatening sensitivity 92.7% → 94.6% and
+grade-2 sensitivity 52.2% → 62.8% for 4 points of specificity and a review
+queue of 24.5% instead of 20.6%. That trade is a per-site decision, which is
+the concrete argument for fitting the threshold locally against a few hundred
 labels, and for the audit log that collects them.
 
 **This is the honest state of the system**: usable as a triage aid on
@@ -415,11 +430,14 @@ only external validation could find**: isotonic recalibration measurably
 improved in-distribution ECE while silently destroying the model's operating
 range under distribution shift, because its ties are harmless until the score
 distribution moves. Blending a sliver of the raw score back in restores a
-strict total order and keeps both properties — ECE 0.0519 → 0.0130 *and*
-external AUC 0.875 with specificity 0.628 at 90% sensitivity. All three have
-regression tests.
+strict total order and keeps both properties — ECE 0.0306 → 0.0153 *and* an
+external AUC of 0.901 with a usable operating range. All three have regression
+tests.
 
 ### Deployed behaviour on 120 real test images
+
+*Measured on the checkpoint preceding the grade-3/4 fixes; this before/after is
+for bugs #1–#9 and has not been re-measured on the current checkpoint.*
 
 | | before fixes | after |
 |---|---|---|

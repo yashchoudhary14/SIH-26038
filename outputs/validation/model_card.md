@@ -1,6 +1,6 @@
 # Model card -- DR screening pipeline
 
-Generated 2026-08-29 from `outputs/validation/validation.json`. Every number below is read from that file; none is hand-entered.
+Generated 2026-08-30 from `outputs/validation/validation.json`. Every number below is read from that file; none is hand-entered.
 
 ## 1. Intended use
 
@@ -17,8 +17,8 @@ Generated 2026-08-29 from `outputs/validation/validation.json`. Every number bel
 ## 2. Operating point
 
 - Referable DR is defined as grade >= 2 (Moderate NPDR or worse).
-- Referral threshold on P(referable): **0.6569**
-- Temperature: **3.7969**
+- Referral threshold on P(referable): **0.3998**
+- Temperature: **2.4877**
 - Both were selected on the validation split only, then frozen. Neither was tuned on the test or external splits.
 - Selection rationale: Meets both targets (sens>=90%, spec>=85%); maximises Youden's J among those. PPV/NPV restated at 18.0% deployment prevalence.
 
@@ -33,13 +33,13 @@ Targets: sensitivity >= 90%, specificity >= 85% for referable DR.
 
 | metric | internal test | external (zero-shot) |
 |---|---|---|
-| Sensitivity | 0.930 (95% CI 0.894-0.954) | 0.427 (95% CI 0.382-0.472) |
-| Specificity | 0.939 (95% CI 0.909-0.960) | 0.978 (95% CI 0.969-0.985) |
-| PPV | 0.926 (95% CI 0.890-0.951) | 0.874 (95% CI 0.825-0.912) |
-| NPV | 0.942 (95% CI 0.912-0.962) | 0.828 (95% CI 0.808-0.846) |
-| AUC | 0.9859 (0.9763-0.9916) | 0.8751 (0.8548-0.8930) |
-| QWK | 0.8878 | 0.5859 |
-| Within-one-grade | 0.956 (95% CI 0.937-0.969) | 0.911 (95% CI 0.896-0.923) |
+| Sensitivity | 0.975 (95% CI 0.950-0.988) | 0.619 (95% CI 0.574-0.663) |
+| Specificity | 0.905 (95% CI 0.869-0.931) | 0.941 (95% CI 0.927-0.953) |
+| PPV | 0.894 (95% CI 0.854-0.923) | 0.788 (95% CI 0.743-0.827) |
+| NPV | 0.978 (95% CI 0.956-0.989) | 0.874 (95% CI 0.856-0.891) |
+| AUC | 0.9862 (0.9760-0.9921) | 0.9013 (0.8833-0.9167) |
+| QWK | 0.8912 | 0.6029 |
+| Within-one-grade | 0.962 (95% CI 0.944-0.974) | 0.908 (95% CI 0.893-0.920) |
 
 Targets met on internal test: sensitivity **yes**, specificity **yes**.
 
@@ -47,8 +47,8 @@ Targets met on internal test: sensitivity **yes**, specificity **yes**.
 
 | | before | after |
 |---|---|---|
-| ECE | 0.0503 | 0.0130 |
-| Brier | 0.0705 | 0.0633 |
+| ECE | 0.0587 | 0.0153 |
+| Brier | 0.0745 | 0.0659 |
 
 ## 5. Comparison against single techniques
 
@@ -56,9 +56,9 @@ The integrated pipeline (fusion) has the highest referable-DR AUC of all arms, b
 
 | arm | AUC | sensitivity | specificity |
 |---|---|---|---|
-| fusion **(deployed)** | 0.9859 | 0.930 | 0.939 |
-| cnn_only | 0.9857 | 0.972 | 0.905 |
-| clinical_only | 0.9310 | 0.912 | 0.807 |
+| fusion **(deployed)** | 0.9862 | 0.975 | 0.905 |
+| cnn_only | 0.9859 | 0.982 | 0.925 |
+| clinical_only | 0.9329 | 0.891 | 0.830 |
 | rule_based | 0.9139 | 0.996 | 0.058 |
 
 ## 6. Known failure modes
