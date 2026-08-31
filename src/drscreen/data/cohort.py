@@ -15,7 +15,9 @@ Layout::
 
     <root>/
       manifest.jsonl        one JSON record per case
-      images/<uid>.png      standardised, enhanced BGR image
+      images/<uid>.png      standardised, enhanced model input (hybrid planes,
+                            stored in the exact channel order the model is
+                            fed at inference -- NOT a viewable RGB/BGR image)
       fov/<uid>.png         field-of-view mask
       masks/<uid>.npz       ground-truth masks (phantom / IDRiD only)
       features/<uid>.npy    clinical feature vector (written by stage 2)

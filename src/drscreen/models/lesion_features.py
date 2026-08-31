@@ -23,6 +23,7 @@ Two things fall out of that:
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -359,3 +360,77 @@ def dme_risk(f: ClinicalFeatures) -> tuple[int, str]:
 
 def is_referable(grade: int) -> bool:
     return grade >= REFERABLE_THRESHOLD
+
+
+def fit_lesion_thresholds(seg_ckpt: Path, cohort: Path, device: str = "auto",
+                          split: str = "seg_val") -> dict:
+    """F1-optimal per-class cut-points on the lesion probability maps.
+
+    A blanket 0.5 is not a neutral default, it is an unfitted parameter. On
+    held-out IDRiD the optimum sits at 0.85-0.95, and at 0.5 the exudate
+    channel produced enough false positives on healthy APTOS retinas to trip
+    the macular-oedema rule and label them urgent.
+
+    Fitted on the segmentation validation split -- never on the grading test
+    split the operating point is reported against.
+    """
+    import cv2
+    import torch
+    from drscreen.data.cohort import read_manifest
+    from drscreen.data.torch_data import to_tensor
+    from drscreen.models.segmentation import build_unet
+    from drscreen.constants import LESION_CLASSES
+    from drscreen.training import device_of
+
+    ck = torch.load(seg_ckpt, map_location="cpu", weights_only=False)
+    seg_size = int(ck.get("size", 512))
+    seg_cohort = cohort
+    if not (seg_cohort / "manifest.jsonl").exists():
+        return {}
+    manifest = read_manifest(seg_cohort)
+    recs = [r for r in manifest if r.split == split and r.has_masks]
+    if not recs:
+        # Synthetic cohorts carry masks on every split and have no seg_val;
+        # fall back to any masked split rather than silently returning no
+        # thresholds (which would drop the caller back to a blanket 0.5).
+        recs = [r for r in manifest if r.split in ("val", "seg_val", "train")
+                and r.has_masks][:64]
+    if not recs:
+        return {}
+
+    dev = device_of(device)
+    m = build_unet("lesion", width=int(ck.get("width", 24)))
+    m.load_state_dict(ck["model"]); m = m.to(dev).eval()
+
+    P, Y = [], []
+    for r in recs:
+        img = cv2.imread(str(seg_cohort / "images" / f"{r.uid}.png"))
+        z = np.load(seg_cohort / "masks" / f"{r.uid}.npz")
+        if img.shape[0] != seg_size:
+            img = cv2.resize(img, (seg_size, seg_size), interpolation=cv2.INTER_CUBIC)
+        with torch.no_grad():
+            lo = m(to_tensor(img).unsqueeze(0).to(dev))
+            if isinstance(lo, tuple):
+                lo = lo[0]
+            pr = torch.sigmoid(lo.float())[0].permute(1, 2, 0).cpu().numpy()
+        gt = (z["lesions"] > 127).astype(np.uint8)
+        if gt.shape[0] != pr.shape[0]:
+            gt = cv2.resize(gt, pr.shape[:2][::-1], interpolation=cv2.INTER_NEAREST)
+        P.append(pr); Y.append(gt)
+    P, Y = np.stack(P), np.stack(Y)
+
+    out = {}
+    for c, name in enumerate(LESION_CLASSES):
+        if Y[..., c].sum() == 0:
+            continue                      # class not annotated in this corpus
+        best_f1, best_t = -1.0, 0.5
+        for t in np.arange(0.05, 0.99, 0.05):
+            pred = P[..., c] >= t
+            tp = float((pred & (Y[..., c] > 0)).sum())
+            fp = float((pred & (Y[..., c] == 0)).sum())
+            fn = float((~pred & (Y[..., c] > 0)).sum())
+            f1 = 2 * tp / max(2 * tp + fp + fn, 1.0)
+            if f1 > best_f1:
+                best_f1, best_t = f1, float(t)
+        out[name] = round(best_t, 2)
+    return out

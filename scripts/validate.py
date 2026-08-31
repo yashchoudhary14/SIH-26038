@@ -34,6 +34,7 @@ from drscreen.evaluation.metrics import (evaluate_grading, binary_metrics,
 from drscreen.models.calibration import (IsotonicCalibrator, TemperatureScaler,
                                          calibration_report, select_threshold,
                                          selective_risk_curve)
+from drscreen.models.lesion_features import fit_lesion_thresholds
 from drscreen.models.grader import (DRGrader, corn_class_probs, corn_predict,
                                     referable_prob)
 from drscreen.training import collect_logits
@@ -326,6 +327,23 @@ def main():
         except Exception as e:
             print(f"  lesion-threshold fit skipped: {type(e).__name__}: {e}")
 
+        # These thresholds are what live inference will apply. The fusion grader
+        # was trained on features cached by precompute_features; if those were
+        # cached at a different threshold, the grader is served lesion counts it
+        # never learned from. Assert the two agree.
+        prov = a.cohort / "features" / "thresholds.json"
+        if prov.exists():
+            cached = json.loads(prov.read_text()).get("lesion_thresholds")
+            if cached and lesion_thr and cached != lesion_thr:
+                print("  !! WARNING: features were cached at lesion thresholds "
+                      f"{cached} but deployment will use {lesion_thr}. The fusion "
+                      "grader is served features it was not trained on. Recompute "
+                      "features with --thr-cohort against this segmentation model.")
+            elif cached is None:
+                print("  !! WARNING: features were cached at a blanket scalar, not "
+                      "the fitted per-class thresholds live inference uses. "
+                      "Recompute features with --thr-cohort.")
+
     seg_size = a.size
     if a.seg.exists():
         _sck = torch.load(a.seg, map_location="cpu", weights_only=False)
@@ -336,6 +354,10 @@ def main():
         "temperature": T,
         "calibrator": (iso.to_dict() if iso is not None else {"kind": "identity"}),
         "lesion_thresholds": lesion_thr or None,
+        "preprocess_mode": "hybrid",
+        "channel_order": "CLAHE-green, Ben-Graham, L* (as produced by "
+                         "to_model_input; cohort storage and live inference must "
+                         "match -- see test_train_serve_channel_parity)",
         "size": a.size,
         "seg_size": seg_size,
         "backbone": ck.get("backbone", "tf_efficientnet_b0"),
@@ -410,72 +432,6 @@ def evaluate_explanation_quality(model, cohort: Path, split: str, size: int,
         masks.append(lm.numpy().max(axis=0) if lm is not None else None)
 
     return evaluate_explanations(model, images, cams, clinicals, masks, steps=16)
-
-
-def fit_lesion_thresholds(seg_ckpt: Path, cohort: Path, device: str = "auto",
-                          split: str = "seg_val") -> dict:
-    """F1-optimal per-class cut-points on the lesion probability maps.
-
-    A blanket 0.5 is not a neutral default, it is an unfitted parameter. On
-    held-out IDRiD the optimum sits at 0.85-0.95, and at 0.5 the exudate
-    channel produced enough false positives on healthy APTOS retinas to trip
-    the macular-oedema rule and label them urgent.
-
-    Fitted on the segmentation validation split -- never on the grading test
-    split the operating point is reported against.
-    """
-    import cv2
-    from drscreen.data.cohort import read_manifest
-    from drscreen.data.torch_data import to_tensor
-    from drscreen.models.segmentation import build_unet
-    from drscreen.constants import LESION_CLASSES
-    from drscreen.training import device_of
-
-    ck = torch.load(seg_ckpt, map_location="cpu", weights_only=False)
-    seg_size = int(ck.get("size", 512))
-    seg_cohort = cohort
-    if not (seg_cohort / "manifest.jsonl").exists():
-        return {}
-    recs = [r for r in read_manifest(seg_cohort) if r.split == split and r.has_masks]
-    if not recs:
-        return {}
-
-    dev = device_of(device)
-    m = build_unet("lesion", width=int(ck.get("width", 24)))
-    m.load_state_dict(ck["model"]); m = m.to(dev).eval()
-
-    P, Y = [], []
-    for r in recs:
-        img = cv2.imread(str(seg_cohort / "images" / f"{r.uid}.png"))
-        z = np.load(seg_cohort / "masks" / f"{r.uid}.npz")
-        if img.shape[0] != seg_size:
-            img = cv2.resize(img, (seg_size, seg_size), interpolation=cv2.INTER_CUBIC)
-        with torch.no_grad():
-            lo = m(to_tensor(img).unsqueeze(0).to(dev))
-            if isinstance(lo, tuple):
-                lo = lo[0]
-            pr = torch.sigmoid(lo.float())[0].permute(1, 2, 0).cpu().numpy()
-        gt = (z["lesions"] > 127).astype(np.uint8)
-        if gt.shape[0] != pr.shape[0]:
-            gt = cv2.resize(gt, pr.shape[:2][::-1], interpolation=cv2.INTER_NEAREST)
-        P.append(pr); Y.append(gt)
-    P, Y = np.stack(P), np.stack(Y)
-
-    out = {}
-    for c, name in enumerate(LESION_CLASSES):
-        if Y[..., c].sum() == 0:
-            continue                      # class not annotated in this corpus
-        best_f1, best_t = -1.0, 0.5
-        for t in np.arange(0.05, 0.99, 0.05):
-            pred = P[..., c] >= t
-            tp = float((pred & (Y[..., c] > 0)).sum())
-            fp = float((pred & (Y[..., c] == 0)).sum())
-            fn = float((~pred & (Y[..., c] > 0)).sum())
-            f1 = 2 * tp / max(2 * tp + fp + fn, 1.0)
-            if f1 > best_f1:
-                best_f1, best_t = f1, float(t)
-        out[name] = round(best_t, 2)
-    return out
 
 
 def rule_based_arm(cohort: Path, split: str, y_true: np.ndarray) -> dict | None:

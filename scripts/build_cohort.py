@@ -60,7 +60,14 @@ def _make_one(job: tuple) -> tuple:
     if enhance:
         img, applied = adaptive_enhance(img, fov_mask, q.issues)
         img = to_model_input(img, fov_mask, mode="hybrid")
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # NO colour conversion here. to_model_input already returns the exact
+        # 3-channel representation the model consumes -- [CLAHE-green,
+        # Ben-Graham, L*], feature planes, not an RGB image. The previous
+        # cv2.COLOR_RGB2BGR reversed channels 0 and 2 before cv2.imwrite, and
+        # since imwrite/imread round-trips an array unchanged, the cohort stored
+        # [L*, Ben-Graham, CLAHE-green] -- the reverse of what the live pipeline
+        # (pipeline.py, no conversion) feeds the same model. Training and
+        # deployment saw mirror-image inputs. See test_train_serve_channel_parity.
     else:
         applied = []
 
@@ -142,7 +149,8 @@ def _process_real(job: tuple):
     if enhance:
         img, applied = adaptive_enhance(img, fov_mask, q.issues)
         img = to_model_input(img, fov_mask, mode="hybrid")
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # No colour conversion: store exactly what the live pipeline feeds the
+        # model. See the note in the synthetic path and the parity test.
     else:
         applied = []
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import time
 from pathlib import Path
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -22,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from drscreen.constants import NUM_LESION_CLASSES
 from drscreen.data.cohort import read_manifest
 from drscreen.data.torch_data import to_tensor
-from drscreen.models.lesion_features import extract
+from drscreen.models.lesion_features import extract, fit_lesion_thresholds
 from drscreen.models.segmentation import build_unet
 from drscreen.pipeline import DRScreeningPipeline
 from drscreen.preprocess.landmarks import locate
@@ -40,7 +41,17 @@ def main():
                          "and connected components cost ~6x more at 1024 and "
                          "gain nothing: the features are per-region scalars.")
     ap.add_argument("--batch-size", type=int, default=8)
-    ap.add_argument("--threshold", type=float, default=0.5)
+    ap.add_argument("--threshold", type=float, default=0.5,
+                    help="fallback per-class cut-point used ONLY when --thr-cohort "
+                         "is not given. A blanket 0.5 does NOT match the fitted "
+                         "thresholds the live pipeline applies, so features cached "
+                         "with it are a train/serve skew for the fusion grader.")
+    ap.add_argument("--thr-cohort", type=Path, default=None,
+                    help="cohort carrying the lesion masks (e.g. cohort_seg1024). "
+                         "When given, per-class F1-optimal thresholds are fitted "
+                         "from --seg on its seg_val split and used for feature "
+                         "extraction -- the SAME values validate.py deploys, so "
+                         "cached features match what the model is served live.")
     ap.add_argument("--also-gt", action="store_true",
                     help="also cache features computed from ground-truth masks")
     ap.add_argument("--save-preds", action="store_true",
@@ -61,6 +72,24 @@ def main():
     model = model.to(dev).eval()
     print(f"Loaded segmentation (epoch {ck.get('epoch')}, dice {ck.get('dice', float('nan')):.4f})")
     print(f"Segmenting at {a.size}px, extracting features at {a.feature_size}px")
+
+    # Lesion cut-points MUST match what the live pipeline applies, or the fusion
+    # grader learns from lesion counts it will never see at inference. The live
+    # thresholds are the F1-optimal per-class values validate.py fits from this
+    # same segmentation model; fit them here from the same function so the two
+    # cannot drift. Written to features/thresholds.json for validate.py to check.
+    lesion_thr: dict = {}
+    if a.thr_cohort is not None:
+        lesion_thr = fit_lesion_thresholds(a.seg, a.thr_cohort, device=a.device)
+        if lesion_thr:
+            print(f"  fitted lesion thresholds (match live inference): {lesion_thr}")
+        else:
+            print("  !! --thr-cohort given but no thresholds fitted (no seg_val "
+                  "masks found); falling back to the scalar --threshold")
+    if not lesion_thr:
+        print(f"  !! caching features at a BLANKET {a.threshold}. This will NOT "
+              f"match live inference; pass --thr-cohort to fit per-class values.")
+    feat_threshold = lesion_thr or a.threshold
 
     recs = read_manifest(a.cohort)
     feat_dir = a.cohort / "features"; feat_dir.mkdir(exist_ok=True)
@@ -114,7 +143,7 @@ def main():
                                interpolation=cv2.INTER_AREA)
             lm = locate(f_img, f_fov)
             vessel = DRScreeningPipeline._vessel_proxy(f_img, f_fov)
-            f = extract(p, lm, f_fov, vessel, threshold=a.threshold)
+            f = extract(p, lm, f_fov, vessel, threshold=feat_threshold)
             np.save(feat_dir / f"{rec.uid}.npy", f.to_vector())
 
             if a.save_preds:
@@ -147,6 +176,15 @@ def main():
                           flush=True)
     flush()
 
+    # Provenance: record exactly which thresholds these features were cached at,
+    # so validate.py can assert the deployed thresholds are the same ones.
+    import json
+    (feat_dir / "thresholds.json").write_text(json.dumps({
+        "lesion_thresholds": lesion_thr or None,
+        "scalar_fallback": None if lesion_thr else a.threshold,
+        "seg_checkpoint": str(a.seg),
+        "feature_size": a.feature_size,
+    }, indent=2))
     print(f"Cached {done} feature vectors to {feat_dir} in {time.time()-t0:.0f}s")
 
 

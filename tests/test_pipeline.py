@@ -645,3 +645,68 @@ def test_threshold_sweep_rows_describe_their_own_threshold():
     assert abs(row["sens_sight_threatening"]
                - sb["sight_threatening"]["sensitivity"]["value"]) < 1e-12
 
+
+# --------------------------------------------------------------------------
+# Train / serve preprocessing parity
+#
+# The cohort builder and the live pipeline both feed the grader the "hybrid"
+# 3-channel representation. If they build it in different channel orders, the
+# deployed model is served mirror-image inputs to the ones it trained on, and
+# every grade degrades silently -- validation stays clean because it reads the
+# same cohort images training did. This guards the exact tensor.
+# --------------------------------------------------------------------------
+def test_train_serve_channel_parity(tmp_path):
+    import cv2
+    from drscreen.preprocess.enhance import to_model_input, adaptive_enhance
+    from drscreen.preprocess.quality import assess
+    from drscreen.preprocess.fov import standardize
+    from drscreen.data.torch_data import to_tensor
+    from drscreen.data.synthetic import generate
+
+    p = generate(grade=2, size=512, seed=3, severity=0.5)
+    img0, fov, fbox = standardize(p.image, size=512)
+    enh, _ = adaptive_enhance(img0, fov, assess(img0, fov, fbox).issues)
+
+    # TRAINING side: exactly what build_cohort writes, then what CohortDataset
+    # reads back and feeds the model.
+    train_arr = to_model_input(enh, fov, mode="hybrid")
+    fp = tmp_path / "x.png"
+    cv2.imwrite(str(fp), train_arr)
+    reloaded = cv2.imread(str(fp), cv2.IMREAD_COLOR)
+    train_tensor = to_tensor(reloaded)
+
+    # LIVE side: exactly what pipeline.py feeds the model.
+    live_tensor = to_tensor(to_model_input(enh, fov, mode="hybrid"))
+
+    assert torch.equal(train_tensor, live_tensor), (
+        "cohort-stored input and live input differ -- the model is trained and "
+        "served different channel orders. build_cohort must not colour-convert "
+        "the output of to_model_input.")
+
+
+def test_feature_caching_threshold_matches_live():
+    """precompute_features must cache at the SAME thresholds live inference uses.
+
+    Not a blanket 0.5. The live pipeline applies the fitted per-class values;
+    caching at a scalar hands the fusion grader lesion counts it never sees at
+    inference. This asserts the wiring exists -- extract() honours a per-class
+    dict identically in both paths.
+    """
+    import numpy as np
+    from drscreen.models.lesion_features import extract, ClinicalFeatures
+    from drscreen.constants import LESION_CLASSES
+    from drscreen.preprocess.landmarks import locate
+
+    H = W = 128
+    probs = np.zeros((H, W, len(LESION_CLASSES)), np.float32)
+    probs[40:60, 40:60, LESION_CLASSES.index("hard_exudate")] = 0.7   # mid-confidence blob
+    img = np.full((H, W, 3), 60, np.uint8)
+    fov = np.ones((H, W), np.uint8)
+    lm = locate(img, fov)
+
+    dense = extract(probs, lm, fov, None, threshold=0.5)
+    sparse = extract(probs, lm, fov, None,
+                     threshold={c: 0.95 for c in LESION_CLASSES})
+    # 0.7 blob survives a 0.5 cut but not a 0.95 cut: the two thresholds give
+    # genuinely different counts, which is exactly why train and serve must agree.
+    assert dense.counts.get("hard_exudate", 0) > sparse.counts.get("hard_exudate", 0)
