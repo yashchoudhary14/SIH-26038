@@ -6,6 +6,8 @@ Split policy (enforced in code, not just documented)
 Dataset           Role                        Used for
 ================  ==========================  ==============================
 APTOS 2019        train + internal val        Grader training, class balance
+EyePACS 2015      train + internal val        Grade 3/4 volume, camera variety
+DDR               train + internal val        Grade 3/4 volume, third grader
 IDRiD (grading)   train + internal val        Grader fine-tuning
 IDRiD (segment.)  train + internal val        Lesion / optic-disc heads
 DRIVE             train + internal val        Vessel U-Net
@@ -25,6 +27,10 @@ Download locations (all require manual acceptance of their licence terms):
 * DRIVE      - https://drive.grand-challenge.org/
 * Messidor-2 - https://www.adcis.net/en/third-party/messidor2/
   (adjudicated grades: https://www.kaggle.com/datasets/google-brain/messidor2-dr-grades)
+* EyePACS    - https://www.kaggle.com/c/diabetic-retinopathy-detection
+* DDR        - https://github.com/nkicsl/DDR-dataset
+
+``scripts/fetch_datasets.py`` downloads EyePACS and DDR into ``data/raw/``.
 """
 from __future__ import annotations
 
@@ -307,8 +313,124 @@ def load_messidor2(root: str | Path) -> list[Sample]:
     return out
 
 
+def load_eyepacs(root: str | Path) -> list[Sample]:
+    """EyePACS 2015 (Kaggle diabetic-retinopathy-detection), ~88k images.
+
+    The reason to add this corpus is grade 3/4 volume: APTOS contributes 207
+    severe and 260 proliferative training images, which is the binding
+    constraint on the deep CORN conditionals. EyePACS carries roughly 3,200 and
+    2,600 of the same grades in its training split alone.
+
+    Two properties matter for how it is used:
+
+    * **Both eyes of a patient are present**, named ``<patient>_left`` /
+      ``<patient>_right``. ``_subject_of`` already maps those to one subject id,
+      so the group-aware split keeps a fellow eye out of the other side of the
+      train/val boundary. Loading it without that grouping is the single most
+      common way this dataset inflates published numbers.
+    * **It is single-grader with substantial documented label noise**, and its
+      grade-2 convention resembles APTOS's rather than Messidor-2's. It adds
+      volume and camera variety, not a cleaner reference standard.
+    """
+    root = Path(root)
+
+    # Pick the label CSV by content, not by name. The competition ships
+    # trainLabels.csv, and the test grades were released afterwards as
+    # retinopathy_solution.csv with an extra Usage column; a sampleSubmission
+    # CSV with the same two column names but all-zero levels also floats around
+    # in mirrors, so require the file to carry more than one distinct grade.
+    frames = []
+    for cand in sorted(root.rglob("*.csv")):
+        try:
+            head = pd.read_csv(cand, nrows=200)
+        except Exception:
+            continue
+        cols = [c.strip().lower() for c in head.columns]
+        if "image" not in cols or "level" not in cols:
+            continue
+        try:
+            df = pd.read_csv(cand)
+        except Exception:
+            continue
+        df.columns = [c.strip().lower() for c in df.columns]
+        if df["level"].nunique() < 2:      # sampleSubmission-style stub
+            continue
+        frames.append(df[["image", "level"]])
+    if not frames:
+        return []
+
+    lab = pd.concat(frames, ignore_index=True).drop_duplicates(subset="image")
+    by_stem = {p.stem: p for p in _images_in(root)}
+    out: list[Sample] = []
+    for _, r in lab.iterrows():
+        p = by_stem.get(str(r["image"]).strip())
+        if p is None:
+            continue
+        try:
+            grade = int(r["level"])
+        except (TypeError, ValueError):
+            continue
+        if not 0 <= grade <= 4:
+            continue
+        out.append(Sample(p, grade=grade, dataset="eyepacs", gradable=True,
+                          subject_id=_subject_of(p.name)))
+    return out
+
+
+def load_ddr(root: str | Path) -> list[Sample]:
+    """DDR grading subset (nkicsl), 13,673 images from 147 Chinese hospitals.
+
+    DDR encodes **ungradable as grade 5**, not as a missing label. Reading its
+    label files without handling that yields a sixth class that silently
+    corrupts the confusion matrix, QWK and every class weight -- the same
+    failure the Messidor-2 loader already guards against, arriving by a
+    different route. Those rows are returned with ``grade=None`` and
+    ``gradable=False`` so the cohort builder can drop them explicitly.
+
+    Labels live in ``DR_grading/{train,valid,test}.txt`` as ``<name> <grade>``
+    pairs, with images in sibling directories of the same names.
+    """
+    root = Path(root)
+    grading_root = _find_dir(root, r"^DR.?grading$") or root
+
+    labels: dict[str, int] = {}
+    for txt in sorted(grading_root.rglob("*.txt")):
+        if txt.stem.lower() not in ("train", "valid", "val", "test"):
+            continue
+        try:
+            lines = txt.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            parts = line.split()
+            if len(parts) != 2:
+                continue
+            try:
+                labels[Path(parts[0]).stem] = int(parts[1])
+            except ValueError:
+                continue
+    if not labels:
+        return []
+
+    by_stem = {p.stem: p for p in _images_in(grading_root)}
+    out: list[Sample] = []
+    for stem, grade in labels.items():
+        p = by_stem.get(stem)
+        if p is None:
+            continue
+        if grade == 5:                      # DDR's ungradable marker
+            out.append(Sample(p, grade=None, dataset="ddr", gradable=False,
+                              subject_id=_subject_of(p.name)))
+        elif 0 <= grade <= 4:
+            out.append(Sample(p, grade=grade, dataset="ddr", gradable=True,
+                              subject_id=_subject_of(p.name)))
+    return out
+
+
 LOADERS = {
     "aptos2019": load_aptos,
+    "eyepacs": load_eyepacs,
+    "ddr": load_ddr,
     "idrid_grading": load_idrid_grading,
     "idrid_segmentation": load_idrid_segmentation,
     "drive": load_drive,
@@ -378,6 +500,110 @@ def group_split(samples: list[Sample], val_frac: float = 0.15,
     for s in samples:
         (val if _hash_frac(s.subject_id or s.image_path.stem, salt) < val_frac else train).append(s)
     return train, val
+
+
+def grade_source_matrix(samples: list[Sample]) -> dict[int, dict[str, int]]:
+    """Count of each grade by source dataset.
+
+    Printed whenever pools are combined, because the failure mode of adding a
+    corpus is not "too much data" but *confounding*: if grades 3-4 arrive
+    overwhelmingly from one camera estate and grade 0 from another, a model can
+    reach high accuracy by recognising the imaging chain and never learn the
+    disease. The matrix makes that visible before training rather than after.
+    """
+    out: dict[int, dict[str, int]] = {}
+    for smp in samples:
+        if smp.grade is None:
+            continue
+        out.setdefault(int(smp.grade), {}).setdefault(smp.dataset, 0)
+        out[int(smp.grade)][smp.dataset] += 1
+    return {g: dict(sorted(v.items())) for g, v in sorted(out.items())}
+
+
+def format_grade_source_matrix(samples: list[Sample]) -> str:
+    m = grade_source_matrix(samples)
+    sources = sorted({d for row in m.values() for d in row})
+    if not sources:
+        return "  (no graded samples)"
+    w = max(len(x) for x in sources + ["grade"]) + 2
+    head = "  " + "grade".ljust(7) + "".join(x.rjust(w) for x in sources) + "total".rjust(w)
+    lines = [head, "  " + "-" * (len(head) - 2)]
+    for g, row in m.items():
+        tot = sum(row.values())
+        lines.append("  " + str(g).ljust(7)
+                     + "".join(str(row.get(x, 0)).rjust(w) for x in sources)
+                     + str(tot).rjust(w))
+    return '\n'.join(lines)
+
+
+def curate_training_pool(samples: list[Sample], cap_per_grade: int = 0,
+                         seed: int = 0) -> list[Sample]:
+    """Down-sample over-represented grades, mixing sources within each grade.
+
+    Applied to the **training split only**, never to val or test. Rebalancing
+    an evaluation split changes what the reported numbers mean: prevalence
+    drives PPV/NPV, and the referral threshold is chosen on val against a
+    target sensitivity, so a curated val would fit a threshold for a
+    population that does not exist. The training distribution is a modelling
+    choice; the evaluation distribution is a measurement, and only the first
+    is ours to alter.
+
+    Two rules:
+
+    * **Grades 3 and 4 are never dropped.** They are the binding constraint on
+      the deep CORN conditionals -- task 3 trains only on grades 3-4 -- so
+      discarding any is strictly counterproductive.
+    * **Within a capped grade, sources are drawn round-robin** by subject, so
+      the surviving images come from as many corpora as evenly as supply
+      allows. Truncating a concatenated list instead would hand one grade
+      entirely to whichever dataset happened to be loaded first.
+
+    ``cap_per_grade=0`` resolves to twice the largest of grades 3 and 4, tying
+    the cap to the quantity actually in short supply.
+    """
+    from collections import defaultdict
+
+    graded = [x for x in samples if x.grade is not None]
+    by_grade: dict[int, list[Sample]] = defaultdict(list)
+    for x in graded:
+        by_grade[int(x.grade)].append(x)
+
+    if cap_per_grade <= 0:
+        st = max((len(by_grade.get(g, [])) for g in (3, 4)), default=0)
+        cap_per_grade = max(2 * st, 1)
+
+    rng = np.random.default_rng(seed)
+    kept: list[Sample] = []
+    for g in sorted(by_grade):
+        pool = by_grade[g]
+        if g >= 3 or len(pool) <= cap_per_grade:
+            kept.extend(pool)
+            continue
+
+        # Group by (dataset, subject) so both eyes of a patient are kept or
+        # dropped together, then interleave datasets.
+        by_src: dict[str, dict[str, list[Sample]]] = defaultdict(lambda: defaultdict(list))
+        for x in pool:
+            by_src[x.dataset][x.subject_id].append(x)
+        queues = {}
+        for src, subs in by_src.items():
+            ids = list(subs)
+            rng.shuffle(ids)
+            queues[src] = [subs[i] for i in ids]
+
+        order = sorted(queues)
+        take: list[Sample] = []
+        idx = {src: 0 for src in order}
+        while len(take) < cap_per_grade and any(idx[s] < len(queues[s]) for s in order):
+            for src in order:
+                if idx[src] >= len(queues[src]):
+                    continue
+                take.extend(queues[src][idx[src]])
+                idx[src] += 1
+                if len(take) >= cap_per_grade:
+                    break
+        kept.extend(take)
+    return kept
 
 
 def assert_no_leakage(train: list[Sample], *held_out: list[Sample]) -> None:

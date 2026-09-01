@@ -23,7 +23,8 @@ __pycache__/
 #                licence, and none may be redistributed. See docs/DATASETS.md.
 # data/cohort* - materialised cohorts (~2.6 GB for 6,000 cases). Regenerate
 #                with: python scripts/build_cohort.py
-data/
+# Anchored: a bare data/ also matches src/drscreen/data/.
+/data/
 
 # ---------------------------------------------------------------------------
 # Outputs: results ARE committed, bulk intermediates are not.

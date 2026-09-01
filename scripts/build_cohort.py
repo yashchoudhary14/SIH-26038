@@ -3,8 +3,12 @@
 Two sources, one output format:
 
 * ``--source synthetic`` generates phantoms (no downloads required).
-* ``--source real`` discovers APTOS / IDRiD / DRIVE / Messidor-2 under
-  ``--data-root`` and standardises them.
+* ``--source real`` discovers APTOS / EyePACS / DDR / IDRiD / DRIVE /
+  Messidor-2 under ``--data-root`` and standardises them.
+
+``--curate`` down-samples over-represented grades in the **training split
+only**, mixing sources within each grade so the model cannot shortcut on the
+imaging chain. Val and test keep the natural distribution.
 
 Split policy is enforced here, not left to convention: Messidor-2 always lands
 in the ``external`` split and never in ``train`` or ``val``.
@@ -208,9 +212,11 @@ def _process_real(job: tuple):
 
 def build_real(out: Path, data_root: Path, size: int, val_frac: float,
                enhance: bool, workers: int = 0,
-               only_splits: set[str] | None = None):
+               only_splits: set[str] | None = None,
+               curate: bool = False, curate_cap: int = 0):
     from drscreen.data.registry import (discover, group_split, assert_no_leakage,
-                                        grade_distribution)
+                                        grade_distribution, curate_training_pool,
+                                        format_grade_source_matrix)
     found = discover(data_root)
     if not found:
         print(f"No datasets discovered under {data_root}.", file=sys.stderr)
@@ -225,8 +231,16 @@ def build_real(out: Path, data_root: Path, size: int, val_frac: float,
 
     # --- grading pool: APTOS + IDRiD disease grading -----------------------
     train_pool: list = []
-    for name in ("aptos2019", "idrid_grading"):
+    for name in ("aptos2019", "eyepacs", "ddr", "idrid_grading"):
         train_pool += found.get(name, [])
+    # DDR marks ungradable images as grade 5, which its loader returns as
+    # grade=None rather than as a sixth class. Anything without a grade is
+    # unusable for ordinal training and would break the class weights, so it
+    # is dropped here explicitly rather than silently surviving into a split.
+    n_ungradable = sum(1 for x in train_pool if x.grade is None)
+    if n_ungradable:
+        train_pool = [x for x in train_pool if x.grade is not None]
+        print(f"  dropped {n_ungradable} ungradable images from the grading pool")
     external = found.get("messidor2", [])
 
     # --- segmentation pool, kept on its own splits -------------------------
@@ -249,6 +263,24 @@ def build_real(out: Path, data_root: Path, size: int, val_frac: float,
     # relying on the trainer to remember.
     rest, test = group_split(train_pool, val_frac, salt="drscreen-test")
     train, val = group_split(rest, val_frac / max(1.0 - val_frac, 1e-6))
+
+    # Curation applies to TRAIN ONLY, and only after the split. Val selects the
+    # referral threshold against a target sensitivity and test is the reported
+    # estimate, so both must keep the population's real prevalence: a curated
+    # val fits a threshold for a distribution that does not exist, and a
+    # curated test reports PPV for one. The training distribution is a
+    # modelling choice; the evaluation distribution is a measurement.
+    if curate:
+        before = len(train)
+        print('\nTraining pool before curation:')
+        print(format_grade_source_matrix(train))
+        train = curate_training_pool(train, cap_per_grade=curate_cap, seed=0)
+        print(f'\nTraining pool after curation ({before} -> {len(train)}):')
+        print(format_grade_source_matrix(train))
+    elif len({x.dataset for x in train}) > 2:
+        print('\nTraining pool by grade and source:')
+        print(format_grade_source_matrix(train))
+
     assert_no_leakage(train, val, test, external)
     print(f"\nGrading split : train {len(train)}  val {len(val)}  "
           f"test {len(test)}  external/messidor2 {len(external)}")
@@ -324,6 +356,14 @@ def main():
                     help="parallel generation workers (0/1 = serial)")
     ap.add_argument("--no-enhance", action="store_true",
                     help="store standardised BGR instead of the hybrid model input")
+    ap.add_argument("--curate", action="store_true",
+                    help="down-sample over-represented grades in the TRAINING "
+                         "split only, mixing sources within each grade. Val and "
+                         "test keep the natural distribution.")
+    ap.add_argument("--curate-cap", type=int, default=0,
+                    help="per-grade cap for --curate. 0 (default) resolves to "
+                         "twice the largest of grades 3 and 4. Grades 3 and 4 "
+                         "are never down-sampled.")
     a = ap.parse_args()
 
     a.out.mkdir(parents=True, exist_ok=True)
@@ -335,7 +375,8 @@ def main():
         return 0
     return build_real(a.out, a.data_root, a.size, a.val_frac,
                       not a.no_enhance, workers=a.workers,
-                      only_splits=set(a.only_splits) if a.only_splits else None)
+                      only_splits=set(a.only_splits) if a.only_splits else None,
+                      curate=a.curate, curate_cap=a.curate_cap)
 
 
 if __name__ == "__main__":
