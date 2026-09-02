@@ -41,6 +41,9 @@ outputs/segmentation/*.pt
 outputs/grader_*/*.pt
 # Superseded checkpoints kept on disk for recovery, never committed.
 outputs/_archive_*/
+# Deploy bundles for experiment arms that were not promoted. The validation
+# JSON under outputs/validation_*/ is the evidence and IS committed.
+outputs/artifacts_*/
 outputs/benchmark.json
 outputs/_*.txt
 

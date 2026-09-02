@@ -462,14 +462,84 @@ trains only on that subset — 467 images in total. `scripts/fetch_datasets.py`
 downloads EyePACS and DDR, `registry.load_eyepacs` / `load_ddr` read them, and
 `build_cohort --curate` down-samples over-represented grades in the **training
 split only**, drawing subjects round-robin across sources so grade does not
-correlate with imaging chain. None of that has run yet: both corpora require a
-one-time licence acceptance on their host, so the numbers in this document are
-still APTOS + IDRiD only.
+correlate with imaging chain. EyePACS is still un-downloaded; DDR has been run,
+and [§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke) reports the result.
 
 Split discipline: `val` fits the temperature and selects the referral
 threshold; `test` is the internal estimate; `external` has nothing fitted on
 it. Four Messidor-2 images its adjudicators marked ungradable are excluded from
 metrics rather than scored as a sixth class.
+
+### 7.1 Adding DDR: what it fixed and what it broke
+
+DDR (13,673 images, 147 Chinese hospitals) was added to the grading pool and the
+whole chain retrained. **The deployed model is not this one** — the experiment
+is reported because it separates two things that had been moving together, and
+because it settles a question three checkpoints could not.
+
+On load, 1,151 DDR images carry **grade 5, its ungradable marker**. Read as an
+ordinal grade that is a sixth class in a five-class problem; the loader returns
+them as `grade=None` and the cohort builder drops them, reporting the count.
+
+Curation mattered. DDR brings 4,397 grade-0 training images against APTOS's
+1,256, so grade 0 would have been 76% DDR. Round-robin selection pulled it to
+843 APTOS / 842 DDR / 113 IDRiD at the cap. Grades 3 and 4 were left whole,
+taking train from 207/260 to **376/899**.
+
+**What it fixed — exact grading, decisively.** This was the standing limitation:
+grade-3 exact recall had *fallen* across three checkpoints while referral rose.
+
+| exact-grade recall | APTOS+IDRiD | +DDR |
+|---|---|---|
+| external grade 1 | 0.085 | **0.515** |
+| external grade 2 | 0.228 | **0.611** |
+| external grade 3 | 0.280 | **0.493** |
+| external QWK | 0.593 | **0.702** |
+| internal grade 3 | 0.362 | **0.525** |
+| internal grade 4 | 0.379 | **0.699** |
+
+That is the data-volume hypothesis confirmed. Oversampling had already been
+tried — the stratified sampler lifted grades 3–4 to 27% of every batch and exact
+recall did not move — so the constraint was genuinely the number of distinct
+images, not the gradient share they received.
+
+**What it broke — the operating point.** External specificity collapsed from
+0.922 to 0.753, flagging 41.8% of the population instead of 24.3%. Two
+threshold policies were tried; neither recovered it (`max_sensitivity` 0.719,
+`youden` 0.753). At *matched* specificity the older model is better on both
+axes:
+
+| at external spec ≈ 0.93 | sens referable | sens grade ≥3 |
+|---|---|---|
+| **APTOS+IDRiD @ 0.20** (spec 0.922) | **0.707** | **0.973** |
+| +DDR @ 0.80 (spec 0.931) | 0.639 | 0.918 |
+
+So the higher headline sensitivity is the operating point, not better referral
+discrimination — referable AUC barely moved, 0.9082 → 0.9122.
+
+**The mechanism, and the reason this is worth recording.** Discrimination and
+calibration moved in *opposite* directions:
+
+* discrimination transferred **better** — the internal→external AUC gap halved,
+  0.080 → 0.041, which is exactly what a third imaging domain should buy;
+* calibration transferred **worse** — DDR is 75% of the pool, so val is now
+  DDR-dominated and both the temperature and the isotonic fit are aimed at a
+  score distribution further from Messidor-2 than before.
+
+A better model, worse aimed. Adding a corpus that dominates the pool improves
+what the model can distinguish and degrades where the threshold lands, and only
+the second of those shows up in a deployed sensitivity/specificity pair.
+
+**Why the clinical arm collapsed** (AUC 0.9272 → 0.8125, QWK 0.6904 → 0.5503):
+it consumes lesion features from a segmentation model trained **only on IDRiD**,
+now asked to find lesions in a domain it has never seen. The grading pool gained
+DDR; the segmentation pool did not. DDR ships **383 lesion-segmentation training
+images** against IDRiD's 64, from the same domain as the new grading data — that
+is the missing half of this experiment, and it is now the top roadmap item.
+
+Artefacts: `outputs/validation_ddr/` (`max_sensitivity`) and
+`outputs/validation_ddr_youden/` (`youden`), with the cohort reproducible via
+`build_cohort --source real --curate`.
 
 ---
 
@@ -570,22 +640,32 @@ In descending order of expected value:
 2. **Per-site threshold calibration.** A few hundred locally-graded images per
    deployment site. The ranking already transfers (external AUC 0.908); only
    the operating point does not.
-3. **Download EyePACS and DDR.** The loaders and `--curate` are in place; only
-   the one-time licence acceptance is outstanding. This is the only route that
-   addresses the *supervision* constraint on grades 3–4 (currently 207 and 260
-   training images, with task 3 seeing 467 in total) rather than re-weighting
-   what is already there. Note that oversampling has already been tried: the
-   stratified sampler lifted grades 3–4 from 17% to 27% of every batch and
-   exact grade-3 recall did not improve, which is evidence that the constraint
-   is real data, not gradient share.
-4. **Multi-source training** with harmonised grades, to learn a reference
+3. **Train segmentation on DDR's 383 lesion-annotated images**, alongside
+   IDRiD's 64. Promoted to third on direct evidence: adding DDR to the *grading*
+   pool without adding it to the *segmentation* pool dropped the clinical arm
+   from AUC 0.9272 to 0.8125, because its features come from a segmenter that
+   has never seen a DDR image ([§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke)).
+   Six times the annotation, from the domain that now supplies most of the
+   grading data. DDR annotates EX/HE/MA/SE and, like IDRiD, **no
+   neovascularisation** — so that gap is now confirmed across two corpora rather
+   than assumed.
+4. **Re-fit calibration on a source-balanced val split.** DDR improved
+   discrimination transfer (internal→external AUC gap 0.080 → 0.041) while
+   degrading calibration transfer (external specificity 0.922 → 0.753), because
+   val became DDR-dominated. Selecting the temperature and isotonic fit on a
+   val subsample balanced across sources should recover the operating point
+   without giving up the grading gains — the cheapest way to make the DDR model
+   deployable.
+5. **Download EyePACS.** DDR is done ([§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke));
+   EyePACS still needs its one-time licence acceptance. It would add ~3,200
+   grade-3 and ~2,600 grade-4 images, and — unlike DDR — enough grade-3 volume
+   to matter, since DDR carries only 236 in total.
+6. **Multi-source training** with harmonised grades, to learn a reference
    standard rather than one panel's habits — the root cause in [§3](#3-why-moderate-npdr-fails--the-reference-standards-disagree).
-5. **More lesion annotation.** 64 training images is the binding constraint on
-   segmentation, and no public set annotates neovascularisation. Segmentation
-   Dice was still improving at the final epoch, so more epochs may also help.
-6. **Higher grading resolution.** The grader runs at 512; the segmentation
-   result suggests 768–1024 would help early disease.
-7. **Test-time augmentation and ensembling** — reliable but small gains, and
+7. **Higher grading resolution.** The grader runs at 512; the segmentation
+   result suggests 768–1024 would help early disease. Segmentation Dice was
+   still improving at the final epoch, so more epochs may also help.
+8. **Test-time augmentation and ensembling** — reliable but small gains, and
    they cost latency the edge deployment cannot spare.
 
 ---
