@@ -229,6 +229,88 @@ def load_idrid_segmentation(root: str | Path) -> list[Sample]:
     return out
 
 
+#: DDR lesion-segmentation class codes -> our LESION_CLASSES names. DDR
+#: annotates the same four classes as IDRiD and, like IDRiD, no
+#: neovascularisation -- so the NV channel stays unsupervised even with both
+#: corpora, and the pipeline keeps reporting it as "not assessed". That gap is
+#: now confirmed across two independent corpora rather than inferred from one.
+DDR_MASK_DIRS = {
+    "EX": "hard_exudate",
+    "HE": "hemorrhage",
+    "MA": "microaneurysm",
+    "SE": "soft_exudate",
+}
+
+#: DDR ships its own train/valid/test split for the segmentation subset. Only
+#: the first two are loaded: its test split is left untouched so it stays
+#: available as a genuinely held-out lesion benchmark, the same discipline
+#: Messidor-2 gets on the grading side.
+DDR_SEG_SPLITS = ("train", "valid")
+
+
+def load_ddr_segmentation(root: str | Path,
+                          splits: tuple[str, ...] = DDR_SEG_SPLITS) -> list[Sample]:
+    """DDR pixel-level lesion ground truth: 532 images against IDRiD's 81.
+
+    Segmentation quality is the binding constraint on every clinical feature,
+    and 64 IDRiD training images is where that constraint comes from. DDR adds
+    383 training and 149 validation images from the same corpus that now
+    supplies most of the grading pool, which matters twice over: more
+    annotation, and annotation from the imaging domain the model is actually
+    being asked to read.
+
+    Two layout details that break a naive glob:
+
+    * the label directory is ``label`` under ``train``/``test`` but
+      ``segmentation label`` -- with a space -- under ``valid``;
+    * images are ``.jpg`` and masks are ``.tif`` of the same stem, so the two
+      cannot be paired by filename equality.
+
+    Masks are uint8 {0, 255}, unlike IDRiD's palette TIFFs whose foreground is
+    76. ``build_cohort`` treats any non-zero pixel as foreground, so both load
+    correctly; the difference is recorded here because assuming a 255 encoding
+    is what silently emptied every IDRiD mask once already.
+
+    An all-zero mask is a genuine negative -- DDR annotates all four classes for
+    every image, so "no exudates in this image" is a fact, not a missing file.
+    """
+    root = Path(root)
+    seg_root = _find_dir(root, r"^lesion.?segmentation$")
+    if seg_root is None:
+        return []
+
+    out: list[Sample] = []
+    for split in splits:
+        split_dir = next((d for d in seg_root.iterdir()
+                          if d.is_dir() and d.name.lower() == split), None)
+        if split_dir is None:
+            continue
+        img_dir = next((d for d in split_dir.iterdir()
+                        if d.is_dir() and d.name.lower() == "image"), None)
+        # "label" here, "segmentation label" under valid.
+        lab_dir = next((d for d in split_dir.iterdir()
+                        if d.is_dir() and "label" in d.name.lower()), None)
+        if img_dir is None or lab_dir is None:
+            continue
+
+        by_class: dict[str, dict[str, Path]] = {}
+        for code in DDR_MASK_DIRS:
+            sub = next((d for d in lab_dir.iterdir()
+                        if d.is_dir() and d.name.upper() == code), None)
+            by_class[code] = ({q.stem: q for q in _images_in(sub)}
+                              if sub is not None else {})
+
+        for img in _images_in(img_dir):
+            masks = {name: by_class[code][img.stem]
+                     for code, name in DDR_MASK_DIRS.items()
+                     if img.stem in by_class[code]}
+            if not masks:
+                continue
+            out.append(Sample(img, dataset="ddr_segmentation", gradable=True,
+                              masks=masks, subject_id=_subject_of(img.name)))
+    return out
+
+
 def load_drive(root: str | Path) -> list[Sample]:
     root = Path(root)
     out: list[Sample] = []
@@ -433,6 +515,7 @@ LOADERS = {
     "ddr": load_ddr,
     "idrid_grading": load_idrid_grading,
     "idrid_segmentation": load_idrid_segmentation,
+    "ddr_segmentation": load_ddr_segmentation,
     "drive": load_drive,
     "messidor2": load_messidor2,
 }

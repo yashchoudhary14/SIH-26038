@@ -251,7 +251,14 @@ def build_real(out: Path, data_root: Path, size: int, val_frac: float,
     # that a whole imaging domain is disease-free. They also cannot live on
     # the grading splits, because APTOS has no masks and the segmentation
     # trainer would fail on the missing key.
-    seg_pool = found.get("idrid_segmentation", [])
+    #
+    # IDRiD and DDR both carry pixel lesion masks for the same four classes, so
+    # they pool correctly. DRIVE must stay out: it annotates vessels and no
+    # lesions at all, so pooling it would teach the lesion head that a whole
+    # imaging domain is disease-free. DDR contributes no optic-disc annotation,
+    # but the disc plane is stored separately and is not a lesion-head target,
+    # so a blank one costs nothing here.
+    seg_pool = found.get("idrid_segmentation", []) + found.get("ddr_segmentation", [])
     vessel_pool = found.get("drive", [])
     seg_train, seg_val = group_split(seg_pool, max(val_frac, 0.2))
     ves_train, ves_val = group_split(vessel_pool, max(val_frac, 0.2))
@@ -284,7 +291,10 @@ def build_real(out: Path, data_root: Path, size: int, val_frac: float,
     assert_no_leakage(train, val, test, external)
     print(f"\nGrading split : train {len(train)}  val {len(val)}  "
           f"test {len(test)}  external/messidor2 {len(external)}")
-    print(f"Lesion  split : train {len(seg_train)}  val {len(seg_val)}   (IDRiD segmentation)")
+    seg_src = ", ".join(
+        f"{k} {sum(1 for x in seg_pool if x.dataset == k)}"
+        for k in sorted({x.dataset for x in seg_pool})) or "none"
+    print(f"Lesion  split : train {len(seg_train)}  val {len(seg_val)}   ({seg_src})")
     print(f"Vessel  split : train {len(ves_train)}  val {len(ves_val)}   (DRIVE)")
     print("Messidor-2 is held out; it is never used for training or threshold selection.")
 

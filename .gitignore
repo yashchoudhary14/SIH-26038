@@ -37,7 +37,7 @@ __pycache__/
 #
 # Excluded: the per-arm training checkpoints (~95 MB) are reproducible from
 # scripts/run_all.py and duplicate what outputs/artifacts/ already holds.
-outputs/segmentation/*.pt
+outputs/segmentation*/*.pt
 outputs/grader_*/*.pt
 # Superseded checkpoints kept on disk for recovery, never committed.
 outputs/_archive_*/

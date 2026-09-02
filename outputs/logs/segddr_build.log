@@ -1,0 +1,31 @@
+Discovered:
+  aptos2019                3662 images   grades {0: 1805, 1: 370, 2: 999, 3: 193, 4: 295}
+  ddr                     13673 images   grades {0: 6266, 1: 630, 2: 4477, 3: 236, 4: 913}
+  idrid_grading             516 images   grades {0: 168, 1: 25, 2: 168, 3: 93, 4: 62}
+  idrid_segmentation         81 images   grades (none)
+  ddr_segmentation          532 images   grades (none)
+  drive                      40 images   grades (none)
+  messidor2                1748 images   grades {0: 1017, 1: 270, 2: 347, 3: 75, 4: 35}
+  dropped 1151 ungradable images from the grading pool
+
+Training pool by grade and source:
+  grade        aptos2019            ddr  idrid_grading          total
+  -------------------------------------------------------------------
+  0                 1256           4397            113           5766
+  1                  244            443             20            707
+  2                  700           3079            125           3904
+  3                  135            169             72            376
+  4                  220            639             40            899
+
+Grading split : train 11652  val 2497  test 2551  external/messidor2 1748
+Lesion  split : train 488  val 125   (ddr_segmentation 532, idrid_segmentation 81)
+Vessel  split : train 32  val 8   (DRIVE)
+Messidor-2 is held out; it is never used for training or threshold selection.
+Restricted to splits: ['seg_train', 'seg_val']
+
+Processing 613 images with 6 worker(s)...
+  200/613  (100s, 2.0/s)
+Corrupt JPEG data: 36 extraneous bytes before marker 0xd9
+  400/613  (178s, 2.3/s)
+  600/613  (265s, 2.3/s)
+Wrote 613 cases to data\cohort_seg1024_ddr in 270s
