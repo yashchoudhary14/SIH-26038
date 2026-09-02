@@ -1,0 +1,172 @@
+{
+  "image_id": "grade0_case3",
+  "gradeable": true,
+  "quality": {
+    "scores": {
+      "focus": 0.9766,
+      "illumination": 0.6778,
+      "contrast": 0.7324,
+      "fov": 0.9999,
+      "macula": 1.0,
+      "artifact": 1.0,
+      "under_exposure": 0.6176,
+      "over_exposure": 1.0,
+      "noise": 0.9414
+    },
+    "verdicts": {
+      "focus": "pass",
+      "illumination": "pass",
+      "contrast": "pass",
+      "fov": "pass",
+      "macula": "pass",
+      "artifact": "pass",
+      "under_exposure": "pass",
+      "over_exposure": "pass",
+      "noise": "pass"
+    },
+    "overall": "good",
+    "gradeable": true,
+    "needs_enhancement": false,
+    "issues": [],
+    "advice": [],
+    "confidence": 0.7862,
+    "first_pass": {
+      "overall": "good",
+      "issues": [],
+      "scores": {
+        "focus": 0.9758,
+        "illumination": 0.6779,
+        "contrast": 0.7481,
+        "fov": 0.9999,
+        "macula": 1.0,
+        "artifact": 1.0,
+        "under_exposure": 0.7993,
+        "over_exposure": 1.0,
+        "noise": 1.0
+      }
+    }
+  },
+  "enhancement_applied": [
+    "grey_world"
+  ],
+  "landmarks": {
+    "disc_xy": [
+      368,
+      275
+    ],
+    "disc_radius": 44.24843624261197,
+    "disc_confidence": 1.0,
+    "fovea_xy": [
+      165,
+      266
+    ],
+    "fovea_confidence": 1.0,
+    "laterality": "OD",
+    "disc_diameter_px": 88.49687248522395
+  },
+  "grade": 0,
+  "grade_label": "No apparent DR",
+  "class_probabilities": [
+    0.989,
+    0.0064,
+    0.0036,
+    0.0003,
+    0.0007
+  ],
+  "referable": false,
+  "referable_probability": 4.60364343598485e-06,
+  "confidence": 0.9889594316482544,
+  "uncertainty": {
+    "entropy": 0.0712,
+    "epistemic_variance": 4e-05
+  },
+  "decision": "auto_report",
+  "urgency": "routine",
+  "dme_risk": 0,
+  "clinical_features": {
+    "counts": {
+      "microaneurysm": 0,
+      "hemorrhage": 0,
+      "hard_exudate": 0,
+      "soft_exudate": 0,
+      "neovascularization": 0
+    },
+    "per_quadrant": {
+      "microaneurysm": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "hemorrhage": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "hard_exudate": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "soft_exudate": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "neovascularization": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      }
+    },
+    "quadrants_with_hemorrhage": 0,
+    "quadrants_with_beading": 0,
+    "nv_at_disc": false,
+    "nv_elsewhere": false,
+    "unassessed": [
+      "neovascularization"
+    ],
+    "lesions_within_1dd_of_fovea": 0,
+    "nearest_lesion_dd": 99.0
+  },
+  "evidence": [
+    {
+      "finding": "neovascularization",
+      "status": "not assessed",
+      "detail": "no pixel supervision for this class in the training corpus; absence of a detection is not evidence of absence of the lesion."
+    },
+    {
+      "criterion": "Neovascularisation NOT ASSESSED - no pixel supervision for this class in the training corpus, so proliferative DR cannot be excluded by lesion evidence."
+    },
+    {
+      "criterion": "No microaneurysms, haemorrhages, exudates or neovascularisation detected."
+    },
+    {
+      "macular_assessment": "No hard exudates detected in the macular region."
+    }
+  ],
+  "rule_based_grade": 0,
+  "rule_based_reasons": [
+    "Neovascularisation NOT ASSESSED - no pixel supervision for this class in the training corpus, so proliferative DR cannot be excluded by lesion evidence.",
+    "No microaneurysms, haemorrhages, exudates or neovascularisation detected."
+  ],
+  "agreement": "exact",
+  "recapture_advice": [],
+  "timing_ms": {
+    "geometry": 4.72,
+    "landmarks": 29.57,
+    "quality": 14.11,
+    "enhancement": 6.91,
+    "quality_recheck": 13.7,
+    "segmentation": 796.65,
+    "clinical_features": 6.35,
+    "grading": 860.71,
+    "explanation": 419.0,
+    "total": 2164.56
+  },
+  "model_version": "drscreen-1.0.0"
+}
