@@ -11,6 +11,7 @@ segmentation error rather than to its own limitations.
 from __future__ import annotations
 
 import argparse
+import itertools
 import time
 from pathlib import Path
 from pathlib import Path
@@ -18,6 +19,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
 from drscreen.constants import NUM_LESION_CLASSES
@@ -27,6 +29,31 @@ from drscreen.models.lesion_features import extract, fit_lesion_thresholds
 from drscreen.models.segmentation import build_unet
 from drscreen.pipeline import DRScreeningPipeline
 from drscreen.preprocess.landmarks import locate
+
+
+def bounded_map(pool, fn, items, window):
+    """Like ``pool.map`` but with at most ``window`` tasks in flight.
+
+    ``ThreadPoolExecutor.map`` submits every task the moment it is called and
+    holds each finished result until the consumer reaches it. Here a result
+    carries a 3x1024x1024 float32 tensor (~12 MB), and the consumer is far
+    slower than the loaders because it runs GPU inference and connected-
+    component analysis per case. Finished-but-unconsumed results therefore
+    accumulate without bound: on a 12,495-case cohort that is ~160 GB of
+    retained buffers, and the process dies on a 1 MiB allocation deep inside
+    ``cv2.connectedComponentsWithStats``.
+
+    The 6,047-case cohort survived it only by being small enough. Peak memory
+    must not scale with cohort size, so keep a fixed window of futures open
+    and submit a new one for each result consumed.
+    """
+    it = iter(items)
+    pending = deque(pool.submit(fn, x) for x in itertools.islice(it, window))
+    while pending:
+        yield pending.popleft().result()
+        nxt = next(it, None)
+        if nxt is not None:
+            pending.append(pool.submit(fn, nxt))
 
 
 def main():
@@ -163,7 +190,7 @@ def main():
         batch_t.clear(); batch_meta.clear()
 
     with ThreadPoolExecutor(max_workers=a.workers) as pool:
-        for item in pool.map(load, recs):
+        for item in bounded_map(pool, load, recs, a.workers * 4):
             if item is None:
                 continue
             rec, tensor, f_img, f_fov = item
