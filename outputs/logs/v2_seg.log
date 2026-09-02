@@ -1,0 +1,492 @@
+Using the lesion-segmentation splits (seg_train/seg_val).
+train 64  val 17  size 1024
+U-Net: 4.43 M parameters, 5 lesion channels
+pixel-annotated channels: microaneurysm, hemorrhage, hard_exudate, soft_exudate
+  !! NO annotation in this cohort for: neovascularization
+     excluded from the loss; the pipeline will report them as
+     'not assessed' rather than as a negative finding.
+  ep1 step 0/21 loss 1.5869
+  ep1 step 20/21 loss 1.5776
+C:\Users\yashc\OneDrive\Desktop\SIH- Diabetes\src\drscreen\training.py:190: RuntimeWarning: Mean of empty slice
+  per_class = np.nanmean(stacked, axis=0)
+[seg] epoch 1/160 loss 1.5776 dice 0.0029 (4 cls) [0.0018, 0.0005, 0.0056, 0.0039, None]
+  ep2 step 0/21 loss 1.5246
+  ep2 step 20/21 loss 1.4961
+[seg] epoch 2/160 loss 1.4961 dice 0.0029 (4 cls) [0.0018, 0.0004, 0.0056, 0.0039, None]
+  ep3 step 0/21 loss 1.4836
+  ep3 step 20/21 loss 1.4192
+[seg] epoch 3/160 loss 1.4192 dice 0.0029 (4 cls) [0.0018, 0.0004, 0.0055, 0.0039, None]
+  ep4 step 0/21 loss 1.3743
+  ep4 step 20/21 loss 1.3808
+[seg] epoch 4/160 loss 1.3808 dice 0.0030 (4 cls) [0.0018, 0.0007, 0.0055, 0.0039, None]
+  ep5 step 0/21 loss 1.3520
+  ep5 step 20/21 loss 1.3593
+[seg] epoch 5/160 loss 1.3593 dice 0.0030 (4 cls) [0.0018, 0.0007, 0.0055, 0.0039, None]
+  ep6 step 0/21 loss 1.3447
+  ep6 step 20/21 loss 1.3353
+[seg] epoch 6/160 loss 1.3353 dice 0.0030 (4 cls) [0.0018, 0.0008, 0.0055, 0.0039, None]
+  ep7 step 0/21 loss 1.3233
+  ep7 step 20/21 loss 1.3140
+[seg] epoch 7/160 loss 1.3140 dice 0.0031 (4 cls) [0.0018, 0.001, 0.0056, 0.0039, None]
+  ep8 step 0/21 loss 1.2791
+  ep8 step 20/21 loss 1.2827
+[seg] epoch 8/160 loss 1.2827 dice 0.0031 (4 cls) [0.0018, 0.001, 0.0057, 0.0039, None]
+  ep9 step 0/21 loss 1.2578
+  ep9 step 20/21 loss 1.2482
+[seg] epoch 9/160 loss 1.2482 dice 0.0033 (4 cls) [0.0019, 0.0017, 0.0059, 0.0039, None]
+  ep10 step 0/21 loss 1.2038
+  ep10 step 20/21 loss 1.2188
+[seg] epoch 10/160 loss 1.2188 dice 0.0036 (4 cls) [0.0019, 0.0024, 0.006, 0.0039, None]
+  ep11 step 0/21 loss 1.1935
+  ep11 step 20/21 loss 1.1882
+[seg] epoch 11/160 loss 1.1882 dice 0.0040 (4 cls) [0.0019, 0.0038, 0.0062, 0.0039, None]
+  ep12 step 0/21 loss 1.1556
+  ep12 step 20/21 loss 1.1575
+[seg] epoch 12/160 loss 1.1575 dice 0.0046 (4 cls) [0.002, 0.0063, 0.0064, 0.0039, None]
+  ep13 step 0/21 loss 1.1771
+  ep13 step 20/21 loss 1.1341
+[seg] epoch 13/160 loss 1.1341 dice 0.0057 (4 cls) [0.002, 0.0102, 0.0066, 0.0038, None]
+  ep14 step 0/21 loss 1.0997
+  ep14 step 20/21 loss 1.1095
+[seg] epoch 14/160 loss 1.1095 dice 0.0068 (4 cls) [0.002, 0.0144, 0.0068, 0.0038, None]
+  ep15 step 0/21 loss 1.1028
+  ep15 step 20/21 loss 1.0917
+[seg] epoch 15/160 loss 1.0917 dice 0.0079 (4 cls) [0.002, 0.019, 0.007, 0.0037, None]
+  ep16 step 0/21 loss 1.0629
+  ep16 step 20/21 loss 1.0730
+[seg] epoch 16/160 loss 1.0730 dice 0.0091 (4 cls) [0.002, 0.0235, 0.0072, 0.0037, None]
+  ep17 step 0/21 loss 1.0346
+  ep17 step 20/21 loss 1.0548
+[seg] epoch 17/160 loss 1.0548 dice 0.0105 (4 cls) [0.002, 0.0289, 0.0075, 0.0038, None]
+  ep18 step 0/21 loss 1.0294
+  ep18 step 20/21 loss 1.0283
+[seg] epoch 18/160 loss 1.0283 dice 0.0120 (4 cls) [0.0018, 0.0346, 0.0078, 0.004, None]
+  ep19 step 0/21 loss 0.9984
+  ep19 step 20/21 loss 1.0221
+[seg] epoch 19/160 loss 1.0221 dice 0.0134 (4 cls) [0.0014, 0.0396, 0.0083, 0.0042, None]
+  ep20 step 0/21 loss 1.0272
+  ep20 step 20/21 loss 1.0001
+[seg] epoch 20/160 loss 1.0001 dice 0.0146 (4 cls) [0.0012, 0.0438, 0.0089, 0.0043, None]
+  ep21 step 0/21 loss 0.9541
+  ep21 step 20/21 loss 0.9907
+[seg] epoch 21/160 loss 0.9907 dice 0.0154 (4 cls) [0.0011, 0.0464, 0.0098, 0.0043, None]
+  ep22 step 0/21 loss 0.9743
+  ep22 step 20/21 loss 0.9798
+[seg] epoch 22/160 loss 0.9798 dice 0.0160 (4 cls) [0.0015, 0.0473, 0.0107, 0.0044, None]
+  ep23 step 0/21 loss 0.9606
+  ep23 step 20/21 loss 0.9709
+[seg] epoch 23/160 loss 0.9709 dice 0.0163 (4 cls) [0.0024, 0.0462, 0.012, 0.0045, None]
+  ep24 step 0/21 loss 0.9612
+  ep24 step 20/21 loss 0.9535
+[seg] epoch 24/160 loss 0.9535 dice 0.0163 (4 cls) [0.0023, 0.0436, 0.0147, 0.0048, None]
+  ep25 step 0/21 loss 0.9224
+  ep25 step 20/21 loss 0.9305
+[seg] epoch 25/160 loss 0.9305 dice 0.0166 (4 cls) [0.0028, 0.0397, 0.0185, 0.0052, None]
+  ep26 step 0/21 loss 0.8973
+  ep26 step 20/21 loss 0.9161
+[seg] epoch 26/160 loss 0.9161 dice 0.0166 (4 cls) [0.0023, 0.0345, 0.0237, 0.0059, None]
+  ep27 step 0/21 loss 0.9342
+  ep27 step 20/21 loss 0.9137
+[seg] epoch 27/160 loss 0.9137 dice 0.0181 (4 cls) [0.0016, 0.0294, 0.0338, 0.0075, None]
+  ep28 step 0/21 loss 0.8958
+  ep28 step 20/21 loss 0.8949
+[seg] epoch 28/160 loss 0.8949 dice 0.0232 (4 cls) [0.0009, 0.0247, 0.0528, 0.0144, None]
+  ep29 step 0/21 loss 0.8632
+  ep29 step 20/21 loss 0.8755
+[seg] epoch 29/160 loss 0.8755 dice 0.0313 (4 cls) [0.0006, 0.0214, 0.0748, 0.0285, None]
+  ep30 step 0/21 loss 0.8636
+  ep30 step 20/21 loss 0.8849
+[seg] epoch 30/160 loss 0.8849 dice 0.0427 (4 cls) [0.0003, 0.018, 0.0889, 0.0636, None]
+  ep31 step 0/21 loss 0.8596
+  ep31 step 20/21 loss 0.8723
+[seg] epoch 31/160 loss 0.8723 dice 0.0485 (4 cls) [0.0001, 0.0157, 0.0996, 0.0785, None]
+  ep32 step 0/21 loss 0.9020
+  ep32 step 20/21 loss 0.8587
+[seg] epoch 32/160 loss 0.8587 dice 0.0526 (4 cls) [0.0, 0.0134, 0.1095, 0.0873, None]
+  ep33 step 0/21 loss 0.8405
+  ep33 step 20/21 loss 0.8438
+[seg] epoch 33/160 loss 0.8438 dice 0.0565 (4 cls) [0.0001, 0.0124, 0.1194, 0.0942, None]
+  ep34 step 0/21 loss 0.7961
+  ep34 step 20/21 loss 0.8268
+[seg] epoch 34/160 loss 0.8268 dice 0.0601 (4 cls) [0.0, 0.0112, 0.1285, 0.1008, None]
+  ep35 step 0/21 loss 0.8503
+  ep35 step 20/21 loss 0.8363
+[seg] epoch 35/160 loss 0.8363 dice 0.0641 (4 cls) [0.0, 0.0105, 0.1372, 0.1086, None]
+  ep36 step 0/21 loss 0.7867
+  ep36 step 20/21 loss 0.8223
+[seg] epoch 36/160 loss 0.8223 dice 0.0688 (4 cls) [0.0, 0.0105, 0.1457, 0.1188, None]
+  ep37 step 0/21 loss 0.7592
+  ep37 step 20/21 loss 0.8264
+[seg] epoch 37/160 loss 0.8264 dice 0.0730 (4 cls) [0.0, 0.0112, 0.153, 0.128, None]
+  ep38 step 0/21 loss 0.8854
+  ep38 step 20/21 loss 0.8071
+[seg] epoch 38/160 loss 0.8071 dice 0.0772 (4 cls) [0.0, 0.0126, 0.1604, 0.1358, None]
+  ep39 step 0/21 loss 0.7325
+  ep39 step 20/21 loss 0.7851
+[seg] epoch 39/160 loss 0.7851 dice 0.0812 (4 cls) [0.0, 0.0141, 0.1683, 0.1424, None]
+  ep40 step 0/21 loss 0.7276
+  ep40 step 20/21 loss 0.7660
+[seg] epoch 40/160 loss 0.7660 dice 0.0852 (4 cls) [0.0, 0.0166, 0.1756, 0.1486, None]
+  ep41 step 0/21 loss 0.9586
+  ep41 step 20/21 loss 0.7550
+[seg] epoch 41/160 loss 0.7550 dice 0.0895 (4 cls) [0.0, 0.0199, 0.1827, 0.1553, None]
+  ep42 step 0/21 loss 0.7100
+  ep42 step 20/21 loss 0.7386
+[seg] epoch 42/160 loss 0.7386 dice 0.0939 (4 cls) [0.0, 0.0247, 0.1891, 0.162, None]
+  ep43 step 0/21 loss 0.7294
+  ep43 step 20/21 loss 0.7227
+[seg] epoch 43/160 loss 0.7227 dice 0.0984 (4 cls) [0.0, 0.0293, 0.1959, 0.1684, None]
+  ep44 step 0/21 loss 0.8348
+  ep44 step 20/21 loss 0.7345
+[seg] epoch 44/160 loss 0.7345 dice 0.1031 (4 cls) [0.0, 0.036, 0.2016, 0.1749, None]
+  ep45 step 0/21 loss 0.6754
+  ep45 step 20/21 loss 0.7079
+[seg] epoch 45/160 loss 0.7079 dice 0.1085 (4 cls) [0.0, 0.0436, 0.2084, 0.1821, None]
+  ep46 step 0/21 loss 0.8343
+  ep46 step 20/21 loss 0.6975
+[seg] epoch 46/160 loss 0.6975 dice 0.1145 (4 cls) [0.0, 0.0537, 0.2144, 0.1901, None]
+  ep47 step 0/21 loss 0.6974
+  ep47 step 20/21 loss 0.7004
+[seg] epoch 47/160 loss 0.7004 dice 0.1209 (4 cls) [0.0, 0.0664, 0.2194, 0.1977, None]
+  ep48 step 0/21 loss 0.6362
+  ep48 step 20/21 loss 0.6854
+[seg] epoch 48/160 loss 0.6854 dice 0.1284 (4 cls) [0.0, 0.082, 0.2251, 0.2067, None]
+  ep49 step 0/21 loss 0.6897
+  ep49 step 20/21 loss 0.6661
+[seg] epoch 49/160 loss 0.6661 dice 0.1371 (4 cls) [0.0001, 0.1005, 0.2304, 0.2172, None]
+  ep50 step 0/21 loss 0.5917
+  ep50 step 20/21 loss 0.6512
+[seg] epoch 50/160 loss 0.6512 dice 0.1465 (4 cls) [0.0001, 0.1225, 0.2354, 0.2281, None]
+  ep51 step 0/21 loss 0.5780
+  ep51 step 20/21 loss 0.6432
+[seg] epoch 51/160 loss 0.6432 dice 0.1558 (4 cls) [0.0001, 0.1437, 0.2399, 0.2396, None]
+  ep52 step 0/21 loss 0.6233
+  ep52 step 20/21 loss 0.6517
+[seg] epoch 52/160 loss 0.6517 dice 0.1672 (4 cls) [0.0001, 0.1704, 0.2452, 0.2529, None]
+  ep53 step 0/21 loss 0.5696
+  ep53 step 20/21 loss 0.6336
+[seg] epoch 53/160 loss 0.6336 dice 0.1786 (4 cls) [0.0005, 0.1937, 0.2503, 0.2698, None]
+  ep54 step 0/21 loss 0.6467
+  ep54 step 20/21 loss 0.6083
+[seg] epoch 54/160 loss 0.6083 dice 0.1892 (4 cls) [0.0005, 0.2164, 0.2552, 0.2849, None]
+  ep55 step 0/21 loss 0.5256
+  ep55 step 20/21 loss 0.6078
+[seg] epoch 55/160 loss 0.6078 dice 0.1992 (4 cls) [0.0005, 0.2359, 0.2593, 0.3011, None]
+  ep56 step 0/21 loss 0.5124
+  ep56 step 20/21 loss 0.6064
+[seg] epoch 56/160 loss 0.6064 dice 0.2096 (4 cls) [0.0005, 0.2559, 0.2639, 0.3181, None]
+  ep57 step 0/21 loss 0.5588
+  ep57 step 20/21 loss 0.6167
+[seg] epoch 57/160 loss 0.6167 dice 0.2195 (4 cls) [0.0005, 0.2733, 0.2689, 0.3353, None]
+  ep58 step 0/21 loss 0.5043
+  ep58 step 20/21 loss 0.5769
+[seg] epoch 58/160 loss 0.5769 dice 0.2278 (4 cls) [0.0003, 0.2888, 0.2732, 0.3488, None]
+  ep59 step 0/21 loss 0.6370
+  ep59 step 20/21 loss 0.5907
+[seg] epoch 59/160 loss 0.5907 dice 0.2357 (4 cls) [0.0003, 0.3033, 0.2778, 0.3615, None]
+  ep60 step 0/21 loss 0.5797
+  ep60 step 20/21 loss 0.5782
+[seg] epoch 60/160 loss 0.5782 dice 0.2436 (4 cls) [0.0003, 0.3183, 0.2828, 0.3728, None]
+  ep61 step 0/21 loss 0.6713
+  ep61 step 20/21 loss 0.5802
+[seg] epoch 61/160 loss 0.5802 dice 0.2519 (4 cls) [0.0002, 0.3306, 0.2906, 0.3861, None]
+  ep62 step 0/21 loss 0.5040
+  ep62 step 20/21 loss 0.5326
+[seg] epoch 62/160 loss 0.5326 dice 0.2599 (4 cls) [0.0002, 0.3425, 0.2982, 0.3987, None]
+  ep63 step 0/21 loss 0.6271
+  ep63 step 20/21 loss 0.5792
+[seg] epoch 63/160 loss 0.5792 dice 0.2678 (4 cls) [0.0001, 0.3535, 0.3062, 0.4114, None]
+  ep64 step 0/21 loss 0.5607
+  ep64 step 20/21 loss 0.5568
+[seg] epoch 64/160 loss 0.5568 dice 0.2752 (4 cls) [0.0001, 0.3639, 0.3135, 0.4233, None]
+  ep65 step 0/21 loss 0.5166
+  ep65 step 20/21 loss 0.5275
+[seg] epoch 65/160 loss 0.5275 dice 0.2827 (4 cls) [0.0001, 0.3738, 0.3205, 0.4365, None]
+  ep66 step 0/21 loss 0.5105
+  ep66 step 20/21 loss 0.5220
+[seg] epoch 66/160 loss 0.5220 dice 0.2895 (4 cls) [0.0001, 0.384, 0.3273, 0.4464, None]
+  ep67 step 0/21 loss 0.5378
+  ep67 step 20/21 loss 0.5153
+[seg] epoch 67/160 loss 0.5153 dice 0.2955 (4 cls) [0.0, 0.3931, 0.3338, 0.4553, None]
+  ep68 step 0/21 loss 0.4569
+  ep68 step 20/21 loss 0.5153
+[seg] epoch 68/160 loss 0.5153 dice 0.3014 (4 cls) [0.0, 0.4016, 0.3401, 0.4638, None]
+  ep69 step 0/21 loss 0.4737
+  ep69 step 20/21 loss 0.4951
+[seg] epoch 69/160 loss 0.4951 dice 0.3062 (4 cls) [0.0, 0.4096, 0.3458, 0.4694, None]
+  ep70 step 0/21 loss 0.4302
+  ep70 step 20/21 loss 0.5000
+[seg] epoch 70/160 loss 0.5000 dice 0.3104 (4 cls) [0.0, 0.4167, 0.351, 0.474, None]
+  ep71 step 0/21 loss 0.4844
+  ep71 step 20/21 loss 0.4922
+[seg] epoch 71/160 loss 0.4922 dice 0.3142 (4 cls) [0.0, 0.4236, 0.3558, 0.4773, None]
+  ep72 step 0/21 loss 0.3996
+  ep72 step 20/21 loss 0.4904
+[seg] epoch 72/160 loss 0.4904 dice 0.3182 (4 cls) [0.0, 0.4296, 0.3609, 0.4824, None]
+  ep73 step 0/21 loss 0.4707
+  ep73 step 20/21 loss 0.4923
+[seg] epoch 73/160 loss 0.4923 dice 0.3216 (4 cls) [0.0001, 0.4357, 0.3651, 0.4855, None]
+  ep74 step 0/21 loss 0.5270
+  ep74 step 20/21 loss 0.4946
+[seg] epoch 74/160 loss 0.4946 dice 0.3251 (4 cls) [0.0001, 0.441, 0.3698, 0.4895, None]
+  ep75 step 0/21 loss 0.4627
+  ep75 step 20/21 loss 0.4780
+[seg] epoch 75/160 loss 0.4780 dice 0.3281 (4 cls) [0.0008, 0.4463, 0.3743, 0.4909, None]
+  ep76 step 0/21 loss 0.4699
+  ep76 step 20/21 loss 0.4578
+[seg] epoch 76/160 loss 0.4578 dice 0.3312 (4 cls) [0.0015, 0.4516, 0.3785, 0.4934, None]
+  ep77 step 0/21 loss 0.3813
+  ep77 step 20/21 loss 0.4715
+[seg] epoch 77/160 loss 0.4715 dice 0.3340 (4 cls) [0.0023, 0.4557, 0.3832, 0.4948, None]
+  ep78 step 0/21 loss 0.4679
+  ep78 step 20/21 loss 0.4660
+[seg] epoch 78/160 loss 0.4660 dice 0.3371 (4 cls) [0.004, 0.4606, 0.3876, 0.4963, None]
+  ep79 step 0/21 loss 0.5624
+  ep79 step 20/21 loss 0.4596
+[seg] epoch 79/160 loss 0.4596 dice 0.3406 (4 cls) [0.0062, 0.4651, 0.3919, 0.4993, None]
+  ep80 step 0/21 loss 0.4970
+  ep80 step 20/21 loss 0.4517
+[seg] epoch 80/160 loss 0.4517 dice 0.3440 (4 cls) [0.0086, 0.4693, 0.3964, 0.5015, None]
+  ep81 step 0/21 loss 0.4579
+  ep81 step 20/21 loss 0.4521
+[seg] epoch 81/160 loss 0.4521 dice 0.3472 (4 cls) [0.0132, 0.4721, 0.4006, 0.5027, None]
+  ep82 step 0/21 loss 0.3710
+  ep82 step 20/21 loss 0.4423
+[seg] epoch 82/160 loss 0.4423 dice 0.3512 (4 cls) [0.0184, 0.4751, 0.406, 0.5054, None]
+  ep83 step 0/21 loss 0.3986
+  ep83 step 20/21 loss 0.4514
+[seg] epoch 83/160 loss 0.4514 dice 0.3557 (4 cls) [0.0265, 0.4776, 0.4116, 0.5072, None]
+  ep84 step 0/21 loss 0.3851
+  ep84 step 20/21 loss 0.4397
+[seg] epoch 84/160 loss 0.4397 dice 0.3601 (4 cls) [0.0328, 0.4806, 0.4178, 0.5093, None]
+  ep85 step 0/21 loss 0.4586
+  ep85 step 20/21 loss 0.4377
+[seg] epoch 85/160 loss 0.4377 dice 0.3664 (4 cls) [0.0454, 0.4835, 0.4247, 0.5118, None]
+  ep86 step 0/21 loss 0.3411
+  ep86 step 20/21 loss 0.4294
+[seg] epoch 86/160 loss 0.4294 dice 0.3728 (4 cls) [0.0601, 0.4858, 0.4314, 0.5138, None]
+  ep87 step 0/21 loss 0.4175
+  ep87 step 20/21 loss 0.4475
+[seg] epoch 87/160 loss 0.4475 dice 0.3785 (4 cls) [0.0723, 0.4876, 0.4377, 0.5165, None]
+  ep88 step 0/21 loss 0.3784
+  ep88 step 20/21 loss 0.4325
+[seg] epoch 88/160 loss 0.4325 dice 0.3848 (4 cls) [0.0877, 0.4898, 0.4437, 0.5182, None]
+  ep89 step 0/21 loss 0.4536
+  ep89 step 20/21 loss 0.4405
+[seg] epoch 89/160 loss 0.4405 dice 0.3907 (4 cls) [0.1026, 0.4914, 0.4489, 0.5201, None]
+  ep90 step 0/21 loss 0.4165
+  ep90 step 20/21 loss 0.4173
+[seg] epoch 90/160 loss 0.4173 dice 0.3973 (4 cls) [0.1198, 0.4932, 0.4543, 0.5219, None]
+  ep91 step 0/21 loss 0.4895
+  ep91 step 20/21 loss 0.4223
+[seg] epoch 91/160 loss 0.4223 dice 0.4033 (4 cls) [0.1371, 0.4945, 0.4588, 0.523, None]
+  ep92 step 0/21 loss 0.5809
+  ep92 step 20/21 loss 0.4207
+[seg] epoch 92/160 loss 0.4207 dice 0.4092 (4 cls) [0.1554, 0.4954, 0.4623, 0.5239, None]
+  ep93 step 0/21 loss 0.4044
+  ep93 step 20/21 loss 0.4214
+[seg] epoch 93/160 loss 0.4214 dice 0.4151 (4 cls) [0.1718, 0.4966, 0.466, 0.526, None]
+  ep94 step 0/21 loss 0.4445
+  ep94 step 20/21 loss 0.4255
+[seg] epoch 94/160 loss 0.4255 dice 0.4210 (4 cls) [0.189, 0.4977, 0.4691, 0.5283, None]
+  ep95 step 0/21 loss 0.3667
+  ep95 step 20/21 loss 0.4192
+[seg] epoch 95/160 loss 0.4192 dice 0.4265 (4 cls) [0.2048, 0.4992, 0.472, 0.5302, None]
+  ep96 step 0/21 loss 0.5154
+  ep96 step 20/21 loss 0.4212
+[seg] epoch 96/160 loss 0.4212 dice 0.4320 (4 cls) [0.2207, 0.5002, 0.4746, 0.5322, None]
+  ep97 step 0/21 loss 0.3978
+  ep97 step 20/21 loss 0.3961
+[seg] epoch 97/160 loss 0.3961 dice 0.4372 (4 cls) [0.2346, 0.5019, 0.4777, 0.5347, None]
+  ep98 step 0/21 loss 0.3172
+  ep98 step 20/21 loss 0.4127
+[seg] epoch 98/160 loss 0.4127 dice 0.4424 (4 cls) [0.2492, 0.5034, 0.4803, 0.5366, None]
+  ep99 step 0/21 loss 0.4915
+  ep99 step 20/21 loss 0.4229
+[seg] epoch 99/160 loss 0.4229 dice 0.4466 (4 cls) [0.2621, 0.5043, 0.4824, 0.5374, None]
+  ep100 step 0/21 loss 0.5375
+  ep100 step 20/21 loss 0.4056
+[seg] epoch 100/160 loss 0.4056 dice 0.4506 (4 cls) [0.2736, 0.505, 0.4849, 0.5389, None]
+  ep101 step 0/21 loss 0.3840
+  ep101 step 20/21 loss 0.3982
+[seg] epoch 101/160 loss 0.3982 dice 0.4552 (4 cls) [0.2864, 0.506, 0.4874, 0.5409, None]
+  ep102 step 0/21 loss 0.3855
+  ep102 step 20/21 loss 0.4075
+[seg] epoch 102/160 loss 0.4075 dice 0.4593 (4 cls) [0.2974, 0.5065, 0.4901, 0.5432, None]
+  ep103 step 0/21 loss 0.3925
+  ep103 step 20/21 loss 0.3948
+[seg] epoch 103/160 loss 0.3948 dice 0.4631 (4 cls) [0.3084, 0.5067, 0.4923, 0.5449, None]
+  ep104 step 0/21 loss 0.3713
+  ep104 step 20/21 loss 0.4067
+[seg] epoch 104/160 loss 0.4067 dice 0.4665 (4 cls) [0.3179, 0.5071, 0.4944, 0.5464, None]
+  ep105 step 0/21 loss 0.3494
+  ep105 step 20/21 loss 0.4053
+[seg] epoch 105/160 loss 0.4053 dice 0.4698 (4 cls) [0.3274, 0.5074, 0.4962, 0.5481, None]
+  ep106 step 0/21 loss 0.5475
+  ep106 step 20/21 loss 0.4047
+[seg] epoch 106/160 loss 0.4047 dice 0.4728 (4 cls) [0.3335, 0.5081, 0.4987, 0.551, None]
+  ep107 step 0/21 loss 0.3599
+  ep107 step 20/21 loss 0.4082
+[seg] epoch 107/160 loss 0.4082 dice 0.4756 (4 cls) [0.341, 0.5088, 0.5006, 0.552, None]
+  ep108 step 0/21 loss 0.3954
+  ep108 step 20/21 loss 0.3804
+[seg] epoch 108/160 loss 0.3804 dice 0.4785 (4 cls) [0.3478, 0.5094, 0.5028, 0.554, None]
+  ep109 step 0/21 loss 0.3251
+  ep109 step 20/21 loss 0.3938
+[seg] epoch 109/160 loss 0.3938 dice 0.4814 (4 cls) [0.3547, 0.5095, 0.5051, 0.5563, None]
+  ep110 step 0/21 loss 0.5199
+  ep110 step 20/21 loss 0.4092
+[seg] epoch 110/160 loss 0.4092 dice 0.4839 (4 cls) [0.3618, 0.5099, 0.5067, 0.5574, None]
+  ep111 step 0/21 loss 0.3781
+  ep111 step 20/21 loss 0.3834
+[seg] epoch 111/160 loss 0.3834 dice 0.4864 (4 cls) [0.3677, 0.5102, 0.5089, 0.559, None]
+  ep112 step 0/21 loss 0.3189
+  ep112 step 20/21 loss 0.3667
+[seg] epoch 112/160 loss 0.3667 dice 0.4889 (4 cls) [0.3736, 0.511, 0.5104, 0.5606, None]
+  ep113 step 0/21 loss 0.3387
+  ep113 step 20/21 loss 0.3749
+[seg] epoch 113/160 loss 0.3749 dice 0.4913 (4 cls) [0.3784, 0.5114, 0.5126, 0.5627, None]
+  ep114 step 0/21 loss 0.3421
+  ep114 step 20/21 loss 0.3779
+[seg] epoch 114/160 loss 0.3779 dice 0.4941 (4 cls) [0.385, 0.5121, 0.5147, 0.5649, None]
+  ep115 step 0/21 loss 0.3499
+  ep115 step 20/21 loss 0.3654
+[seg] epoch 115/160 loss 0.3654 dice 0.4965 (4 cls) [0.3891, 0.5128, 0.5164, 0.5676, None]
+  ep116 step 0/21 loss 0.5332
+  ep116 step 20/21 loss 0.3928
+[seg] epoch 116/160 loss 0.3928 dice 0.4989 (4 cls) [0.394, 0.5134, 0.5184, 0.5697, None]
+  ep117 step 0/21 loss 0.3479
+  ep117 step 20/21 loss 0.3741
+[seg] epoch 117/160 loss 0.3741 dice 0.5008 (4 cls) [0.3978, 0.5142, 0.5199, 0.5714, None]
+  ep118 step 0/21 loss 0.3608
+  ep118 step 20/21 loss 0.3687
+[seg] epoch 118/160 loss 0.3687 dice 0.5028 (4 cls) [0.4016, 0.5147, 0.5216, 0.5734, None]
+  ep119 step 0/21 loss 0.3642
+  ep119 step 20/21 loss 0.3784
+[seg] epoch 119/160 loss 0.3784 dice 0.5053 (4 cls) [0.4073, 0.5154, 0.5231, 0.5752, None]
+  ep120 step 0/21 loss 0.3627
+  ep120 step 20/21 loss 0.3870
+[seg] epoch 120/160 loss 0.3870 dice 0.5071 (4 cls) [0.4106, 0.5163, 0.5246, 0.5771, None]
+  ep121 step 0/21 loss 0.3197
+  ep121 step 20/21 loss 0.3906
+[seg] epoch 121/160 loss 0.3906 dice 0.5088 (4 cls) [0.4138, 0.517, 0.5258, 0.5786, None]
+  ep122 step 0/21 loss 0.3246
+  ep122 step 20/21 loss 0.3543
+[seg] epoch 122/160 loss 0.3543 dice 0.5106 (4 cls) [0.4167, 0.5175, 0.5275, 0.5805, None]
+  ep123 step 0/21 loss 0.3619
+  ep123 step 20/21 loss 0.3797
+[seg] epoch 123/160 loss 0.3797 dice 0.5121 (4 cls) [0.4201, 0.518, 0.5288, 0.5814, None]
+  ep124 step 0/21 loss 0.3947
+  ep124 step 20/21 loss 0.3544
+[seg] epoch 124/160 loss 0.3544 dice 0.5136 (4 cls) [0.423, 0.5184, 0.5303, 0.5828, None]
+  ep125 step 0/21 loss 0.4920
+  ep125 step 20/21 loss 0.3752
+[seg] epoch 125/160 loss 0.3752 dice 0.5153 (4 cls) [0.4259, 0.5192, 0.5317, 0.5846, None]
+  ep126 step 0/21 loss 0.3570
+  ep126 step 20/21 loss 0.4004
+[seg] epoch 126/160 loss 0.4004 dice 0.5171 (4 cls) [0.429, 0.5197, 0.5334, 0.5863, None]
+  ep127 step 0/21 loss 0.3600
+  ep127 step 20/21 loss 0.3681
+[seg] epoch 127/160 loss 0.3681 dice 0.5192 (4 cls) [0.4334, 0.5203, 0.5346, 0.5887, None]
+  ep128 step 0/21 loss 0.3167
+  ep128 step 20/21 loss 0.3685
+[seg] epoch 128/160 loss 0.3685 dice 0.5208 (4 cls) [0.4358, 0.5207, 0.5359, 0.5908, None]
+  ep129 step 0/21 loss 0.3631
+  ep129 step 20/21 loss 0.3596
+[seg] epoch 129/160 loss 0.3596 dice 0.5225 (4 cls) [0.4395, 0.5211, 0.5373, 0.5923, None]
+  ep130 step 0/21 loss 0.3209
+  ep130 step 20/21 loss 0.3628
+[seg] epoch 130/160 loss 0.3628 dice 0.5239 (4 cls) [0.4415, 0.5215, 0.5387, 0.594, None]
+  ep131 step 0/21 loss 0.3167
+  ep131 step 20/21 loss 0.3424
+[seg] epoch 131/160 loss 0.3424 dice 0.5258 (4 cls) [0.4449, 0.5223, 0.54, 0.5958, None]
+  ep132 step 0/21 loss 0.3331
+  ep132 step 20/21 loss 0.3600
+[seg] epoch 132/160 loss 0.3600 dice 0.5275 (4 cls) [0.4477, 0.5228, 0.5413, 0.5982, None]
+  ep133 step 0/21 loss 0.3840
+  ep133 step 20/21 loss 0.3752
+[seg] epoch 133/160 loss 0.3752 dice 0.5289 (4 cls) [0.45, 0.5232, 0.5424, 0.6, None]
+  ep134 step 0/21 loss 0.3209
+  ep134 step 20/21 loss 0.3843
+[seg] epoch 134/160 loss 0.3843 dice 0.5304 (4 cls) [0.4519, 0.5238, 0.5436, 0.6021, None]
+  ep135 step 0/21 loss 0.3219
+  ep135 step 20/21 loss 0.3556
+[seg] epoch 135/160 loss 0.3556 dice 0.5318 (4 cls) [0.4541, 0.5243, 0.5448, 0.6039, None]
+  ep136 step 0/21 loss 0.5831
+  ep136 step 20/21 loss 0.3663
+[seg] epoch 136/160 loss 0.3663 dice 0.5329 (4 cls) [0.4554, 0.5249, 0.546, 0.6053, None]
+  ep137 step 0/21 loss 0.3237
+  ep137 step 20/21 loss 0.3478
+[seg] epoch 137/160 loss 0.3478 dice 0.5347 (4 cls) [0.4592, 0.5254, 0.5472, 0.6068, None]
+  ep138 step 0/21 loss 0.3123
+  ep138 step 20/21 loss 0.3484
+[seg] epoch 138/160 loss 0.3484 dice 0.5359 (4 cls) [0.4611, 0.5259, 0.5485, 0.6083, None]
+  ep139 step 0/21 loss 0.3266
+  ep139 step 20/21 loss 0.3473
+[seg] epoch 139/160 loss 0.3473 dice 0.5369 (4 cls) [0.4629, 0.5265, 0.5494, 0.6088, None]
+  ep140 step 0/21 loss 0.3111
+  ep140 step 20/21 loss 0.3398
+[seg] epoch 140/160 loss 0.3398 dice 0.5381 (4 cls) [0.4647, 0.5271, 0.5507, 0.61, None]
+  ep141 step 0/21 loss 0.3206
+  ep141 step 20/21 loss 0.3507
+[seg] epoch 141/160 loss 0.3507 dice 0.5391 (4 cls) [0.4656, 0.5277, 0.552, 0.6112, None]
+  ep142 step 0/21 loss 0.3279
+  ep142 step 20/21 loss 0.3501
+[seg] epoch 142/160 loss 0.3501 dice 0.5401 (4 cls) [0.467, 0.5282, 0.5529, 0.6122, None]
+  ep143 step 0/21 loss 0.3416
+  ep143 step 20/21 loss 0.3446
+[seg] epoch 143/160 loss 0.3446 dice 0.5410 (4 cls) [0.4679, 0.5289, 0.5538, 0.6134, None]
+  ep144 step 0/21 loss 0.3007
+  ep144 step 20/21 loss 0.3489
+[seg] epoch 144/160 loss 0.3489 dice 0.5418 (4 cls) [0.4683, 0.5294, 0.5552, 0.6142, None]
+  ep145 step 0/21 loss 0.2987
+  ep145 step 20/21 loss 0.3549
+[seg] epoch 145/160 loss 0.3549 dice 0.5430 (4 cls) [0.4695, 0.5301, 0.5567, 0.6157, None]
+  ep146 step 0/21 loss 0.3053
+  ep146 step 20/21 loss 0.3497
+[seg] epoch 146/160 loss 0.3497 dice 0.5439 (4 cls) [0.4712, 0.5305, 0.5577, 0.6163, None]
+  ep147 step 0/21 loss 0.3065
+  ep147 step 20/21 loss 0.3404
+[seg] epoch 147/160 loss 0.3404 dice 0.5452 (4 cls) [0.4731, 0.5313, 0.5588, 0.6174, None]
+  ep148 step 0/21 loss 0.3217
+  ep148 step 20/21 loss 0.3573
+[seg] epoch 148/160 loss 0.3573 dice 0.5462 (4 cls) [0.4744, 0.5319, 0.5601, 0.6184, None]
+  ep149 step 0/21 loss 0.3164
+  ep149 step 20/21 loss 0.3602
+[seg] epoch 149/160 loss 0.3602 dice 0.5471 (4 cls) [0.475, 0.5324, 0.5613, 0.6196, None]
+  ep150 step 0/21 loss 0.3016
+  ep150 step 20/21 loss 0.3537
+[seg] epoch 150/160 loss 0.3537 dice 0.5479 (4 cls) [0.4754, 0.533, 0.5625, 0.6207, None]
+  ep151 step 0/21 loss 0.3251
+  ep151 step 20/21 loss 0.3579
+[seg] epoch 151/160 loss 0.3579 dice 0.5486 (4 cls) [0.4761, 0.5335, 0.5633, 0.6213, None]
+  ep152 step 0/21 loss 0.4217
+  ep152 step 20/21 loss 0.3440
+[seg] epoch 152/160 loss 0.3440 dice 0.5495 (4 cls) [0.4773, 0.5341, 0.5644, 0.6221, None]
+  ep153 step 0/21 loss 0.3349
+  ep153 step 20/21 loss 0.3717
+[seg] epoch 153/160 loss 0.3717 dice 0.5501 (4 cls) [0.4774, 0.5347, 0.5657, 0.6228, None]
+  ep154 step 0/21 loss 0.3194
+  ep154 step 20/21 loss 0.3474
+[seg] epoch 154/160 loss 0.3474 dice 0.5508 (4 cls) [0.4777, 0.5353, 0.5666, 0.6238, None]
+  ep155 step 0/21 loss 0.3387
+  ep155 step 20/21 loss 0.3578
+[seg] epoch 155/160 loss 0.3578 dice 0.5515 (4 cls) [0.478, 0.5359, 0.5678, 0.6245, None]
+  ep156 step 0/21 loss 0.2893
+  ep156 step 20/21 loss 0.3437
+[seg] epoch 156/160 loss 0.3437 dice 0.5523 (4 cls) [0.4786, 0.5365, 0.5686, 0.6257, None]
+  ep157 step 0/21 loss 0.2939
+  ep157 step 20/21 loss 0.3572
+[seg] epoch 157/160 loss 0.3572 dice 0.5531 (4 cls) [0.4796, 0.5371, 0.5696, 0.6261, None]
+  ep158 step 0/21 loss 0.3115
+  ep158 step 20/21 loss 0.3344
+[seg] epoch 158/160 loss 0.3344 dice 0.5537 (4 cls) [0.4803, 0.5377, 0.5705, 0.6266, None]
+  ep159 step 0/21 loss 0.3176
+  ep159 step 20/21 loss 0.3544
+[seg] epoch 159/160 loss 0.3544 dice 0.5542 (4 cls) [0.4803, 0.5382, 0.5714, 0.6271, None]
+  ep160 step 0/21 loss 0.3012
+  ep160 step 20/21 loss 0.3590
+[seg] epoch 160/160 loss 0.3590 dice 0.5550 (4 cls) [0.4809, 0.5388, 0.5724, 0.6278, None]
+
+Best mean Dice 0.5550 at epoch 160 (24.0 min)
+Checkpoint: outputs\segmentation_v2\best.pt

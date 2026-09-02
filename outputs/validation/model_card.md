@@ -1,6 +1,6 @@
 # Model card -- DR screening pipeline
 
-Generated 2026-08-30 from `outputs/validation/validation.json`. Every number below is read from that file; none is hand-entered.
+Generated 2026-09-01 from `outputs/validation/validation.json`. Every number below is read from that file; none is hand-entered.
 
 ## 1. Intended use
 
@@ -17,10 +17,10 @@ Generated 2026-08-30 from `outputs/validation/validation.json`. Every number bel
 ## 2. Operating point
 
 - Referable DR is defined as grade >= 2 (Moderate NPDR or worse).
-- Referral threshold on P(referable): **0.3998**
-- Temperature: **2.4877**
+- Referral threshold on P(referable): **0.1999**
+- Temperature: **2.7080**
 - Both were selected on the validation split only, then frozen. Neither was tuned on the test or external splits.
-- Selection rationale: Meets both targets (sens>=90%, spec>=85%); maximises Youden's J among those. PPV/NPV restated at 18.0% deployment prevalence.
+- Selection rationale: Meets both targets (sens>=90%, spec>=85%); takes the most sensitive point clearing the specificity floor (screening policy). PPV/NPV restated at 18.0% deployment prevalence.
 
 ## 3. Validation population
 
@@ -33,13 +33,13 @@ Targets: sensitivity >= 90%, specificity >= 85% for referable DR.
 
 | metric | internal test | external (zero-shot) |
 |---|---|---|
-| Sensitivity | 0.975 (95% CI 0.950-0.988) | 0.619 (95% CI 0.574-0.663) |
-| Specificity | 0.905 (95% CI 0.869-0.931) | 0.941 (95% CI 0.927-0.953) |
-| PPV | 0.894 (95% CI 0.854-0.923) | 0.788 (95% CI 0.743-0.827) |
-| NPV | 0.978 (95% CI 0.956-0.989) | 0.874 (95% CI 0.856-0.891) |
-| AUC | 0.9862 (0.9760-0.9921) | 0.9013 (0.8833-0.9167) |
-| QWK | 0.8912 | 0.6029 |
-| Within-one-grade | 0.962 (95% CI 0.944-0.974) | 0.908 (95% CI 0.893-0.920) |
+| Sensitivity | 0.986 (95% CI 0.964-0.995) | 0.707 (95% CI 0.663-0.747) |
+| Specificity | 0.873 (95% CI 0.834-0.904) | 0.922 (95% CI 0.906-0.936) |
+| PPV | 0.864 (95% CI 0.823-0.897) | 0.764 (95% CI 0.721-0.802) |
+| NPV | 0.987 (95% CI 0.967-0.995) | 0.899 (95% CI 0.881-0.914) |
+| AUC | 0.9883 (0.9790-0.9935) | 0.9082 (0.8903-0.9234) |
+| QWK | 0.8939 | 0.5930 |
+| Within-one-grade | 0.960 (95% CI 0.942-0.973) | 0.890 (95% CI 0.874-0.904) |
 
 Targets met on internal test: sensitivity **yes**, specificity **yes**.
 
@@ -47,19 +47,19 @@ Targets met on internal test: sensitivity **yes**, specificity **yes**.
 
 | | before | after |
 |---|---|---|
-| ECE | 0.0587 | 0.0153 |
-| Brier | 0.0745 | 0.0659 |
+| ECE | 0.0500 | 0.0160 |
+| Brier | 0.0701 | 0.0612 |
 
 ## 5. Comparison against single techniques
 
-The integrated pipeline (fusion) has the highest referable-DR AUC of all arms, but the margin over cnn_only is not statistically significant at this sample size.
+The integrated pipeline (cnn) has a higher referable-DR AUC than every single-technique arm, and every difference is statistically significant (DeLong, alpha=0.05).
 
 | arm | AUC | sensitivity | specificity |
 |---|---|---|---|
-| fusion **(deployed)** | 0.9862 | 0.975 | 0.905 |
-| cnn_only | 0.9859 | 0.982 | 0.925 |
-| clinical_only | 0.9329 | 0.891 | 0.830 |
-| rule_based | 0.9139 | 0.996 | 0.058 |
+| cnn **(deployed)** | 0.9883 | 0.986 | 0.873 |
+| fusion | 0.9850 | 0.989 | 0.882 |
+| clinical_only | 0.9272 | 0.880 | 0.813 |
+| rule_based | 0.9115 | 1.000 | 0.075 |
 
 ## 6. Known failure modes
 

@@ -58,6 +58,11 @@ ARM_DESCRIPTIONS = {
     "cnn_only": "Deep learning only: ordinal CNN on the enhanced image",
     "clinical_only": "Lesion-feature vector only, through the ordinal head",
     "fusion": "Integrated: CNN image features fused with clinical lesion features",
+    # ``train_grader --arm`` writes "cnn"/"clinical"/"fusion" into the
+    # checkpoint, and validate.py keys the deployed arm by that value. Without
+    # these aliases the *deployed* row is the one rendered with no description.
+    "cnn": "Deep learning only: ordinal CNN on the enhanced image",
+    "clinical": "Lesion-feature vector only, through the ordinal head",
     "no_preprocess": "Integrated, but trained/run on raw RGB (no adaptive enhancement)",
     "no_calibration": "Integrated, without temperature scaling",
 }

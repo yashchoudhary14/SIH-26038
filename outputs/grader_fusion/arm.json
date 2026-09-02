@@ -1,8 +1,8 @@
 {
   "arm": "fusion",
   "use_clinical": true,
-  "best_metric": 0.9003812810630405,
-  "best_epoch": 19,
+  "best_metric": 0.9048863776530045,
+  "best_epoch": 22,
   "select_on": "qwk",
   "balanced_sampler": true
 }

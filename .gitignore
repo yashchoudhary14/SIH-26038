@@ -39,6 +39,8 @@ __pycache__/
 # scripts/run_all.py and duplicate what outputs/artifacts/ already holds.
 outputs/segmentation/*.pt
 outputs/grader_*/*.pt
+# Superseded checkpoints kept on disk for recovery, never committed.
+outputs/_archive_*/
 outputs/benchmark.json
 outputs/_*.txt
 

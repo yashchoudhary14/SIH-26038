@@ -270,7 +270,8 @@ class OperatingPoint:
 def select_threshold(probs: np.ndarray, labels: np.ndarray,
                      min_sensitivity: float = TARGET_SENSITIVITY,
                      min_specificity: float = TARGET_SPECIFICITY,
-                     prevalence: float | None = None) -> OperatingPoint:
+                     prevalence: float | None = None,
+                     policy: str = "youden") -> OperatingPoint:
     """Pick the referral threshold on **validation** data.
 
     Policy, in priority order:
@@ -282,6 +283,21 @@ def select_threshold(probs: np.ndarray, labels: np.ndarray,
        programme: a missed proliferative DR costs sight, a false positive
        costs one teleconsultation.
     3. If even that is impossible, return the max-J point and flag it.
+
+    ``policy`` chooses between two ways of breaking step 1, both evaluated on
+    validation data only:
+
+    * ``"youden"`` (default) maximises sensitivity + specificity - 1, the
+      balanced choice.
+    * ``"max_sensitivity"`` takes the most sensitive point that still clears
+      the specificity floor, breaking ties on specificity. This is the
+      screening-programme reading of the asymmetry already stated above: a
+      missed proliferative DR costs sight, a false positive costs one
+      teleconsultation. It buys sight-threatening recall with review capacity.
+
+    The policy is a *val-side* decision. Selecting a threshold by reading the
+    test or external sweep would fit the operating point to held-out data and
+    void the zero-shot claim, so neither split is consulted here.
     """
     p = np.asarray(probs, np.float64).ravel()
     y = (np.asarray(labels).ravel() > 0).astype(np.int64)
@@ -302,11 +318,20 @@ def select_threshold(probs: np.ndarray, labels: np.ndarray,
         npv = tn / max(tn + fn, 1)
         rows.append((t, sens, spec, ppv, npv))
 
+    if policy not in ("youden", "max_sensitivity"):
+        raise ValueError(f"policy must be 'youden' or 'max_sensitivity', got {policy!r}")
+
     both = [r for r in rows if r[1] >= min_sensitivity and r[2] >= min_specificity]
     if both:
-        best = max(both, key=lambda r: r[1] + r[2] - 1)
+        if policy == "max_sensitivity":
+            best = max(both, key=lambda r: (r[1], r[2]))
+            how = ("takes the most sensitive point clearing the specificity "
+                   "floor (screening policy)")
+        else:
+            best = max(both, key=lambda r: r[1] + r[2] - 1)
+            how = "maximises Youden's J among those"
         rationale = (f"Meets both targets (sens>={min_sensitivity:.0%}, "
-                     f"spec>={min_specificity:.0%}); maximises Youden's J among those.")
+                     f"spec>={min_specificity:.0%}); {how}.")
         meets = True
     else:
         sens_ok = [r for r in rows if r[1] >= min_sensitivity]

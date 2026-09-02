@@ -106,6 +106,13 @@ def main():
     ap.add_argument("--explain-n", type=int, default=40,
                     help="images used for the explanation-faithfulness study")
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--threshold-policy", choices=["youden", "max_sensitivity"],
+                    default="youden",
+                    help="how to break ties among val thresholds that meet both "
+                         "targets. 'youden' is balanced; 'max_sensitivity' takes "
+                         "the most sensitive point clearing the specificity floor, "
+                         "trading review capacity for sight-threatening recall. "
+                         "Selected on val only -- never on test or external.")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
 
@@ -165,7 +172,8 @@ def main():
     cal_iso = calibration_report(oof, y_val_ref, T)
     ref_val_final = iso(ref_val_cal) if iso is not None else ref_val_cal
     op = select_threshold(ref_val_final, y_val_ref, TARGET_SENSITIVITY,
-                          TARGET_SPECIFICITY, prevalence=a.prevalence)
+                          TARGET_SPECIFICITY, prevalence=a.prevalence,
+                          policy=a.threshold_policy)
     print(f"  threshold = {op.threshold:.4f}   "
           f"sens {op.sensitivity:.3f}  spec {op.specificity:.3f}")
     print(f"  {op.rationale}")
@@ -208,14 +216,23 @@ def main():
     arms: dict[str, dict] = {}
     y_test = t_labels.numpy()
 
+    # The integrated arm is keyed by the deployed checkpoint's OWN arm name, not
+    # by the literal "fusion". Hard-coding that name meant a run whose deployed
+    # grader was the cnn arm registered it under "fusion", and a caller passing
+    # --arms fusion=... then overwrote it: the ablation compared the supplied
+    # checkpoint against itself, starred it as the integrated pipeline, and
+    # dropped the actually-deployed model from its own comparison. Nothing
+    # raised, and the table looked entirely normal.
+    integrated_name = str(ck.get("arm") or "fusion")
+
     # Same transform as the threshold was chosen under, or the operating point
     # is being applied to a different number line than it was selected on.
-    _fusion_ref = referable_prob(t_logits / T).numpy()
+    _int_ref = referable_prob(t_logits / T).numpy()
     if iso is not None:
-        _fusion_ref = iso(_fusion_ref)
-    arms["fusion"] = {
+        _int_ref = iso(_int_ref)
+    arms[integrated_name] = {
         "grades": corn_predict(t_logits / T).numpy().tolist(),
-        "referable_scores": _fusion_ref.tolist(),
+        "referable_scores": _int_ref.tolist(),
         "threshold": op.threshold}
 
     for spec in a.arms:
@@ -223,6 +240,12 @@ def main():
             print(f"  ignoring malformed arm spec: {spec}")
             continue
         name, path = spec.split("=", 1)
+        if name == integrated_name:
+            raise SystemExit(
+                f"--arms label '{name}' collides with the deployed arm "
+                f"(--grader is the '{integrated_name}' arm). The comparison arm "
+                f"would replace the integrated pipeline in the ablation and be "
+                f"starred as it. Use a different label, e.g. '{name}_alt'.")
         p = Path(path)
         if not p.exists():
             print(f"  arm '{name}': checkpoint not found ({p}), skipped")
@@ -243,7 +266,8 @@ def main():
             iso_arm = None
         t_ref = referable_prob(lg / t_arm).numpy()
         op_arm = select_threshold(iso_arm(v_ref) if iso_arm else v_ref, v_y,
-                                  TARGET_SENSITIVITY, TARGET_SPECIFICITY)
+                                  TARGET_SENSITIVITY, TARGET_SPECIFICITY,
+                                  policy=a.threshold_policy)
         arms[name] = {"grades": corn_predict(lg / t_arm).numpy().tolist(),
                       "referable_scores": (iso_arm(t_ref) if iso_arm else t_ref).tolist(),
                       "threshold": op_arm.threshold}
@@ -255,7 +279,8 @@ def main():
         arms["rule_based"] = rule
         print("  built arm 'rule_based' from cached lesion features")
 
-    ablation = compare_arms(y_test, arms, reference="fusion") if len(arms) > 1 else None
+    ablation = (compare_arms(y_test, arms, reference=integrated_name)
+                if len(arms) > 1 else None)
     if ablation:
         print()
         print(format_table(ablation))

@@ -14,30 +14,35 @@ in [§9](#9-reproducing-this).
 
 | | sensitivity | specificity | AUC | QWK | targets |
 |---|---|---|---|---|---|
-| **Internal test** (n=631) | **0.975** | **0.905** | 0.986 | 0.891 | ✅ both met |
-| **External, Messidor-2** (n=1,744) | 0.619 | 0.941 | 0.901 | 0.603 | ❌ sensitivity not met |
+| **Internal test** (n=631) | **0.986** | **0.873** | 0.988 | 0.894 | ✅ both met |
+| **External, Messidor-2** (n=1,744) | 0.707 | 0.922 | 0.908 | 0.593 | ❌ sensitivity not met |
 
 Targets: sensitivity ≥ 90%, specificity ≥ 85% for referable DR (ICDR grade ≥ 2).
+
+Deployed arm: **CNN (image-only ordinal grader)** at referral threshold
+**0.1999**, selected on the validation split under the sensitivity-first policy
+(`--threshold-policy max_sensitivity`). See [§5](#5-ablation--does-the-integrated-pipeline-beat-any-single-technique)
+for why the image-only arm is deployed rather than the fusion arm.
 
 **The aggregate external sensitivity is misleading on its own.** Split by true
 severity, the misses are almost entirely *moderate* NPDR, not blinding disease:
 
 | true severity | n | flagged referable |
 |---|---|---|
-| 0 — no DR | 1,017 | 5.2% *(correctly ignored)* |
-| 1 — mild NPDR | 270 | 8.5% *(correctly ignored)* |
-| **2 — moderate NPDR** | 347 | **52.2%** ← still the weak point |
-| **3 — severe NPDR** | 75 | **96.0%** |
-| **4 — proliferative DR** | 35 | **85.7%** |
+| 0 — no DR | 1,017 | 6.1% *(correctly ignored)* |
+| 1 — mild NPDR | 270 | 14.1% *(correctly ignored)* |
+| **2 — moderate NPDR** | 347 | **62.3%** ← still the weak point |
+| **3 — severe NPDR** | 75 | **98.7%** *(74/75)* |
+| **4 — proliferative DR** | 35 | **94.3%** *(33/35)* |
 
-> **Sight-threatening disease (grade ≥ 3): sensitivity 0.927 [0.863–0.963] at
-> 94.1% specificity** — zero-shot, on a French cohort with different cameras
-> and a different grading panel, with nothing fitted on it. On the internal
-> test split it is **1.000 [0.965–1.000]** — all 105 sight-threatening eyes
-> referred, none missed.
+> **Sight-threatening disease (grade ≥ 3): sensitivity 0.973 [0.923–0.991] at
+> 92.2% specificity** — 107 of 110 blinding eyes referred, zero-shot, on a
+> French cohort with different cameras and a different grading panel, with
+> nothing fitted on it. On the internal test split it is **1.000
+> [0.965–1.000]** — all 105 sight-threatening eyes referred, none missed.
 
 Grade 2 accounts for 76% of referable cases, which is what drags the aggregate
-to 0.619. The two failure modes do not carry equal clinical weight: a missed
+to 0.707. The two failure modes do not carry equal clinical weight: a missed
 proliferative DR can cost sight within months; a missed moderate NPDR is
 picked up at the next annual screen.
 
@@ -45,16 +50,16 @@ picked up at the next annual screen.
 
 ## 2. Verdict — can this system detect DR?
 
-**As a sight-saving triage tool: yes.** It detects 92.7% of blinding disease on
-cameras it has never seen while correctly ignoring 94% of non-referable eyes,
-so it does not flood the ophthalmologist. On the internal test split it misses
-none at all (105/105). That is the decision the problem statement exists to
-serve.
+**As a sight-saving triage tool: yes.** It detects **97.3% of blinding disease**
+on cameras it has never seen while correctly ignoring 92% of non-referable eyes,
+so it does not flood the ophthalmologist — 24% of the population is queued for
+review. On the internal test split it misses none at all (105/105). That is the
+decision the problem statement exists to serve.
 
 **As a full ICDR grader on unseen hardware: not yet.** Moderate-NPDR detection
-at 52.2% is much better than the 27.7% of the previous checkpoint but is still
-not acceptable. And *exact grade assignment* stays weak even internally — the
-referral flag is trustworthy, the printed grade much less so. See
+reaches 62.3% — up from 27.7% two checkpoints ago — but is still not acceptable.
+And *exact grade assignment* stays weak even internally: the referral flag is
+trustworthy, the printed grade much less so. See
 [§4.1](#41-exact-grade-assignment-is-weaker-than-referral).
 
 **On populations resembling its training data: yes, comfortably.** Both
@@ -95,27 +100,30 @@ definition and is tested against ICDR's *de jure* one. Those are different
 populations wearing the same label.
 
 **Why it is fixable.** The ranking survives. On Messidor-2 the model still
-separates the grades in the right order — it flags 8.5% of grade 1, 52.2% of
-grade 2 and 92.7% of grade ≥ 3 — the scores simply sit lower against a threshold
-learned from a stricter-looking population:
+separates the grades in the right order — it flags 6.1% of grade 0, 14.1% of
+grade 1, 62.3% of grade 2 and 97.3% of grade ≥ 3 — the scores simply sit lower
+against a threshold learned from a stricter-looking population:
 
 | threshold | sens grade 2 | sens grade ≥3 | specificity | % flagged |
 |---|---|---|---|---|
-| 0.050 | 79.3% | 99.1% | 78.7% | 37.7% |
-| 0.100 | 74.1% | 98.2% | 86.6% | 30.8% |
-| 0.150 | 62.8% | 94.6% | 91.8% | 24.5% |
-| 0.200 | 57.1% | 94.6% | 93.2% | 22.4% |
-| 0.250 | 52.7% | 92.7% | 93.9% | 20.8% |
-| 0.300 | 52.5% | 92.7% | 94.0% | 20.7% |
-| **0.3998** *(deployed)* | **52.2%** | **92.7%** | **94.1%** | **20.6%** |
-| 0.400 | 48.4% | 91.8% | 94.7% | 19.3% |
-| 0.500 | 37.2% | 90.0% | 96.7% | 15.5% |
-| 0.700 | 32.6% | 90.0% | 97.8% | 13.8% |
-| 0.800 | 6.1% | 61.8% | 99.8% | 5.2% |
+| 0.050 | 72.6% | 98.2% | 88.4% | 29.2% |
+| 0.100 | 72.6% | 98.2% | 88.5% | 29.1% |
+| 0.150 | 62.2% | 97.3% | 92.2% | 24.3% |
+| **0.1999** *(deployed)* | **62.2%** | **97.3%** | **92.2%** | **24.3%** |
+| 0.200 | 53.9% | 97.3% | 93.6% | 21.6% |
+| 0.250 | 43.8% | 92.7% | 96.2% | 17.4% |
+| 0.300 | 43.2% | 92.7% | 96.2% | 17.3% |
+| 0.400 | 38.3% | 91.8% | 97.2% | 15.5% |
+| 0.600 | 28.8% | 89.1% | 98.3% | 12.6% |
+| 0.700 | 11.8% | 78.2% | 99.4% | 7.7% |
+| 0.800 | 7.2% | 66.4% | 99.8% | 5.7% |
 
-The 0.3998 and 0.400 rows are genuinely distinct points, not a duplicate: the
-isotonic calibrator maps a run of raw scores onto a tie just above 0.3998, so
-a threshold 0.0002 higher drops 1.3% of the cohort out of the flagged set.
+The 0.1999 and 0.200 rows are genuinely distinct points, not a duplicate: the
+isotonic calibrator maps a run of raw scores onto a tie just above 0.1999, so a
+threshold 0.0001 higher drops 2.7% of the cohort out of the flagged set. The
+deployed point sits on the *low* side of that tie deliberately — the
+sensitivity-first policy takes the most sensitive val point that still clears
+the specificity floor.
 
 > **This table is now generated**, by `metrics.threshold_sweep`, with every row
 > computed at the threshold it is labelled with and the deployed point always
@@ -125,16 +133,25 @@ a threshold 0.0002 higher drops 1.3% of the cohort out of the flagged set.
 > recommended had never actually been measured. Generating the table is exactly
 > the fix for that class of error.
 
-**Implication:** retraining helps, but less than re-thresholding. The
-training-loop fixes in [§6](#6-thirteen-bugs-that-only-real-data-exposed) lifted
-external referable sensitivity 0.427 → 0.619 and external AUC 0.875 → 0.901.
-Some of that is a genuine model gain — at *matched* 97.8% specificity,
-sensitivity rose 0.427 → 0.464 — but most of the movement at the deployed point
-came from the threshold itself relocating 0.657 → 0.400. More epochs, bigger
-backbones and heavier augmentation still do not address a label-definition
-mismatch. The fixes remain (a) per-site threshold calibration against a few
-hundred locally-graded images, which the `/audit` endpoint is built to collect,
-or (b) multi-source training with harmonised reference standards.
+**Implication:** the operating point does more work than the weights. Across
+three checkpoints, external referable sensitivity went 0.427 → 0.619 → 0.707 and
+external AUC 0.875 → 0.901 → 0.908. Real discrimination was gained — the AUC is
+threshold-free and it moved — but the larger share of the deployed-point
+improvement came from the threshold relocating 0.657 → 0.400 → 0.200 as the
+selection policy was corrected and then made sensitivity-first.
+
+Critically, **none of those thresholds was chosen by looking at Messidor-2**.
+Each was selected on the validation split; the external numbers stay an honest
+zero-shot measurement. Reading the operating point off the external sweep would
+have produced a slightly better-looking table and destroyed the only claim in
+this document worth making.
+
+More epochs, bigger backbones and heavier augmentation still do not address a
+label-definition mismatch. The remaining fixes are (a) per-site threshold
+calibration against a few hundred locally-graded images, which the `/audit`
+endpoint is built to collect, or (b) multi-source training with harmonised
+reference standards — for which the EyePACS and DDR loaders and `--curate` now
+exist, pending the download.
 
 ---
 
@@ -144,51 +161,71 @@ or (b) multi-source training with harmonised reference standards.
 
 | metric | internal test (n=631) | external / Messidor-2 (n=1,744) |
 |---|---|---|
-| Sensitivity | 0.9754 [0.9500–0.9880] | 0.6193 [0.5739–0.6626] |
-| Specificity | 0.9049 [0.8695–0.9315] | 0.9409 [0.9267–0.9526] |
-| PPV | 0.8935 | 0.7883 |
-| NPV | 0.9782 | 0.8744 |
-| AUC | 0.9862 [0.9760–0.9921] | 0.9013 [0.8833–0.9167] |
-| QWK | 0.8912 [0.8619–0.9149] | 0.6029 [0.5655–0.6364] |
-| Within-one-grade | 0.9620 | 0.9077 |
-| ECE | 0.0332 | 0.0951 |
+| Sensitivity | 0.9859 [0.9644–0.9945] | 0.7068 [0.6635–0.7467] |
+| Specificity | 0.8732 [0.8341–0.9042] | 0.9223 [0.9064–0.9357] |
+| PPV | 0.8642 | 0.7636 |
+| NPV | 0.9870 | 0.8986 |
+| AUC | 0.9883 [0.9790–0.9935] | 0.9082 |
+| QWK | 0.8939 [0.8703–0.9149] | 0.5930 [0.5549–0.6287] |
+| Exact accuracy | 0.8003 [0.7673–0.8296] | 0.6439 [0.6212–0.6661] |
+| Within-one-grade | 0.9604 | 0.8899 |
+| ECE | 0.0280 | 0.1133 |
 
 Intervals are Wilson score for proportions and DeLong for AUC.
+
+### Sight-threatening DR (grade ≥ 3)
+
+| metric | internal test | external / Messidor-2 |
+|---|---|---|
+| **Sensitivity** | **1.0000 [0.9647–1.0000]** (105/105) | **0.9727 [0.9229–0.9907]** (107/110) |
+| Specificity vs grades 0–1 | 0.8732 | 0.9223 |
+| Specificity vs grades 0–2 | 0.5837 | 0.8066 |
+
+Both framings are stated because they differ materially. The 0–2 denominator is
+the honest one for a grade ≥ 3 question; quoting the referable task's own
+specificity against a grade ≥ 3 sensitivity counts flagged grade-2 eyes as true
+positives for a question that treats them as negatives.
 
 ### 4.1 Exact grade assignment is weaker than referral
 
 Referral and grading are two different decision rules over the same logits.
-Referral thresholds P(grade ≥ 2) at 0.3998; the printed grade is the CORN
-cumulative assignment at 0.5. They disagree, and the gap matters:
+Referral thresholds P(grade ≥ 2) at **0.1999**, a value fitted on val; the
+printed grade is the CORN cumulative assignment at a hard-coded **0.5**, which
+nobody has ever fitted. They disagree, and the gap matters:
+
+**Internal test (n=631)**
 
 | true grade | exact-grade recall | referred |
 |---|---|---|
-| 0 | 0.973 (284/292) | 3.1% |
-| 1 | 0.746 (41/55) | 43.6% |
-| 2 | 0.754 (135/179) | 96.1% |
-| **3** | **0.383 (18/47)** | **100%** |
-| **4** | **0.466 (27/58)** | **100%** |
+| 0 | 0.962 (281/292) | 5.1% |
+| 1 | 0.764 (42/55) | 52.7% |
+| 2 | 0.799 (143/179) | 97.8% |
+| **3** | **0.362 (17/47)** | **100%** (47/47) |
+| **4** | **0.379 (22/58)** | **100%** (58/58) |
 
-Internal-test confusion matrix, true grade 3: `[0, 0, 23, 18, 6]` — every
+Internal-test confusion matrix, true grade 3: `[0, 0, 23, 17, 7]` — every
 grade-3 eye lands at grade ≥ 2 and is referred, but 23 of 47 are *labelled*
-moderate. True grade 4: `[1, 3, 16, 11, 27]` — four proliferative eyes are
-labelled grade 0 or 1, yet all 58 still clear the referral threshold, because
-P(referable) reaches 0.3998 well before the grade assignment flips at 0.5.
+moderate. True grade 4: `[0, 3, 17, 16, 22]` — three proliferative eyes are
+labelled grade 1, yet all 58 still clear the referral threshold, because
+P(referable) reaches 0.1999 long before the grade assignment flips at 0.5.
 
 **Read the referral flag, not the printed grade.** The grade is a triage
 convenience; the referral decision is the one that has been validated. Exact
-grade-3 recall in fact *fell* against the previous checkpoint (0.426 → 0.383)
-even as sight-threatening referral rose to 1.000 — the model became better at
-deciding *whether* to refer and no better at saying *how bad* it is.
+grade-3 recall has now *fallen* across two successive checkpoints
+(0.426 → 0.383 → 0.362) while sight-threatening referral rose to 1.000 — the
+system keeps getting better at deciding *whether* to refer and no better at
+saying *how bad* it is. That is a real limitation, not a presentational one,
+and it is the strongest argument for the grade-aware decision rule in
+[§10](#10-what-would-move-the-numbers).
 
 ### Lesion segmentation (IDRiD, 64 training images)
 
 | class | Dice @512 | Dice @1024 | published IDRiD range |
 |---|---|---|---|
-| Microaneurysm | 0.000 | **0.485** | 0.30–0.50 |
-| Haemorrhage | 0.248 | **0.521** | 0.50–0.65 |
-| Hard exudate | 0.272 | **0.575** | 0.70–0.80 |
-| Cotton-wool spot | 0.187 | **0.623** | 0.55–0.70 |
+| Microaneurysm | 0.000 | **0.481** | 0.30–0.50 |
+| Haemorrhage | 0.248 | **0.539** | 0.50–0.65 |
+| Hard exudate | 0.272 | **0.572** | 0.70–0.80 |
+| Cotton-wool spot | 0.187 | **0.628** | 0.55–0.70 |
 | Neovascularisation | — | — | **not annotated in IDRiD** |
 
 Resolution is decisive: at 512 a microaneurysm survives downsampling from
@@ -200,7 +237,7 @@ learned. Proliferative DR is still graded from image features, but the
 *explanation* cannot cite NV as evidence. The channel is now excluded from the
 segmentation loss and recorded in the checkpoint as `supervised_lesion_classes`,
 so the pipeline reports NV as **"not assessed"** rather than as a zero count —
-see bug #11 in [§6](#6-thirteen-bugs-that-only-real-data-exposed).
+see bug #11 in [§6](#6-fifteen-bugs-that-only-real-data-exposed).
 
 ### Landmark localisation
 
@@ -214,12 +251,12 @@ Current checkpoint:
 
 | | value |
 |---|---|
-| Temperature (multiclass CORN NLL) | T = 2.4877 |
-| val ECE, before → after temperature | 0.0587 → 0.0306 |
-| val MCE | 0.2446 → 0.2275 |
-| val Brier | 0.0745 → 0.0654 |
-| **Isotonic on P(referable), out-of-fold** | **0.0153** vs 0.0306 → adopted |
-| Test ECE / external ECE | 0.0332 / 0.0951 |
+| Temperature (multiclass CORN NLL) | T = 2.7080 |
+| val ECE, before → after temperature | 0.0500 → 0.0254 |
+| val MCE | 0.2461 → 0.1453 |
+| val Brier | 0.0701 → 0.0606 |
+| **Isotonic on P(referable), out-of-fold** | **0.0160** vs 0.0254 → adopted |
+| Test ECE / external ECE | 0.0280 / 0.1133 |
 
 Adoption is decided **out-of-fold**, because isotonic scored on its own fitting
 split drives ECE to ~0 by construction and would always look like a win.
@@ -246,34 +283,52 @@ pixel annotations, which the APTOS test split does not have.
 
 | arm | AUC | 95% CI | sens | spec | QWK |
 |---|---|---|---|---|---|
-| **fusion** *(deployed)* | **0.9862** | 0.9760–0.9921 | 0.975 | 0.905 | 0.8912 |
-| cnn_only | 0.9859 | 0.9751–0.9921 | 0.982 | 0.925 | **0.8941** |
-| clinical_only | 0.9329 | 0.9118–0.9492 | 0.891 | 0.830 | 0.7108 |
-| rule_based | 0.9139 | 0.8890–0.9337 | 0.996 | 0.058 | 0.0305 |
+| **cnn** *(deployed)* | **0.9883** | 0.9790–0.9935 | 0.986 | 0.873 | **0.8939** |
+| fusion | 0.9850 | 0.9757–0.9908 | 0.989 | 0.882 | 0.8817 |
+| clinical_only | 0.9272 | 0.9058–0.9441 | 0.880 | 0.813 | 0.6904 |
+| rule_based | 0.9115 | 0.8860–0.9317 | 1.000 | 0.075 | 0.0000 |
 
-Paired DeLong tests against fusion:
+Paired DeLong tests against the deployed arm:
 
-- vs `clinical_only`: fusion higher by 0.0533, **p = 2.3×10⁻⁹** ✅
-- vs `rule_based`: fusion higher by 0.0723, **p = 5.3×10⁻¹²** ✅
-- vs `cnn_only`: difference 0.0003, **p = 0.86 — not significant**
+- vs `fusion`: cnn higher by 0.0032, **p = 0.034** ✅
+- vs `clinical_only`: cnn higher by 0.0610, **p = 1.7×10⁻¹¹** ✅
+- vs `rule_based`: cnn higher by 0.0768, **p = 1.5×10⁻¹²** ✅
 
-**Honest conclusion:** the integrated pipeline decisively beats both classical
-arms and is *statistically tied* with the CNN-only arm on referable-DR
-discrimination (p = 0.86). Under the previous checkpoint the clinical branch at
-least bought a better QWK; it no longer does — `cnn_only` now edges it on QWK
-too (0.8941 vs 0.8912), and on both sensitivity and specificity. On this data
-the clinical-feature branch buys interpretability and an auditable rule trail,
-not measurably better discrimination. The verdict string in
-`outputs/validation/ablation.txt` is generated, not written, and reports this
-as a failure to beat every single technique.
+**Honest conclusion: the fusion arm lost, and the image-only arm is deployed.**
+Across three checkpoints the clinical branch went from a slight QWK advantage,
+to a statistical tie, to a *significant deficit* (p = 0.034). Correcting the
+lesion thresholds — caching features at the same F1-fitted values the live
+pipeline applies, rather than a blanket 0.5 — made the lesion counts sparser
+and more accurate, and the fusion head got worse. The most likely reading is
+that it had been exploiting a spurious regularity in the mis-thresholded
+counts.
+
+**This does not mean the pipeline is not integrated.** The system is still
+end-to-end: quality gate → vessel and lesion segmentation → landmarks →
+clinical features → ordinal grading → lesion-grounded explanation → capacity
+simulation. What changed is that the clinical-feature branch now powers the
+*explanation and the rule trail* rather than the referral score. Every referral
+still ships lesion counts, quadrant maps, 4-2-1 reasoning and a CSME estimate;
+they are simply no longer inputs to the number that decides referral.
+
+Note that `rule_based` reaches sensitivity 1.000 at specificity 0.075 and
+QWK 0.0000 — it refers essentially everyone. That is what a classical
+lesion-criteria arm does without a learned grader, and it is the baseline the
+problem statement's "existing solutions" critique is aimed at.
+
+The verdict string in `outputs/validation/ablation.txt` is generated, not
+written. It now correctly stars `cnn` as the deployed arm — until this run it
+hard-coded `"fusion"` as the reference, which silently dropped the deployed
+model from its own ablation (bug #14 in [§6](#6-fifteen-bugs-that-only-real-data-exposed)).
 
 ---
 
-## 6. Thirteen bugs that only real data exposed
+## 6. Fifteen bugs that only real data exposed
 
 Listed because most are *invisible* failures — they produce a plausible number
-rather than a crash. The first nine were found during the first real-data run;
-the last four came out of asking why grades 3 and 4 were collapsing.
+rather than a crash. The first nine were found during the first real-data run,
+the next four by asking why grades 3 and 4 were collapsing, and the last two
+while correcting a train/serve preprocessing skew.
 
 | # | bug | how it presented |
 |---|---|---|
@@ -328,13 +383,41 @@ evenly between sampler and loss weights so the two compose to full balance
 rather than compounding into ~30× over-weighting; and `severity_breakdown` /
 `threshold_sweep` generated into the validation artefact.
 
-**Effect.** All three arms now select a mid-run epoch (15, 16, 17 of 30) rather
-than the last; under the old criterion every one would have shipped epoch 30,
-where AUC(ref) peaked while QWK was already falling. Sight-threatening referral
-went 0.426/0.431 → **1.000** internally and **0.927** externally. Exact grade-3
+**Effect.** All three arms now select a mid-run epoch rather than the last;
+under the old criterion every one would have shipped epoch 30, where AUC(ref)
+peaked while QWK was already falling. Sight-threatening referral went
+0.426/0.431 → **1.000** internally and **0.973** externally. Exact grade-3
 recall did *not* improve — see [§4.1](#41-exact-grade-assignment-is-weaker-than-referral).
 
-Suite: **36 tests**, `pytest tests/ -q`.
+### Two more, from a train/serve preprocessing skew
+
+Neither is visible in `validation.json`, because `validate.py` reads the same
+cohort images training produced. The skew only exists between the cohort and
+the *live* pipeline, so no metric on either side can see it.
+
+| # | bug | how it presented |
+|---|---|---|
+| 14 | `build_cohort` applied `cv2.COLOR_RGB2BGR` to the output of `to_model_input` | that output is the hybrid feature stack `[CLAHE-green, Ben-Graham, L*]`, not an RGB image, so the conversion reversed planes 0 and 2. The cohort stored the mirror of what `pipeline.py` feeds the same model. Verified empirically: `stored == live[:, :, ::-1]`, channel 1 byte-identical |
+| 15 | Feature caching used a blanket threshold of 0.5 while live inference used the F1-fitted per-class values | the fusion grader was trained on lesion counts it is never served |
+
+A third, found while deploying the CNN arm: `validate.py` registered the
+deployed grader under the literal key `"fusion"` and `compare_arms` defaulted
+`reference="fusion"`, so a run whose deployed arm was `cnn` plus a
+`--arms fusion=...` comparison silently **overwrote the deployed model with the
+comparison arm** and starred it as the integrated pipeline. The deployed model
+never appeared in its own ablation. It only bites when the deployed arm is not
+fusion, which is exactly the change that exposed it. The integrated arm is now
+keyed by the checkpoint's own `arm` field, and a colliding `--arms` label is a
+hard error rather than a silent replacement.
+
+**Consequence.** Bugs #14 and #15 change what `build_cohort` writes, so the
+cohort was rebuilt from `data/raw` and the whole chain retrained — a
+grader-only retrain would have paired a new grader with old-order images. The
+segmentation Dice is unchanged by the swap (a conv net learns whichever order
+it is given consistently), which is the point: the model was never broken, only
+the thing it was served at inference.
+
+Suite: **50 tests**, `pytest tests/ -q`.
 
 ### Effect on deployed behaviour (120 real test images)
 
@@ -365,11 +448,23 @@ the audit log. Neovascularisation remains an unconditional escalation.
 | IDRiD segmentation | lesion masks | 81 (64 train / 17 val) |
 | DRIVE | vessel masks | 40 |
 | **Messidor-2** | **held-out external, never trained on** | 1,748 |
+| EyePACS 2015 | loader ready, **not yet downloaded** | ~88,000 |
+| DDR | loader ready, **not yet downloaded** | 13,673 |
 
 Cohort: 6,047 cases — train 2,925 / val 622 / test 631 / external 1,748, plus
 the segmentation and vessel splits. **Measured subject overlap between the
 grading splits: zero.** `registry.assert_no_leakage` raises `SplitViolation`
 if Messidor-2 reaches the training pool.
+
+Training-grade counts are the binding constraint on the deep CORN conditionals:
+train carries **207 grade-3 and 260 grade-4** images, and task 3 (grade 4 vs 3)
+trains only on that subset — 467 images in total. `scripts/fetch_datasets.py`
+downloads EyePACS and DDR, `registry.load_eyepacs` / `load_ddr` read them, and
+`build_cohort --curate` down-samples over-represented grades in the **training
+split only**, drawing subjects round-robin across sources so grade does not
+correlate with imaging chain. None of that has run yet: both corpora require a
+one-time licence acceptance on their host, so the numbers in this document are
+still APTOS + IDRiD only.
 
 Split discipline: `val` fits the temperature and selects the referral
 threshold; `test` is the internal estimate; `external` has nothing fitted on
@@ -422,25 +517,41 @@ python scripts/build_cohort.py --source real --data-root data/raw --out data/coh
 python scripts/build_cohort.py --source real --data-root data/raw --out data/cohort_seg1024 --size 1024 --workers 12 --only-splits seg_train seg_val
 
 python scripts/train_seg.py --cohort data/cohort_seg1024 --epochs 160 --batch-size 3 --size 1024 --pos-weight 12
-python scripts/precompute_features.py --cohort data/cohort_real --seg outputs/segmentation/best.pt --size 1024 --feature-size 512
+
+# --thr-cohort is not optional: it fits the per-class lesion cut-points the LIVE
+# pipeline applies and caches features at those same values. Without it caching
+# falls back to a blanket 0.5 and the fusion grader learns counts it is never
+# served (bug #15).
+python scripts/precompute_features.py --cohort data/cohort_real --seg outputs/segmentation/best.pt \
+    --size 1024 --feature-size 512 --thr-cohort data/cohort_seg1024
+
 python scripts/train_grader.py --cohort data/cohort_real --arm fusion --epochs 30
 python scripts/train_grader.py --cohort data/cohort_real --arm cnn --epochs 30
 python scripts/train_grader.py --cohort data/cohort_real --arm clinical --epochs 30
 
+# The deployed arm is cnn, so it is the --grader; fusion becomes a comparison
+# arm. --threshold-policy max_sensitivity takes the most sensitive VAL point
+# still clearing the specificity floor.
 python scripts/validate.py --cohort data/cohort_real --seg-cohort data/cohort_seg1024 \
-    --arms cnn_only=outputs/grader_cnn/best.pt clinical_only=outputs/grader_clinical/best.pt
+    --seg outputs/segmentation/best.pt --grader outputs/grader_cnn/best.pt \
+    --arms fusion=outputs/grader_fusion/best.pt clinical_only=outputs/grader_clinical/best.pt \
+    --threshold-policy max_sensitivity
 ```
 
-All three arms must be retrained together whenever the loss or the sampler
-changes — an ablation mixing arms trained under different objectives compares
-nothing. QWK selection and the stratified sampler are defaults; `--select-on`
-and `--no-balanced-sampler` restore the old behaviour for comparison.
+All three arms must be retrained together whenever the loss, the sampler or the
+preprocessing changes — an ablation mixing arms trained under different
+objectives compares nothing, and a grader-only retrain after a cohort change
+pairs a new grader with old images. QWK selection and the stratified sampler are
+defaults; `--select-on`, `--no-balanced-sampler` and `--threshold-policy youden`
+restore the previous behaviours for comparison.
 
 Artefacts: `outputs/validation/` (metrics, ablation, model card),
 `outputs/reports/` (rendered clinical reports), `outputs/artifacts/`
-(deployable bundle), `outputs/logs/` (raw stdout of the runs behind the numbers
-above). Hardware: RTX 5080 — ~25 min per grader arm, ~15 min to validate,
-~1.5 h end to end from a built cohort.
+(deployable bundle, now recording `preprocess_mode` and `channel_order` so it
+cannot be served with the wrong preprocessing silently), `outputs/logs/` (raw
+stdout of every run behind the numbers above). Hardware: RTX 5080 — ~24 min
+segmentation, ~21 min features, ~15 min per grader arm, ~15 min to validate;
+~2 h end to end from `data/raw`.
 
 ---
 
@@ -448,22 +559,33 @@ above). Hardware: RTX 5080 — ~25 min per grader arm, ~15 min to validate,
 
 In descending order of expected value:
 
-1. **Per-site threshold calibration.** A few hundred locally-graded images per
-   deployment site. The ranking already transfers (external AUC 0.901); only
-   the operating point does not. Cheapest fix by a wide margin.
-2. **Multi-source training** across APTOS + Messidor-2 + EyePACS with
-   harmonised grades, to learn a reference standard rather than one panel's
-   habits.
-3. **More lesion annotation.** 64 training images is the binding constraint on
-   segmentation, and no public set annotates neovascularisation.
-4. **Higher grading resolution.** The grader runs at 512; the segmentation
-   result suggests 768–1024 would help early disease.
-5. **A grade-aware decision rule.** Referral is validated; the printed ICDR
+1. **A grade-aware decision rule.** Referral is validated; the printed ICDR
    grade is not (see [§4.1](#41-exact-grade-assignment-is-weaker-than-referral)).
-   Selecting a per-grade set of cut-points on the CORN cumulative probabilities,
-   fitted on val the way the referral threshold already is, would make the
-   displayed grade as trustworthy as the flag.
-6. **Test-time augmentation and ensembling** — reliable but small gains, and
+   The referral threshold is fitted on val and moved 0.5 → 0.1999, which
+   transformed the referral decision. The *grade* boundaries still sit at a
+   hard-coded 0.5 that nobody has ever fitted. Selecting per-boundary cut-points
+   on the CORN cumulative probabilities, on val, is the cheapest remaining fix
+   and needs no new data or retraining — moved to first place because the
+   evidence for it is now three checkpoints deep.
+2. **Per-site threshold calibration.** A few hundred locally-graded images per
+   deployment site. The ranking already transfers (external AUC 0.908); only
+   the operating point does not.
+3. **Download EyePACS and DDR.** The loaders and `--curate` are in place; only
+   the one-time licence acceptance is outstanding. This is the only route that
+   addresses the *supervision* constraint on grades 3–4 (currently 207 and 260
+   training images, with task 3 seeing 467 in total) rather than re-weighting
+   what is already there. Note that oversampling has already been tried: the
+   stratified sampler lifted grades 3–4 from 17% to 27% of every batch and
+   exact grade-3 recall did not improve, which is evidence that the constraint
+   is real data, not gradient share.
+4. **Multi-source training** with harmonised grades, to learn a reference
+   standard rather than one panel's habits — the root cause in [§3](#3-why-moderate-npdr-fails--the-reference-standards-disagree).
+5. **More lesion annotation.** 64 training images is the binding constraint on
+   segmentation, and no public set annotates neovascularisation. Segmentation
+   Dice was still improving at the final epoch, so more epochs may also help.
+6. **Higher grading resolution.** The grader runs at 512; the segmentation
+   result suggests 768–1024 would help early disease.
+7. **Test-time augmentation and ensembling** — reliable but small gains, and
    they cost latency the edge deployment cannot spare.
 
 ---
@@ -479,8 +601,19 @@ In descending order of expected value:
   than as an absent finding, and proliferative DR therefore cannot be excluded
   on lesion evidence — only on the image-level grade.
 - The printed ICDR grade is materially less reliable than the referral flag:
-  exact recall is 0.383 on severe NPDR and 0.466 on proliferative DR, and four
-  of 58 proliferative eyes are *labelled* grade 0–1 while still being referred.
+  exact recall is 0.362 on severe NPDR and 0.379 on proliferative DR, and three
+  of 58 proliferative eyes are *labelled* grade 1 while still being referred.
+  Consume the referral flag, not the grade.
+- The deployed grader is the **image-only** arm. The clinical-feature branch is
+  a significantly weaker discriminator (DeLong p = 0.034) and now serves the
+  explanation and rule trail rather than the referral score, so the lesion
+  counts shown in a report are evidence *for a reader*, not inputs to the
+  decision that flagged the case.
+- Three of 110 sight-threatening eyes are missed on Messidor-2 (one grade 3,
+  two grade 4). External sensitivity on grade ≥ 3 is 0.973, not 1.000. Eleven
+  of 35 proliferative eyes there carry a *printed grade* of 0 or 1 despite most
+  of them being referred — the grade and the flag disagree, and the flag is the
+  validated one.
 - The venous-beading cue runs on a morphological vessel proxy and is
   deliberately conservative, so the 4-2-1 rule's "2" arm under-fires.
 - Cost figures in `DEFAULT_COSTS` are order-of-magnitude inputs, not findings.
