@@ -541,6 +541,74 @@ Artefacts: `outputs/validation_ddr/` (`max_sensitivity`) and
 `outputs/validation_ddr_youden/` (`youden`), with the cohort reproducible via
 `build_cohort --source real --curate`.
 
+### 7.2 Fixing the segmentation domain gap — and what it revealed
+
+[§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke) proposed that the clinical
+arm collapsed because its features come from a segmenter trained only on IDRiD,
+now asked to read a domain it had never seen. DDR ships 532 lesion-annotated
+images (383 train / 149 val) against IDRiD's 81, so the claim was testable.
+
+**The domain gap, measured.** The IDRiD-only checkpoint scores mean Dice
+**0.530 on IDRiD but 0.372 on DDR** — a 30% drop across the gap. That was the
+hypothesis; it is now a number.
+
+Retraining on both corpora (613 images) closes most of it. On 108 held-out DDR
+images, macro Dice:
+
+| class | IDRiD-only | IDRiD+DDR |
+|---|---|---|
+| microaneurysm | 0.3467 | **0.4036** |
+| haemorrhage | 0.3379 | **0.4533** |
+| hard exudate | 0.3513 | **0.5282** |
+| cotton-wool spot | 0.4511 | **0.6567** |
+| **mean** | 0.3718 | **0.5105** |
+
+On the **same 17 IDRiD validation images** it is a wash: 0.5296 → 0.5193 macro,
+0.5547 → 0.5637 micro. So 424 extra training images bought a large gain in the
+new domain and nothing in the old one. The new run had 60 epochs against the
+baseline's 160 and its best epoch was the last, so it is undertrained relative
+to what it is compared against.
+
+Two measurement traps were avoided rather than walked into. The val split grew
+from 17 to 125 images, so a mixed mean against an IDRiD-only baseline would
+credit the model for an easier eval set — the IDRiD subset is scored separately,
+and `group_split` hashes per subject, so the 64/17 IDRiD assignment is identical
+in both cohorts (verified before training). And `training.py` pools pixels
+across the batch (micro-Dice) while a per-image average is macro; the two differ
+by 0.05 on the same checkpoint, so `scripts/eval_segmentation.py` reports both
+and every checkpoint is scored under each.
+
+**Then the features were rebuilt and the feature-dependent arms retrained.** The
+CNN arm is image-only, so it was reused unchanged as a control — and it scored
+0.953315 in both runs, identical to six decimal places. Every difference below
+is therefore attributable to the features alone.
+
+| arm | old segmenter | new segmenter | Δ |
+|---|---|---|---|
+| `cnn` *(control)* | 0.9533 | 0.9533 | — |
+| **`clinical_only`** | 0.8125 | **0.8965** | **+0.084** |
+| **`rule_based`** | 0.7930 | **0.8820** | **+0.089** |
+| `fusion` | 0.9535 | 0.9475 | −0.006 |
+
+The two arms that consume *only* lesion features improved substantially, exactly
+as predicted: `clinical_only` QWK 0.550 → 0.697, and `rule_based` went from
+specificity **0.110 to 0.788** with QWK 0.000 → 0.357 — from referring
+essentially everyone to being a genuinely discriminating classical baseline.
+Lesion-threshold refitting was part of that: the F1-optimal microaneurysm
+cut-point moved 0.6 → 0.9 under the new segmenter, and carrying the old value
+over would have massively over-detected.
+
+**The surprise is `fusion`.** Better features made it slightly *worse*, and it
+now loses to the image-only arm significantly (DeLong p = 0.0397, against
+p = 0.9152 when the features were poorer). Its problem is therefore not feature
+quality — give it demonstrably better lesion counts and it does not improve.
+That points at the fusion head itself rather than at the data feeding it, which
+is a different repair from the one [§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke)
+implied, and it is why the deployed grader remains image-only.
+
+Artefacts: `outputs/validation_ddrseg/`, segmentation in
+`outputs/segmentation_ddr/`, cohort `data/cohort_seg1024_ddr`.
+
 ---
 
 ## 8. Simulink
