@@ -14,8 +14,8 @@ in [§9](#9-reproducing-this).
 
 | | sensitivity | specificity | AUC | QWK | targets |
 |---|---|---|---|---|---|
-| **Internal test** (n=631) | **0.986** | **0.873** | 0.988 | 0.894 | ✅ both met |
-| **External, Messidor-2** (n=1,744) | 0.707 | 0.922 | 0.908 | 0.593 | ❌ sensitivity not met |
+| **Internal test** (n=631) | **0.986** | **0.873** | 0.988 | 0.897 | ✅ both met |
+| **External, Messidor-2** (n=1,744) | 0.707 | 0.922 | 0.908 | 0.649 | ❌ sensitivity not met |
 
 Targets: sensitivity ≥ 90%, specificity ≥ 85% for referable DR (ICDR grade ≥ 2).
 
@@ -23,6 +23,12 @@ Deployed arm: **CNN (image-only ordinal grader)** at referral threshold
 **0.1999**, selected on the validation split under the sensitivity-first policy
 (`--threshold-policy max_sensitivity`). See [§5](#5-ablation--does-the-integrated-pipeline-beat-any-single-technique)
 for why the image-only arm is deployed rather than the fusion arm.
+
+Trained on **APTOS 2019 + IDRiD only**. DDR was added, measured and
+deliberately *not* promoted — see [§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke).
+Grade boundaries are the per-boundary cut-points **[0.30, 0.39, 0.39, 0.36]**
+fitted on val, not the hard-coded 0.5 that shipped previously
+([§4.1](#41-the-printed-grade-and-the-referral-flag-are-different-decisions)).
 
 **The aggregate external sensitivity is misleading on its own.** Split by true
 severity, the misses are almost entirely *moderate* NPDR, not blinding disease:
@@ -166,9 +172,9 @@ exist, pending the download.
 | PPV | 0.8642 | 0.7636 |
 | NPV | 0.9870 | 0.8986 |
 | AUC | 0.9883 [0.9790–0.9935] | 0.9082 |
-| QWK | 0.8939 [0.8703–0.9149] | 0.5930 [0.5549–0.6287] |
-| Exact accuracy | 0.8003 [0.7673–0.8296] | 0.6439 [0.6212–0.6661] |
-| Within-one-grade | 0.9604 | 0.8899 |
+| QWK | 0.8970 [0.8738–0.9169] | 0.6486 [0.6138–0.6812] |
+| Exact accuracy | 0.7861 [0.7524–0.8163] | 0.6411 [0.6183–0.6632] |
+| Within-one-grade | 0.9620 | 0.9140 |
 | ECE | 0.0280 | 0.1133 |
 
 Intervals are Wilson score for proportions and DeLong for AUC.

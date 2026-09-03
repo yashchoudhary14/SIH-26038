@@ -1,6 +1,6 @@
 # Model card -- DR screening pipeline
 
-Generated 2026-09-01 from `outputs/validation/validation.json`. Every number below is read from that file; none is hand-entered.
+Generated 2026-09-03 from `outputs/validation/validation.json`. Every number below is read from that file; none is hand-entered.
 
 ## 1. Intended use
 
@@ -38,8 +38,8 @@ Targets: sensitivity >= 90%, specificity >= 85% for referable DR.
 | PPV | 0.864 (95% CI 0.823-0.897) | 0.764 (95% CI 0.721-0.802) |
 | NPV | 0.987 (95% CI 0.967-0.995) | 0.899 (95% CI 0.881-0.914) |
 | AUC | 0.9883 (0.9790-0.9935) | 0.9082 (0.8903-0.9234) |
-| QWK | 0.8939 | 0.5930 |
-| Within-one-grade | 0.960 (95% CI 0.942-0.973) | 0.890 (95% CI 0.874-0.904) |
+| QWK | 0.8970 | 0.6486 |
+| Within-one-grade | 0.962 (95% CI 0.944-0.974) | 0.914 (95% CI 0.900-0.926) |
 
 Targets met on internal test: sensitivity **yes**, specificity **yes**.
 

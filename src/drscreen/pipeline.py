@@ -105,6 +105,11 @@ class PipelineConfig:
     #: neovascularisation. Assuming full supervision instead would restore the
     #: exact silent failure this field exists to surface.
     supervised_lesion_classes: tuple[str, ...] | None = None
+    #: Per-boundary cut-points on the CORN cumulative probabilities, fitted on
+    #: validation data by ``fit_grade_thresholds``. ``None`` means the un-fitted
+    #: 0.5 default -- what shipped before this field existed, and not a rule
+    #: that any reported metric describes.
+    grade_thresholds: list | None = None
     referral_threshold: float = 0.5      # overwritten by the calibrated value
     defer_band: tuple[float, float] = (0.35, 0.65)
     temperature: float = 1.0
@@ -152,6 +157,7 @@ class DRScreeningPipeline:
             cfg.seg_size = int(meta.get("seg_size", cfg.size))
             cfg.calibrator = meta.get("calibrator")
             cfg.lesion_thresholds = meta.get("lesion_thresholds")
+            cfg.grade_thresholds = meta.get("grade_thresholds")
             cfg.defer_band = tuple(meta.get("defer_band", cfg.defer_band))
             backbone = meta.get("backbone", backbone)
             cfg.model_version = meta.get("model_version", cfg.model_version)
@@ -355,9 +361,15 @@ class DRScreeningPipeline:
         if self.grader is not None:
             c = torch.from_numpy(feats.to_vector()).unsqueeze(0).to(self.device)
             pred = self.grader.predict(x, c, mc_samples=self.cfg.mc_samples,
-                                       temperature=self.cfg.temperature)
+                                       temperature=self.cfg.temperature,
+                                       grade_thresholds=self.cfg.grade_thresholds)
             probs = pred["class_probs"][0].cpu().numpy()
-            res.grade = int(np.argmax(probs))
+            # NOT argmax over the class probabilities. That is a different
+            # decision rule from the ordinal one every metric in this project is
+            # computed with, and the two disagreed on 3.65% of the internal test
+            # split -- with argmax the worse of the pair (QWK 0.8855 vs 0.8939).
+            # The served grade now comes from the same rule that was measured.
+            res.grade = int(pred["grade"][0])
             res.class_probabilities = [round(float(p), 4) for p in probs]
             p_ref = float(pred["referable_prob"][0])
             if self._calibrator is not None:

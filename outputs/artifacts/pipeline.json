@@ -67,6 +67,13 @@
     "hard_exudate": 0.95,
     "soft_exudate": 0.95
   },
+  "grade_thresholds": [
+    0.3,
+    0.39,
+    0.39,
+    0.36
+  ],
+  "grade_objective": "macro_recall",
   "preprocess_mode": "hybrid",
   "channel_order": "CLAHE-green, Ben-Graham, L* (as produced by to_model_input; cohort storage and live inference must match -- see test_train_serve_channel_parity)",
   "size": 512,

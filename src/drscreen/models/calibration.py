@@ -54,7 +54,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..constants import TARGET_SENSITIVITY, TARGET_SPECIFICITY
+from ..constants import (NUM_GRADES, TARGET_SENSITIVITY,
+                         TARGET_SPECIFICITY)
 
 
 # --------------------------------------------------------------------------
@@ -358,6 +359,101 @@ def select_threshold(probs: np.ndarray, labels: np.ndarray,
 
     return OperatingPoint(float(t), float(sens), float(spec), float(ppv),
                           float(npv), bool(meets), rationale)
+
+
+# --------------------------------------------------------------------------
+# Grade decision boundaries
+# --------------------------------------------------------------------------
+#: Objectives available to :func:`fit_grade_thresholds`.
+GRADE_OBJECTIVES = ("macro_recall", "qwk", "exact")
+
+
+def grades_from_cumulative(cum: np.ndarray, thr: np.ndarray) -> np.ndarray:
+    """Numpy twin of ``grader.grade_from_cumulative`` -- first-failure rule.
+
+    Duplicated here rather than imported so the fit, which evaluates the rule
+    thousands of times, does not pay torch tensor overhead per candidate.
+    """
+    out = np.zeros(len(cum), np.int64)
+    for k in range(cum.shape[1]):
+        out += (cum[:, k] > thr[k]) & (out == k)
+    return out
+
+
+def _macro_recall(y: np.ndarray, p: np.ndarray, n_cls: int) -> float:
+    per = [float((p[y == g] == g).mean()) for g in range(n_cls) if (y == g).any()]
+    return float(np.mean(per)) if per else 0.0
+
+
+def fit_grade_thresholds(cum: np.ndarray, y: np.ndarray,
+                         objective: str = "macro_recall",
+                         num_classes: int = NUM_GRADES,
+                         rounds: int = 8,
+                         grid: np.ndarray | None = None) -> np.ndarray:
+    """Fit one decision cut-point per ordinal boundary, on **validation** data.
+
+    The referral threshold has always been fitted; the grade boundaries sat at
+    a hard-coded 0.5 that nobody had ever fitted. That asymmetry showed up as a
+    standing defect -- exact grade-3 recall *fell* across three checkpoints
+    (0.426 -> 0.383 -> 0.362) while referral sensitivity rose to 1.000. The
+    model was ordering severity correctly and the rule reading that ordering
+    was mis-set.
+
+    ``objective`` selects what the cut-points are fitted for, and the choice
+    matters more than the fit:
+
+    * ``macro_recall`` (default) weights every grade equally. It is the only
+      objective measured here that improved grades 3 *and* 4 without collapsing
+      another grade, and "every grade is read correctly" is what a trustworthy
+      printed grade means.
+    * ``qwk`` maximises quadratic weighted kappa. Scores best on QWK, but on
+      this data it bought grade 3 by sacrificing grade 1 (0.764 -> 0.545) and
+      did nothing for grade 4.
+    * ``exact`` maximises plain accuracy. Under this class imbalance that is
+      dominated by grade 0, so it rewards a rule that ignores the rare grades --
+      which is how the un-fitted 0.5 default looked acceptable for so long.
+
+    Fitted by coordinate ascent, which is sufficient for four bounded scalars
+    and, unlike a joint grid, does not cost O(grid^4).
+
+    Returns an array of ``num_classes - 1`` cut-points.
+    """
+    if objective not in GRADE_OBJECTIVES:
+        raise ValueError(f"objective must be one of {GRADE_OBJECTIVES}, got {objective!r}")
+    cum = np.asarray(cum, np.float64)
+    y = np.asarray(y).ravel()
+    keep = y >= 0
+    cum, y = cum[keep], y[keep]
+    if len(y) == 0 or cum.shape[1] != num_classes - 1:
+        return np.full(num_classes - 1, 0.5)
+
+    if objective == "qwk":
+        from ..evaluation.metrics import quadratic_weighted_kappa
+
+        def score(p):
+            return quadratic_weighted_kappa(y, p)
+    elif objective == "exact":
+        def score(p):
+            return float((p == y).mean())
+    else:
+        def score(p):
+            return _macro_recall(y, p, num_classes)
+
+    grid = np.arange(0.05, 0.96, 0.01) if grid is None else np.asarray(grid)
+    thr = np.full(num_classes - 1, 0.5)
+    best = score(grades_from_cumulative(cum, thr))
+    for _ in range(max(1, rounds)):
+        moved = False
+        for k in range(len(thr)):
+            for t in grid:
+                cand = thr.copy()
+                cand[k] = t
+                s = score(grades_from_cumulative(cum, cand))
+                if s > best + 1e-9:
+                    best, thr, moved = s, cand, True
+        if not moved:
+            break
+    return thr
 
 
 def selective_risk_curve(probs: np.ndarray, labels: np.ndarray,

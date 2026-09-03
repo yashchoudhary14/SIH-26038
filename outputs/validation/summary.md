@@ -30,9 +30,9 @@ n = 631
 | Sensitivity | 0.9859 | 0.9644-0.9945 |
 | Specificity | 0.8732 | 0.8341-0.9042 |
 | AUC | 0.9883 | 0.9790-0.9935 |
-| QWK | 0.8939 | 0.8703-0.9149 |
-| Exact accuracy | 0.8003 | 0.7673-0.8296 |
-| Within-one-grade | 0.9604 | 0.9422-0.9730 |
+| QWK | 0.8970 | 0.8738-0.9169 |
+| Exact accuracy | 0.7861 | 0.7524-0.8163 |
+| Within-one-grade | 0.9620 | 0.9440-0.9743 |
 
 ## External validation (zero-shot)
 
@@ -43,7 +43,7 @@ n = 1744. Nothing was fitted on this split.
 | Sensitivity | 0.7068 | 0.6635-0.7467 |
 | Specificity | 0.9223 | 0.9064-0.9357 |
 | AUC | 0.9082 | 0.8903-0.9234 |
-| QWK | 0.5930 | 0.5549-0.6287 |
+| QWK | 0.6486 | 0.6138-0.6812 |
 
 AUC change internal -> external: **-0.0801**
 

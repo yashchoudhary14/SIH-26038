@@ -32,10 +32,11 @@ from drscreen.evaluation.metrics import (evaluate_grading, binary_metrics,
                                          proportion, severity_breakdown,
                                          threshold_sweep)
 from drscreen.models.calibration import (IsotonicCalibrator, TemperatureScaler,
-                                         calibration_report, select_threshold,
-                                         selective_risk_curve)
+                                         calibration_report, fit_grade_thresholds,
+                                         select_threshold, selective_risk_curve)
 from drscreen.models.lesion_features import fit_lesion_thresholds
-from drscreen.models.grader import (DRGrader, corn_class_probs, corn_predict,
+from drscreen.models.grader import (DRGrader, corn_class_probs,
+                                    corn_cumulative_probs, corn_predict,
                                     referable_prob)
 from drscreen.training import collect_logits
 
@@ -59,7 +60,7 @@ def run_split(model, cohort, split, size, use_clinical, workers, device):
 
 
 def summarise(logits: torch.Tensor, labels: torch.Tensor, temperature: float,
-              threshold: float, iso=None) -> dict:
+              threshold: float, iso=None, grade_thresholds=None) -> dict:
     # Drop unlabelled cases. Messidor-2 carries four images its adjudicators
     # marked ungradable and left without a DR grade; scoring them as if -1 were
     # a sixth class silently corrupts the confusion matrix and QWK.
@@ -70,7 +71,11 @@ def summarise(logits: torch.Tensor, labels: torch.Tensor, temperature: float,
         labels = labels[torch.from_numpy(keep)]
     z = logits / temperature
     probs = corn_class_probs(z).numpy()
-    grades = corn_predict(z).numpy()
+    # Grades use the cut-points fitted on val, not a hard-coded 0.5. Passing
+    # None reproduces the old behaviour exactly (the scalar path is identical
+    # to the previous counting rule), so an un-fitted run is still comparable.
+    grades = corn_predict(z, 0.5 if grade_thresholds is None
+                          else grade_thresholds).numpy()
     ref = referable_prob(z).numpy()
     if iso is not None:
         ref = iso(ref)
@@ -106,6 +111,15 @@ def main():
     ap.add_argument("--explain-n", type=int, default=40,
                     help="images used for the explanation-faithfulness study")
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--grade-objective",
+                    choices=["macro_recall", "qwk", "exact"],
+                    default="macro_recall",
+                    help="what the per-boundary GRADE cut-points are fitted for "
+                         "on val. macro_recall weights every grade equally, "
+                         "which is what a trustworthy printed grade means; qwk "
+                         "scores better on QWK but buys grade 3 at grade 1's "
+                         "expense; exact is dominated by grade 0 under this "
+                         "class imbalance.")
     ap.add_argument("--threshold-policy", choices=["youden", "max_sensitivity"],
                     default="youden",
                     help="how to break ties among val thresholds that meet both "
@@ -176,13 +190,25 @@ def main():
                           policy=a.threshold_policy)
     print(f"  threshold = {op.threshold:.4f}   "
           f"sens {op.sensitivity:.3f}  spec {op.specificity:.3f}")
+
+    # The GRADE boundaries, fitted on val like the referral threshold above.
+    # They were a hard-coded 0.5 that nobody had ever fitted, while exact
+    # grade-3 recall fell across three checkpoints and referral sensitivity
+    # rose -- the model ordered severity correctly and the rule reading that
+    # ordering was mis-set. Fitted on val only: fitting them on test or
+    # external would be fitting a decision rule to held-out data.
+    grade_thr = fit_grade_thresholds(
+        corn_cumulative_probs(v_logits / T).numpy(), v_labels.numpy(),
+        objective=a.grade_objective)
+    print(f"  grade cut-points ({a.grade_objective}, val): "
+          + "  ".join(f"P(y>{k}) > {t:.2f}" for k, t in enumerate(grade_thr)))
     print(f"  {op.rationale}")
 
     # ---------------- 2. internal test -------------------------------------
     print("\n[2/5] Internal held-out test")
     t_logits, t_labels, _ = run_split(model, a.cohort, "test", a.size,
                                       use_clinical, a.workers, a.device)
-    test_res = summarise(t_logits, t_labels, T, op.threshold, iso)
+    test_res = summarise(t_logits, t_labels, T, op.threshold, iso, grade_thr)
     print(f"  n = {test_res['n']}   {test_res['referable_summary']}")
     print(f"  QWK {test_res['qwk']['value']:.4f} "
           f"[{test_res['qwk']['lower']:.4f}, {test_res['qwk']['upper']:.4f}]")
@@ -201,7 +227,7 @@ def main():
                 "adjudicated reference standard (Krause et al. 2018) is a "
                 "separate download. Inference and reports work; metrics cannot "
                 "be computed. See docs/DATASETS.md.")
-        ext_res = summarise(e_logits, e_labels, T, op.threshold, iso)
+        ext_res = summarise(e_logits, e_labels, T, op.threshold, iso, grade_thr)
         print(f"  n = {ext_res['n']}   {ext_res['referable_summary']}")
         print(f"  QWK {ext_res['qwk']['value']:.4f}")
         print(f"  ECE {ext_res['calibration']['ece']:.4f}")
@@ -379,6 +405,10 @@ def main():
         "temperature": T,
         "calibrator": (iso.to_dict() if iso is not None else {"kind": "identity"}),
         "lesion_thresholds": lesion_thr or None,
+        # Per-boundary grade cut-points. Without these the served grade uses a
+        # 0.5 that no measurement in this project describes.
+        "grade_thresholds": [round(float(t), 4) for t in grade_thr],
+        "grade_objective": a.grade_objective,
         "preprocess_mode": "hybrid",
         "channel_order": "CLAHE-green, Ben-Graham, L* (as produced by "
                          "to_model_input; cohort storage and live inference must "

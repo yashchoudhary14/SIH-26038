@@ -103,8 +103,54 @@ def corn_class_probs(logits: torch.Tensor) -> torch.Tensor:
     return (upper - lower).clamp_min(0.0)
 
 
-def corn_predict(logits: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
-    return (corn_cumulative_probs(logits) > threshold).sum(dim=1).long()
+def grade_from_cumulative(cum: torch.Tensor, threshold=0.5) -> torch.Tensor:
+    """Grade from cumulative probabilities, stopping at the first failed boundary.
+
+    ``threshold`` is a scalar or a per-boundary sequence of length ``K-1``.
+
+    Counting boundaries independently -- the previous ``(cum > t).sum(1)`` --
+    is identical to this for a *scalar* threshold, because cumulative
+    probabilities are monotone non-increasing so the passes form a prefix. It
+    stops being identical once the thresholds differ per boundary: a low
+    cut-point on a later boundary can pass after an earlier one has failed,
+    yielding a grade no chain of conditionals supports. Stopping at the first
+    failure keeps the prediction inside the ordinal model.
+    """
+    thr = torch.as_tensor(threshold, dtype=cum.dtype, device=cum.device)
+    if thr.ndim == 0:
+        thr = thr.expand(cum.size(1))
+    if thr.numel() != cum.size(1):
+        raise ValueError(
+            f"expected {cum.size(1)} grade thresholds, got {thr.numel()}")
+    passed = cum > thr
+    out = torch.zeros(cum.size(0), dtype=torch.long, device=cum.device)
+    for k in range(cum.size(1)):
+        out = out + (passed[:, k] & (out == k)).long()
+    return out
+
+
+def cumulative_from_class_probs(probs: torch.Tensor) -> torch.Tensor:
+    """P(y > k) recovered from a class-probability vector.
+
+    Lets the ordinal grade rule be applied to an *averaged* posterior -- under
+    MC dropout the samples are averaged as probabilities, and there is no single
+    logit vector that corresponds to that average.
+    """
+    return torch.stack([probs[:, k + 1:].sum(dim=1)
+                        for k in range(probs.size(1) - 1)], dim=1)
+
+
+def corn_predict(logits: torch.Tensor, threshold=0.5) -> torch.Tensor:
+    """Grade from the chained conditionals.
+
+    ``threshold`` is a scalar or a per-boundary sequence. The per-boundary form
+    is the *fitted* decision rule: the referral threshold has always been fitted
+    on validation data, while the grade boundaries sat at a hard-coded 0.5 that
+    nobody had ever fitted, and grade-3 exact recall fell across three
+    checkpoints while referral improved. See
+    :func:`drscreen.models.calibration.fit_grade_thresholds`.
+    """
+    return grade_from_cumulative(corn_cumulative_probs(logits), threshold)
 
 
 def referable_prob(logits: torch.Tensor,
@@ -227,7 +273,8 @@ class DRGrader(nn.Module):
     # -- inference helpers -------------------------------------------------
     @torch.no_grad()
     def predict(self, image: torch.Tensor, clinical: torch.Tensor | None = None,
-                mc_samples: int = 0, temperature: float = 1.0) -> dict:
+                mc_samples: int = 0, temperature: float = 1.0,
+                grade_thresholds=None) -> dict:
         """Return grade, class probabilities, referable probability, uncertainty.
 
         ``mc_samples > 0`` keeps dropout active and samples the posterior, so
@@ -258,9 +305,23 @@ class DRGrader(nn.Module):
         expected = (mean * grades).sum(dim=1)
         p_ref = mean[:, REFERABLE_THRESHOLD:].sum(dim=1)
         entropy = -(mean.clamp_min(1e-9).log() * mean).sum(dim=1)
+
+        # The grade comes from the ordinal rule, NOT from argmax over the class
+        # probabilities. Those are two different decision rules over the same
+        # model and they disagreed on 3.65% of the internal test split, with
+        # argmax the worse of the two (QWK 0.8855 vs 0.8939). Every metric this
+        # project reports is computed with the ordinal rule, so an argmax
+        # deployment served a grade that no measurement described.
+        #
+        # Derived from the averaged posterior rather than from logits so that
+        # MC-dropout sampling stays coherent: the samples are averaged as
+        # probabilities and no single logit vector corresponds to that average.
+        cum = cumulative_from_class_probs(mean)
+        grade = grade_from_cumulative(
+            cum, 0.5 if grade_thresholds is None else grade_thresholds)
         return {
             "class_probs": mean,
-            "grade": mean.argmax(dim=1),
+            "grade": grade,
             "expected_grade": expected,
             "referable_prob": p_ref,
             "entropy": entropy,
