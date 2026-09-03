@@ -22,3 +22,55 @@ All images are seed-reproducible: `from drscreen.data.synthetic import generate`
 **Exact-grade matches: 10/12.** Sight-threatening (true grade >= 2) correctly referred: 6/6.
 
 Grade 3 (severe NPDR) is never predicted exactly here — it collapses to the adjacent grade 2 or 4 — but is still correctly flagged refer/urgent. This is the known open issue on branch `fix/sight-threatening-grades`.
+
+The predicted **grade is deterministic** (same on every machine, every run). Only the
+confidence / P(refer) numbers move slightly between runs (MC-dropout), so on the two
+borderline grade-1 cases the *decision wording* may flip between `auto_report` and
+`defer_to_human` — the grade stays 1.
+
+---
+
+## Run it on a fresh clone (verified end-to-end)
+
+```bash
+# 1. clone
+git clone -b ppt_related https://github.com/yashchoudhary14/SIH-26038.git
+cd SIH-26038
+
+# 2. environment (Python 3.11)
+python3.11 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# 3. install PyTorch — pick ONE:
+pip install torch torchvision                                             # Mac / CPU-only laptop
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128   # NVIDIA GPU
+
+# 4. install the rest
+pip install -r requirements.txt && pip install -e .
+```
+
+The trained model weights (`outputs/artifacts/*.pt`) are committed, so no download or
+training is needed.
+
+**Demo option A — browser UI (best for presenting):**
+
+```bash
+python -m uvicorn drscreen.api:app --port 8000
+```
+
+Open http://localhost:8000, upload any image from `outputs/verification_set/images/`,
+and read the grade + referral decision + Grad-CAM++ heatmap live.
+
+**Demo option B — grade all 12 at once and save reports:**
+
+```bash
+python scripts/run_demo.py --dir outputs/verification_set/images --out demo_out
+```
+
+Prints the grade per image and writes a heatmap panel + HTML report into `demo_out/`.
+Compare each printed grade against the filename and the table above.
+
+**Grade your own image:**
+
+```bash
+python scripts/run_demo.py --image path/to/fundus.jpg --out demo_out
+```
