@@ -28,7 +28,7 @@ Trained on **APTOS 2019 + IDRiD only**. DDR was added, measured and
 deliberately *not* promoted — see [§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke).
 Grade boundaries are the per-boundary cut-points **[0.30, 0.39, 0.39, 0.36]**
 fitted on val, not the hard-coded 0.5 that shipped previously
-([§4.1](#41-the-printed-grade-and-the-referral-flag-are-different-decisions)).
+([§4.1](#41-exact-grade-assignment-is-weaker-than-referral)).
 
 **The aggregate external sensitivity is misleading on its own.** Split by true
 severity, the misses are almost entirely *moderate* NPDR, not blinding disease:
@@ -195,34 +195,90 @@ positives for a question that treats them as negatives.
 ### 4.1 Exact grade assignment is weaker than referral
 
 Referral and grading are two different decision rules over the same logits.
-Referral thresholds P(grade ≥ 2) at **0.1999**, a value fitted on val; the
-printed grade is the CORN cumulative assignment at a hard-coded **0.5**, which
-nobody has ever fitted. They disagree, and the gap matters:
+Referral thresholds P(grade ≥ 2) at **0.1999**; the printed grade uses the
+per-boundary cut-points **[0.30, 0.39, 0.39, 0.36]**. Both are fitted on val
+(see [§4.2](#42-every-cut-point-in-the-decision-path-is-fitted)), but they
+answer different questions and they disagree:
 
 **Internal test (n=631)**
 
 | true grade | exact-grade recall | referred |
 |---|---|---|
-| 0 | 0.962 (281/292) | 5.1% |
-| 1 | 0.764 (42/55) | 52.7% |
-| 2 | 0.799 (143/179) | 97.8% |
-| **3** | **0.362 (17/47)** | **100%** (47/47) |
-| **4** | **0.379 (22/58)** | **100%** (58/58) |
+| 0 | 0.938 (274/292) | 5.1% |
+| 1 | 0.709 (39/55) | 52.7% |
+| 2 | 0.765 (137/179) | 97.8% |
+| **3** | **0.447 (21/47)** | **100%** (47/47) |
+| **4** | **0.431 (25/58)** | **100%** (58/58) |
 
-Internal-test confusion matrix, true grade 3: `[0, 0, 23, 17, 7]` — every
-grade-3 eye lands at grade ≥ 2 and is referred, but 23 of 47 are *labelled*
-moderate. True grade 4: `[0, 3, 17, 16, 22]` — three proliferative eyes are
-labelled grade 1, yet all 58 still clear the referral threshold, because
-P(referable) reaches 0.1999 long before the grade assignment flips at 0.5.
+**Messidor-2, external (n=1,744)**
+
+| true grade | exact-grade recall | referred |
+|---|---|---|
+| 0 | 0.926 (942/1017) | 6.1% |
+| 1 | 0.144 (39/270) | 14.1% |
+| 2 | 0.277 (96/347) | 62.2% |
+| **3** | **0.333 (25/75)** | **98.7%** (74/75) |
+| **4** | **0.457 (16/35)** | **94.3%** (33/35) |
+
+Internal-test confusion, true grade 3: `[0, 0, 18, 21, 8]` — every grade-3 eye
+lands at grade ≥ 2 and is referred, but 18 of 47 are *labelled* moderate. True
+grade 4: `[0, 2, 14, 17, 25]` — two proliferative eyes are labelled grade 1, yet
+all 58 clear the referral threshold, because P(referable) reaches 0.1999 long
+before the grade assignment resolves.
 
 **Read the referral flag, not the printed grade.** The grade is a triage
-convenience; the referral decision is the one that has been validated. Exact
-grade-3 recall has now *fallen* across two successive checkpoints
-(0.426 → 0.383 → 0.362) while sight-threatening referral rose to 1.000 — the
-system keeps getting better at deciding *whether* to refer and no better at
-saying *how bad* it is. That is a real limitation, not a presentational one,
-and it is the strongest argument for the grade-aware decision rule in
-[§10](#10-what-would-move-the-numbers).
+convenience; the referral decision is what has been validated. Fitting the
+boundaries reversed a three-checkpoint decline in grade-3 exact recall
+(0.426 → 0.383 → 0.362 → **0.447**), and lifted external QWK 0.593 → 0.649 with
+every diseased grade improving. It did not close the gap: 0.333 on external
+grade 3 is still far below the 98.7% of those eyes that get referred.
+
+The two failure shapes are different, and [§3](#3-why-moderate-npdr-fails--the-reference-standards-disagree)
+separates them. Grades 3 and 4 are weak on **both** splits — a training-volume
+limit (207 and 260 images). Grades 1 and 2 are fine internally (0.709, 0.765)
+and collapse externally (0.144, 0.277) — a label-definition limit, since a
+Messidor-2 "moderate" carries fewer lesions than an APTOS "mild".
+
+### 4.2 Every cut-point in the decision path is fitted
+
+The referral threshold was fitted from the start; everything else was a
+hard-coded default that no measurement described. Each one is now selected on
+the **validation split only** — never on test or external, which would fit a
+decision rule to held-out data and void the zero-shot claim.
+
+| decision | value | fitted on | what it replaced |
+|---|---|---|---|
+| referral | 0.1999 on P(y>1) | val, sensitivity-first | — |
+| **urgency** | **0.1184 on P(y>2)** | val, sensitivity-first | `predicted grade ≥ 3` |
+| grade boundaries | [0.30, 0.39, 0.39, 0.36] | val, macro-recall | a hard-coded 0.5 |
+| lesion detection | per-class F1-optimal | held-out IDRiD | a blanket 0.5 |
+| calibration | T = 2.708 + isotonic | val, out-of-fold | none |
+
+**The urgency tier was the last one.** It fired on the predicted grade — the
+least reliable output the system has — so expedited review was gated by a
+number with 0.333 external accuracy:
+
+| Messidor-2 urgent tier | sensitivity | specificity | urgent flags |
+|---|---|---|---|
+| `predicted grade ≥ 3` | 0.5091 (56/110) | 0.9969 | 61 |
+| **`P(y>2) ≥ 0.1184`** | **0.7818 (86/110)** | 0.9670 | 140 |
+
+**30 more sight-threatening eyes reach the expedited queue**, for 79 extra
+urgent flags out of 1,744. Those 30 were never being missed — the screening
+decision catches 97.3% of sight-threatening disease — they were being queued as
+routine. This fixes the priority, not the detection.
+
+**The screening decision does not move**, which was predicted before the run
+rather than observed after it: referral is P(y>1) against its own threshold, and
+urgency only re-ranks cases already being referred. Messidor-2 sensitivity
+0.7068, specificity 0.9223, AUC 0.9082 — identical to four decimals either side
+of the change.
+
+Urgency is a strict sub-tier of referral: a case that is not referred is never
+urgent. That guarantee is free, because P(y>2) ≤ P(y>1) by construction, so
+anything clearing the urgent cut already clears referral — measured identical
+(0.7818/0.9670) with and without the constraint, and asserted in the tests
+rather than assumed.
 
 ### Lesion segmentation (IDRiD, 64 training images)
 
@@ -423,7 +479,7 @@ segmentation Dice is unchanged by the swap (a conv net learns whichever order
 it is given consistently), which is the point: the model was never broken, only
 the thing it was served at inference.
 
-Suite: **50 tests**, `pytest tests/ -q`.
+Suite: **74 tests**, `pytest tests/ -q`.
 
 ### Effect on deployed behaviour (120 real test images)
 
@@ -719,6 +775,53 @@ rather than off the rebuilt model: the constructor default is now 0.5, so a
 live attribute would report 0.5 for a checkpoint trained long before the flag
 existed. Checkpoints written from now on record it.
 
+### 7.4 Merging grades 3 and 4 — helps at report time, hurts as a retrain
+
+Grades 3 and 4 lead to the same clinical action, and the boundary between them
+is neovascularisation, which no corpus here annotates — so the model is asked to
+split on evidence it cannot perceive, using its thinnest data (CORN's task-3
+conditional trains on grades 3-4 only). Merging them is therefore the obvious
+way to make the printed grade honest without acquiring more data.
+
+Two ways to do it, and they do **not** give the same answer. Both scored on the
+same 4-class ground truth, because a 4-class task is easier than a 5-class one
+and a natively-4-class model would otherwise "win" by construction.
+
+**Messidor-2 (n=1,744)**
+
+| | 5-class, collapsed at report | 4-class, trained natively |
+|---|---|---|
+| 0 no DR (1017) | 942 — 0.926 | 946 — 0.930 |
+| 1 mild (270) | **39 — 0.144** | 35 — 0.130 |
+| 2 moderate (347) | **96 — 0.277** | 71 — 0.205 |
+| **3+ sight-threatening (110)** | **56 — 0.509** | 44 — 0.400 |
+| overall exact | **1133 — 0.650** | 1096 — 0.628 |
+| QWK | **0.6356** | 0.6151 |
+
+**Merging at report time helps.** Against the 5-class output, where grade 3
+scores 25/75 and grade 4 scores 16/35 (41/110 = 0.373 exact), collapsing gives
+**56/110 = 0.509** — 15 more patients correct, purely from no longer penalising
+3↔4 confusions the model was never equipped to make. It costs nothing and needs
+no retraining.
+
+**Retraining for it hurts.** The native 4-class model is worse on Messidor-2 on
+every metric, despite the easier task. The tell is grade **2**, which the merge
+does not touch and which still falls 0.277 → 0.205: the loss is a training
+effect, not a reporting one. The fifth class appears to act as free supervision
+— forcing the network to model the 3-vs-4 boundary regularises the
+representation even though the distinction is discarded at output. "Train
+fine-grained, predict coarse."
+
+On the *decisions* the two are tied — referable sensitivity 0.7068 vs 0.7265,
+sight-threatening 0.7818 vs 0.7727 on Messidor-2 — which is structural: both
+decisions read boundaries *below* the merge, so removing the last boundary
+cannot move them. The 4-class model loses only on grade assignment.
+
+**Deployed: the 5-class grader, unchanged.** `--merge-severe` exists so the
+negative result stays reproducible, not because it is used.
+
+Artefacts: `outputs/grader_cnn_merged/`.
+
 ---
 
 ## 8. Simulink
@@ -807,34 +910,26 @@ segmentation, ~21 min features, ~15 min per grader arm, ~15 min to validate;
 
 In descending order of expected value:
 
-1. **A grade-aware decision rule.** Referral is validated; the printed ICDR
-   grade is not (see [§4.1](#41-exact-grade-assignment-is-weaker-than-referral)).
-   The referral threshold is fitted on val and moved 0.5 → 0.1999, which
-   transformed the referral decision. The *grade* boundaries still sit at a
-   hard-coded 0.5 that nobody has ever fitted. Selecting per-boundary cut-points
-   on the CORN cumulative probabilities, on val, is the cheapest remaining fix
-   and needs no new data or retraining — moved to first place because the
-   evidence for it is now three checkpoints deep.
-2. **Per-site threshold calibration.** A few hundred locally-graded images per
+1. **Per-site threshold calibration.** A few hundred locally-graded images per
    deployment site. The ranking already transfers (external AUC 0.908); only
    the operating point does not.
-3. **Re-fit calibration on a source-balanced val split.** DDR improved
+2. **Re-fit calibration on a source-balanced val split.** DDR improved
    discrimination transfer (internal→external AUC gap 0.080 → 0.041) while
    degrading calibration transfer (external specificity 0.922 → 0.753), because
    val became DDR-dominated. Selecting the temperature and isotonic fit on a
    val subsample balanced across sources should recover the operating point
    without giving up the grading gains — the cheapest way to make the DDR model
    deployable.
-4. **Download EyePACS.** DDR is done ([§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke));
+3. **Download EyePACS.** DDR is done ([§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke));
    EyePACS still needs its one-time licence acceptance. It would add ~3,200
    grade-3 and ~2,600 grade-4 images, and — unlike DDR — enough grade-3 volume
    to matter, since DDR carries only 236 in total.
-5. **Multi-source training** with harmonised grades, to learn a reference
+4. **Multi-source training** with harmonised grades, to learn a reference
    standard rather than one panel's habits — the root cause in [§3](#3-why-moderate-npdr-fails--the-reference-standards-disagree).
-6. **Higher grading resolution.** The grader runs at 512; the segmentation
+5. **Higher grading resolution.** The grader runs at 512; the segmentation
    result suggests 768–1024 would help early disease. Segmentation Dice was
    still improving at the final epoch, so more epochs may also help.
-7. **Test-time augmentation and ensembling** — reliable but small gains, and
+6. **Test-time augmentation and ensembling** — reliable but small gains, and
    they cost latency the edge deployment cannot spare.
 
 **Done since this list was first written**, both with their results recorded
@@ -846,6 +941,22 @@ above rather than assumed:
 * *Fix the fusion head* — [§7.3](#73-the-fusion-arm-was-starving-its-own-backbone).
   Modality dropout restored the under-trained backbone from AUC 0.864 to 0.952
   and turned the clinical branch from a substitute into an additive contribution.
+* *A grade-aware decision rule* — [§4.1](#41-exact-grade-assignment-is-weaker-than-referral),
+  [§4.2](#42-every-cut-point-in-the-decision-path-is-fitted). Fitting the grade
+  boundaries on val reversed a three-checkpoint decline in grade-3 exact recall
+  (0.362 → 0.447) and lifted external QWK 0.593 → 0.649, with every diseased
+  grade improving. It also removed a second defect found on the way: the
+  pipeline assigned the grade with `argmax(class_probs)` while every metric used
+  the ordinal rule, and the two disagreed on 3.65% of the internal test split —
+  with argmax the worse of the pair.
+* *Fit the urgency threshold* — [§4.2](#42-every-cut-point-in-the-decision-path-is-fitted).
+  The last hard-coded cut-point in the decision path. Sight-threatening eyes
+  reaching the expedited queue went 56/110 → 86/110, with the screening decision
+  unchanged to four decimals.
+* *Merge grades 3 and 4* — [§7.4](#74-merging-grades-3-and-4--helps-at-report-time-hurts-as-a-retrain).
+  Helps at report time (0.373 → 0.509 exact on sight-threatening) and hurts as a
+  retrain: a natively-4-class model is worse on Messidor-2 on every metric,
+  including grade 2, which the merge does not touch.
 * *Check whether the deployed fusion checkpoint is co-adapted too* —
   [§7.3](#73-the-fusion-arm-was-starving-its-own-backbone). It is not: backbone
   deficit +0.0005. The expected answer was that it would be, and it was wrong;
@@ -865,9 +976,11 @@ above rather than assumed:
   so the model cannot detect it. It is now reported as **"not assessed"** rather
   than as an absent finding, and proliferative DR therefore cannot be excluded
   on lesion evidence — only on the image-level grade.
-- The printed ICDR grade is materially less reliable than the referral flag:
-  exact recall is 0.362 on severe NPDR and 0.379 on proliferative DR, and three
-  of 58 proliferative eyes are *labelled* grade 1 while still being referred.
+- The printed ICDR grade is materially less reliable than the referral flag.
+  With the boundaries fitted, internal exact recall is 0.447 on severe NPDR and
+  0.431 on proliferative DR; on Messidor-2 it is 0.333 and 0.457. Two of 58
+  proliferative eyes are *labelled* grade 1 internally while still being
+  referred. Consume the referral flag and the urgency tier, not the grade.
   Consume the referral flag, not the grade.
 - The deployed grader is the **image-only** arm. The clinical-feature branch is
   a significantly weaker discriminator (DeLong p = 0.034) and now serves the
