@@ -199,20 +199,6 @@ footer a{color:var(--muted)}
 /* offline-only additions */
 .badgeoff{font-size:11px;color:#cdbcff;background:rgba(124,92,255,.12);
   border:1px solid rgba(124,92,255,.35);padding:5px 11px;border-radius:999px}
-.gal{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:16px 0 6px}
-@media(max-width:900px){.gal{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:520px){.gal{grid-template-columns:repeat(2,1fr)}}
-.gcard{cursor:pointer;border:1px solid var(--line2);border-radius:12px;overflow:hidden;
-  background:var(--panel);transition:.15s;position:relative}
-.gcard:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
-.gcard.sel{border-color:var(--accent);box-shadow:0 0 0 2px rgba(76,141,255,.4)}
-.gcard img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#000}
-.gcard .cc{padding:9px 10px;text-align:center}
-.gcard .cc .nm{font-size:12.5px;font-weight:600}
-.galhint{color:var(--faint);font-size:12px;text-align:center;margin:2px 0 4px}
-.or{display:flex;align-items:center;gap:14px;color:var(--faint);font-size:12px;
-  letter-spacing:1px;text-transform:uppercase;margin:20px 0 4px}
-.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
 </style>
 </head>
 <body>
@@ -259,10 +245,6 @@ footer a{color:var(--muted)}
   <div class="hint">
     <span>Demo images are in</span><code>outputs/verification_set/demo_images/</code><span>— image1.png … image12.png</span>
   </div>
-
-  <div class="or">or pick one below</div>
-  <div class="gal" id="gallery"></div>
-  <div class="galhint">10 of 12 grade exactly right; the two severe-NPDR cases are correctly referred (urgent) but read as an adjacent grade — the known limitation.</div>
 
   <div class="note err" id="error"></div>
 
@@ -384,18 +366,6 @@ function badgeQ(o){ const m={good:'#7ee2a8',borderline:'#f5c877',ungradeable:'#f
 // FNV-1a 32-bit over the raw file bytes (matches the Python build step)
 function fnv1a(bytes){ let h=0x811c9dc5; for(let i=0;i<bytes.length;i++){ h^=bytes[i]; h=Math.imul(h,0x01000193)>>>0; } return (h>>>0).toString(); }
 
-// gallery (neutral: Image 1..N, no grade shown)
-const gal = $('#gallery');
-gal.innerHTML = ORDER.map(k=>{
-  const c=DATA[k];
-  return '<div class="gcard" data-k="'+k+'"><img src="'+c.thumb+'" alt="'+c.label+'">'+
-    '<div class="cc"><div class="nm">'+c.label+'</div></div></div>';
-}).join('');
-gal.querySelectorAll('.gcard').forEach(el=>el.onclick=()=>{
-  gal.querySelectorAll('.gcard').forEach(x=>x.classList.remove('sel'));
-  el.classList.add('sel'); render(el.dataset.k, DATA[el.dataset.k].file);
-});
-
 // upload
 const fileEl=$('#file'), drop=$('#drop');
 drop.onclick=()=>fileEl.click();
@@ -498,7 +468,7 @@ function render(k, shownName){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-$('#reset').onclick=()=>{ $('#results').classList.remove('show'); fileEl.value=''; gal.querySelectorAll('.gcard').forEach(x=>x.classList.remove('sel')); window.scrollTo({top:0,behavior:'smooth'}); };
+$('#reset').onclick=()=>{ $('#results').classList.remove('show'); fileEl.value=''; window.scrollTo({top:0,behavior:'smooth'}); };
 </script>
 </body>
 </html>
