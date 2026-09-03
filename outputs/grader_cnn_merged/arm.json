@@ -1,0 +1,11 @@
+{
+  "arm": "cnn",
+  "use_clinical": false,
+  "clinical_dropout": 0.5,
+  "num_classes": 4,
+  "merge_severe": true,
+  "best_metric": 0.9236880241768889,
+  "best_epoch": 23,
+  "select_on": "qwk",
+  "balanced_sampler": true
+}

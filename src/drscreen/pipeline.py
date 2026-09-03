@@ -69,6 +69,9 @@ class ScreeningResult:
     clinical_features: dict = field(default_factory=dict)
     evidence: list = field(default_factory=list)
     rule_based_grade: int = -1
+    #: P(grade >= 3), the quantity the urgency tier is decided on. Distinct
+    #: from ``referable_probability`` = P(grade >= 2), which decides referral.
+    sight_threatening_probability: float = 0.0
     rule_based_reasons: list = field(default_factory=list)
     agreement: str = ""
     recapture_advice: list = field(default_factory=list)
@@ -111,6 +114,16 @@ class PipelineConfig:
     #: that any reported metric describes.
     grade_thresholds: list | None = None
     referral_threshold: float = 0.5      # overwritten by the calibrated value
+    #: Cut-point on P(grade >= 3) for the URGENT tier, fitted on validation
+    #: data like every other threshold here. ``None`` falls back to the old
+    #: rule, ``predicted grade >= 3``, which keys the urgency tier off the
+    #: least reliable output the model has: on Messidor-2 that rule reaches
+    #: sensitivity 0.509 against 0.782 for a fitted cut-point, so it leaves 30
+    #: of 110 sight-threatening patients in the routine queue. Urgency stays a
+    #: strict sub-tier of referral -- a case that is not referred is never
+    #: urgent -- which measurement shows costs nothing, since every case the
+    #: fitted threshold escalates is already above the referral threshold.
+    urgent_threshold: float | None = None
     defer_band: tuple[float, float] = (0.35, 0.65)
     temperature: float = 1.0
     mc_samples: int = 8
@@ -158,6 +171,7 @@ class DRScreeningPipeline:
             cfg.calibrator = meta.get("calibrator")
             cfg.lesion_thresholds = meta.get("lesion_thresholds")
             cfg.grade_thresholds = meta.get("grade_thresholds")
+            cfg.urgent_threshold = meta.get("urgent_threshold")
             cfg.defer_band = tuple(meta.get("defer_band", cfg.defer_band))
             backbone = meta.get("backbone", backbone)
             cfg.model_version = meta.get("model_version", cfg.model_version)
@@ -371,6 +385,8 @@ class DRScreeningPipeline:
             # The served grade now comes from the same rule that was measured.
             res.grade = int(pred["grade"][0])
             res.class_probabilities = [round(float(p), 4) for p in probs]
+            res.sight_threatening_probability = float(
+                probs[SIGHT_THREATENING_THRESHOLD:].sum())
             p_ref = float(pred["referable_prob"][0])
             if self._calibrator is not None:
                 p_ref = float(self._calibrator(np.array([p_ref]))[0])
@@ -489,8 +505,20 @@ class DRScreeningPipeline:
         if feats.nv_at_disc or feats.nv_elsewhere:
             return "refer", "urgent"
 
+        # The urgent tier is decided on P(grade >= 3) against a threshold
+        # fitted on validation data -- not on the predicted grade. Keying it to
+        # the grade meant the scarcest, least reliable output in the system
+        # gated expedited review: on Messidor-2 that rule caught 56 of 110
+        # sight-threatening eyes, where the fitted cut-point catches 86. The
+        # other 30 were still referred, just queued as routine.
+        #
+        # None keeps the old grade rule so a bundle written before this field
+        # existed behaves exactly as it did.
         if not confidently_negative:
-            if res.grade >= SIGHT_THREATENING_THRESHOLD:
+            urgent = (res.grade >= SIGHT_THREATENING_THRESHOLD
+                      if self.cfg.urgent_threshold is None else
+                      res.sight_threatening_probability >= self.cfg.urgent_threshold)
+            if urgent:
                 return "refer", "urgent"
             if res.dme_risk >= 2:
                 return "refer", "urgent"

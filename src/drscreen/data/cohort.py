@@ -102,7 +102,7 @@ class CohortDataset(Dataset):
     def __init__(self, root: str | Path, split: str, size: int = 384,
                  train: bool = True, augment: bool = True,
                  with_masks: bool = False, with_features: bool = False,
-                 feature_mode: str = "predicted"):
+                 feature_mode: str = "predicted", merge_severe: bool = False):
         self.root = Path(root)
         self.records = read_manifest(self.root, split)
         self.size = size
@@ -110,6 +110,7 @@ class CohortDataset(Dataset):
         self.with_masks = with_masks
         self.with_features = with_features
         self.feature_mode = feature_mode
+        self.merge_severe = merge_severe
         self.aug = FundusAugment(size, train=train and augment)
         if not self.records:
             raise ValueError(f"No records for split '{split}' under {self.root}")
@@ -117,8 +118,27 @@ class CohortDataset(Dataset):
     def __len__(self) -> int:
         return len(self.records)
 
+    def _map_grade(self, g: int) -> int:
+        """Collapse grade 4 into grade 3 when ``merge_severe`` is set.
+
+        Severe NPDR and proliferative DR lead to the same clinical action --
+        urgent referral -- and the boundary between them is neovascularisation,
+        which no corpus here annotates: the segmenter has never seen an NV pixel
+        and the report says so on every case. So the model is asked to draw a
+        line using evidence it cannot perceive, on the thinnest data it has
+        (CORN's task-3 conditional trains on grades 3-4 only).
+
+        Merging them turns that conditional into a single class. Grade 0 is
+        untouched -- it is the best-supported class in the cohort and the reason
+        the system can decline to refer.
+
+        ``-1`` (ungradable, e.g. Messidor-2's four excluded images) passes
+        through unchanged so it is still filtered downstream.
+        """
+        return 3 if (self.merge_severe and g == 4) else g
+
     def grades(self) -> np.ndarray:
-        return np.array([r.grade for r in self.records], np.int64)
+        return np.array([self._map_grade(r.grade) for r in self.records], np.int64)
 
     def __getitem__(self, idx: int) -> dict:
         r = self.records[idx]
@@ -144,7 +164,7 @@ class CohortDataset(Dataset):
 
         out = {
             "image": to_tensor(img_aug),
-            "grade": torch.tensor(int(r.grade), dtype=torch.long),
+            "grade": torch.tensor(int(self._map_grade(r.grade)), dtype=torch.long),
             "quality_label": torch.tensor(int(r.quality_label), dtype=torch.long),
             "fov_mask": torch.from_numpy((fov > 0).astype(np.float32))[None],
             "index": torch.tensor(idx, dtype=torch.long),

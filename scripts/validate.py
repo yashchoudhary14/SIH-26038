@@ -202,6 +202,23 @@ def main():
         objective=a.grade_objective)
     print(f"  grade cut-points ({a.grade_objective}, val): "
           + "  ".join(f"P(y>{k}) > {t:.2f}" for k, t in enumerate(grade_thr)))
+
+    # The URGENT tier, fitted on val on its own boundary. It was previously
+    # decided by `predicted grade >= 3`, which keys expedited review to the
+    # least reliable output the model has -- on Messidor-2 that rule reached
+    # sensitivity 0.509 where a fitted cut-point reaches 0.782, leaving 30 of
+    # 110 sight-threatening patients in the routine queue. They were still
+    # referred; they just were not prioritised.
+    #
+    # This does NOT change the screening decision. Referral is P(y>1) against
+    # its own threshold and is untouched; urgency only re-ranks cases that are
+    # already being referred.
+    v_st = corn_cumulative_probs(v_logits / T).numpy()[:, SIGHT_THREATENING_THRESHOLD - 1]
+    y_val_st = (v_labels.numpy() >= SIGHT_THREATENING_THRESHOLD).astype(int)
+    op_urgent = select_threshold(v_st, y_val_st, TARGET_SENSITIVITY,
+                                 TARGET_SPECIFICITY, policy=a.threshold_policy)
+    print(f"  urgent threshold = {op_urgent.threshold:.4f} on P(grade>=3)   "
+          f"val sens {op_urgent.sensitivity:.3f}  spec {op_urgent.specificity:.3f}")
     print(f"  {op.rationale}")
 
     # ---------------- 2. internal test -------------------------------------
@@ -409,6 +426,9 @@ def main():
         # 0.5 that no measurement in this project describes.
         "grade_thresholds": [round(float(t), 4) for t in grade_thr],
         "grade_objective": a.grade_objective,
+        # Urgency tier cut-point. Without it the pipeline falls back to
+        # `predicted grade >= 3`, which halves the tier's sensitivity.
+        "urgent_threshold": round(float(op_urgent.threshold), 4),
         "preprocess_mode": "hybrid",
         "channel_order": "CLAHE-green, Ben-Graham, L* (as produced by "
                          "to_model_input; cohort storage and live inference must "

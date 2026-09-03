@@ -74,6 +74,7 @@
     0.36
   ],
   "grade_objective": "macro_recall",
+  "urgent_threshold": 0.1184,
   "preprocess_mode": "hybrid",
   "channel_order": "CLAHE-green, Ben-Graham, L* (as produced by to_model_input; cohort storage and live inference must match -- see test_train_serve_channel_parity)",
   "size": 512,

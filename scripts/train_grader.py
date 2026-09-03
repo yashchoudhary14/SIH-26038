@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from drscreen.constants import NUM_GRADES
 from drscreen.data.cohort import CohortDataset, clinical_from_batch
 from drscreen.models.grader import DRGrader
 from drscreen.models.lesion_features import ClinicalFeatures
@@ -100,16 +101,28 @@ def main():
                          "signal; 0.0 restores the old co-adapting behaviour.")
     ap.add_argument("--no-balanced-sampler", action="store_true",
                     help="sample grades at their natural frequency (the old behaviour)")
+    ap.add_argument("--merge-severe", action="store_true",
+                    help="collapse grade 4 into grade 3, giving a 4-class model. "
+                         "Both are sight-threatening and lead to the same action, "
+                         "and the boundary between them is neovascularisation, "
+                         "which no corpus here annotates -- so the model is asked "
+                         "to split on evidence it cannot see, using its thinnest "
+                         "data. Grade 0 is untouched.")
     a = ap.parse_args()
 
     out = a.out or Path(f"outputs/grader_{a.arm}")
     use_clinical = a.arm in ("fusion", "clinical")
 
+    n_cls = 4 if a.merge_severe else NUM_GRADES
     train_ds = CohortDataset(a.cohort, "train", size=a.size, train=True,
-                             with_features=use_clinical, feature_mode=a.feature_mode)
+                             with_features=use_clinical, feature_mode=a.feature_mode,
+                             merge_severe=a.merge_severe)
     val_ds = CohortDataset(a.cohort, "val", size=a.size, train=False, augment=False,
-                           with_features=use_clinical, feature_mode=a.feature_mode)
-    print(f"arm={a.arm}  train {len(train_ds)}  val {len(val_ds)}")
+                           with_features=use_clinical, feature_mode=a.feature_mode,
+                           merge_severe=a.merge_severe)
+    print(f"arm={a.arm}  train {len(train_ds)}  val {len(val_ds)}  classes {n_cls}")
+    if a.merge_severe:
+        print("  grades 3 and 4 merged into a single sight-threatening class")
     print(f"grade distribution (train): {np.bincount(train_ds.grades(), minlength=5).tolist()}")
 
     if a.arm == "clinical":
@@ -122,22 +135,24 @@ def main():
         # leave the model nothing at all to grade from.
         model = DRGrader(backbone="resnet18", pretrained=False,
                          use_clinical=True, use_image=False,
-                         clinical_dropout=0.0)
+                         clinical_dropout=0.0, num_classes=n_cls)
         for prm in model.backbone.parameters():
             prm.requires_grad_(False)
     else:
         model = DRGrader(backbone=a.backbone, pretrained=not a.no_pretrained,
                          use_clinical=use_clinical,
-                         clinical_dropout=a.clinical_dropout)
+                         clinical_dropout=a.clinical_dropout,
+                         num_classes=n_cls)
 
     print(f"parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f} M")
     print(f"clinical feature vector: {ClinicalFeatures.vector_size()} dims")
 
-    sampler = None if a.no_balanced_sampler else balanced_sampler(train_ds)
+    sampler = (None if a.no_balanced_sampler
+               else balanced_sampler(train_ds, num_classes=n_cls))
     log = train_grader(
         model, train_ds, val_ds, epochs=a.epochs, batch_size=a.batch_size,
         lr=a.lr, num_workers=a.workers, device=a.device, out_dir=out,
-        class_weights=class_weights_from(train_ds),
+        class_weights=class_weights_from(train_ds, num_classes=n_cls),
         clinical_fn=clinical_from_batch if use_clinical else None,
         sampler=sampler, select_on=a.select_on)
 
@@ -160,11 +175,16 @@ def main():
                # default, not how this checkpoint was actually trained.
                "clinical_dropout": (0.0 if a.arm == "clinical"
                                     else a.clinical_dropout),
+               # In the checkpoint, not only arm.json: rebuilding the model to
+               # load these weights needs the class count, and a sidecar file is
+               # easy to lose track of.
+               "num_classes": n_cls, "merge_severe": bool(a.merge_severe),
                "arm": a.arm, "size": a.size})
     torch.save(ck, out / "best.pt")
     (out / "arm.json").write_text(json.dumps(
         {"arm": a.arm, "use_clinical": use_clinical,
          "clinical_dropout": (0.0 if a.arm == "clinical" else a.clinical_dropout),
+               "num_classes": n_cls, "merge_severe": bool(a.merge_severe),
          "best_metric": log.best_metric, "best_epoch": log.best_epoch,
          "select_on": a.select_on,
          "balanced_sampler": not a.no_balanced_sampler}, indent=2))

@@ -76,9 +76,18 @@ class TemperatureScaler(nn.Module):
         return logits / self.log_temp.exp()
 
     def fit(self, logits: torch.Tensor, targets: torch.Tensor,
-            num_classes: int = 5, max_iter: int = 200) -> float:
-        """Fit T by minimising the CORN NLL on a held-out calibration split."""
+            num_classes: int | None = None, max_iter: int = 200) -> float:
+        """Fit T by minimising the CORN NLL on a held-out calibration split.
+
+        num_classes defaults to the count implied by the logits
+        (logits.size(1) + 1) rather than a hard-coded 5. A CORN head emits
+        one logit per boundary, so the class count is already determined by the
+        tensor; hard-coding it meant a 4-class model indexed past the end of its
+        own logits and raised IndexError deep inside the LBFGS closure.
+        """
         from .grader import corn_loss
+        if num_classes is None:
+            num_classes = int(logits.size(1)) + 1
         logits = logits.detach()
         targets = targets.detach()
         opt = torch.optim.LBFGS([self.log_temp], lr=0.05, max_iter=max_iter)
