@@ -141,7 +141,8 @@ class DRGrader(nn.Module):
                  clinical_dim: int | None = None,
                  p_drop: float = 0.3,
                  in_chans: int = 3,
-                 use_image: bool = True):
+                 use_image: bool = True,
+                 clinical_dropout: float = 0.5):
         super().__init__()
         import timm
         self.num_classes = num_classes
@@ -154,6 +155,30 @@ class DRGrader(nn.Module):
         #: deepcopy treats function objects as atomic, so a patched closure
         #: would silently keep pointing at the original module.
         self.use_image = use_image
+
+        #: Probability of zeroing the WHOLE clinical branch for a sample during
+        #: training -- modality dropout, not unit dropout.
+        #:
+        #: Without it the fusion arm co-adapts. The clinical vector is the
+        #: easier signal to fit, so gradient flows preferentially there and the
+        #: image backbone under-trains. Measured on the validation split: this
+        #: model's image pathway alone scored AUC 0.8638, while the image-only
+        #: arm -- same backbone, same images -- scored 0.9562. The fused result
+        #: (0.9523) then lands *below* the better single modality, which is how
+        #: a model that had learned less still looked competitive.
+        #:
+        #: It also explains the direction of the effect. When the lesion
+        #: features were poor the crutch was weak and fusion tied the CNN arm
+        #: (DeLong p = 0.92); improving the segmentation made the crutch better
+        #: and fusion lost outright (p = 0.04). Better inputs, worse model.
+        #:
+        #: Dropping the branch outright forces the head to stay accurate from
+        #: the image alone, so the clinical contribution has to be additive
+        #: rather than a substitute. Deliberately NOT inverted-scaled at train
+        #: time: the head must learn both regimes rather than a rescaled
+        #: average of them, and it sees the un-dropped branch at inference.
+        #: Set 0.0 to recover the previous behaviour.
+        self.clinical_dropout = float(clinical_dropout)
 
         self.backbone = timm.create_model(
             backbone, pretrained=pretrained, num_classes=0,
@@ -192,6 +217,10 @@ class DRGrader(nn.Module):
                 clinical = torch.zeros(z.size(0), self.clinical_dim,
                                        device=z.device, dtype=z.dtype)
             c = self.clinical_encoder(clinical) * self.gate(z)
+            if self.training and self.clinical_dropout > 0.0:
+                keep = (torch.rand(c.size(0), 1, device=c.device)
+                        >= self.clinical_dropout).to(c.dtype)
+                c = c * keep
             z = torch.cat([z, c], dim=1)
         return self.head(z)
 
@@ -247,4 +276,5 @@ def build_grader(cfg: dict | None = None) -> DRGrader:
         use_clinical=cfg.get("use_clinical", True),
         p_drop=cfg.get("dropout", 0.3),
         in_chans=cfg.get("in_chans", 3),
+        clinical_dropout=cfg.get("clinical_dropout", 0.5),
     )

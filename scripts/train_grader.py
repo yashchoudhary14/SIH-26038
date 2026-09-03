@@ -93,6 +93,11 @@ def main():
                     default="qwk",
                     help="checkpoint-selection metric. Referable AUC reads only "
                          "z0 and z1 and cannot see grade 3/4 collapse; QWK can.")
+    ap.add_argument("--clinical-dropout", type=float, default=0.5,
+                    help="probability of zeroing the whole clinical branch per "
+                         "sample during training (fusion arm only). Stops the "
+                         "image backbone under-training behind an easier "
+                         "signal; 0.0 restores the old co-adapting behaviour.")
     ap.add_argument("--no-balanced-sampler", action="store_true",
                     help="sample grades at their natural frequency (the old behaviour)")
     a = ap.parse_args()
@@ -112,13 +117,18 @@ def main():
         # is identical across arms, and its embedding is zeroed, so the model
         # must grade from the clinical vector alone -- an honest
         # single-technique baseline rather than a crippled fusion model.
+        # No modality dropout here: with the image pathway zeroed there is no
+        # second modality to fall back on, so dropping the clinical branch would
+        # leave the model nothing at all to grade from.
         model = DRGrader(backbone="resnet18", pretrained=False,
-                         use_clinical=True, use_image=False)
+                         use_clinical=True, use_image=False,
+                         clinical_dropout=0.0)
         for prm in model.backbone.parameters():
             prm.requires_grad_(False)
     else:
         model = DRGrader(backbone=a.backbone, pretrained=not a.no_pretrained,
-                         use_clinical=use_clinical)
+                         use_clinical=use_clinical,
+                         clinical_dropout=a.clinical_dropout)
 
     print(f"parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f} M")
     print(f"clinical feature vector: {ClinicalFeatures.vector_size()} dims")
@@ -149,6 +159,7 @@ def main():
     torch.save(ck, out / "best.pt")
     (out / "arm.json").write_text(json.dumps(
         {"arm": a.arm, "use_clinical": use_clinical,
+         "clinical_dropout": (0.0 if a.arm == "clinical" else a.clinical_dropout),
          "best_metric": log.best_metric, "best_epoch": log.best_epoch,
          "select_on": a.select_on,
          "balanced_sampler": not a.no_balanced_sampler}, indent=2))

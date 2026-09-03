@@ -609,6 +609,79 @@ implied, and it is why the deployed grader remains image-only.
 Artefacts: `outputs/validation_ddrseg/`, segmentation in
 `outputs/segmentation_ddr/`, cohort `data/cohort_seg1024_ddr`.
 
+### 7.3 The fusion arm was starving its own backbone
+
+[§7.2](#72-fixing-the-segmentation-domain-gap--and-what-it-revealed) left one
+result unexplained: better lesion features made `fusion` *worse*. The obvious
+reading — that the clinical features were harmful — is wrong, and the test that
+settles it is to ablate the branch at inference on the trained model.
+
+| val, referable AUC | |
+|---|---|
+| fusion as trained | 0.9523 |
+| fusion, clinical branch zeroed | **0.8638** |
+
+Removing the branch collapses the model, so it is not being harmed by those
+features: it has become **dependent** on them. The diagnostic is the comparison
+against the image-only arm, same backbone and same images:
+
+| | image pathway alone |
+|---|---|
+| `cnn` arm | **0.9562** |
+| `fusion` arm | **0.8638** |
+
+**The fusion model's backbone had learned 0.09 AUC less.** The clinical vector
+is the easier signal to fit, so gradient flowed preferentially there and the
+image pathway under-trained; the fused output then lands *below* the better
+single modality. A model that had learned less still looked competitive, because
+the crutch carried it.
+
+That also explains the direction that made no sense in §7.2. With poor lesion
+features the crutch was weak, the backbone had to work, and fusion tied the CNN
+arm (DeLong p = 0.92). Improving the segmentation made the crutch *better*, the
+backbone leaned harder, and fusion lost outright (p = 0.04). **Better inputs,
+worse model** — which is unintelligible until you measure the backbone.
+
+**Fix: modality dropout.** Zero the entire clinical branch, per sample, with
+p = 0.5 during training (`--clinical-dropout`). Two details matter. It drops the
+*whole branch*, not individual units — unit dropout scales dimensions the head
+can route around, whereas only removing the branch forces the image pathway to
+be independently accurate. And it is deliberately **not** inverted-scaled: the
+head must learn both regimes rather than a rescaled average, and it sees the
+branch un-dropped at inference. The `clinical_only` arm is built with rate 0.0,
+since with its image pathway already zeroed there is no second modality to fall
+back on.
+
+**Result.** The backbone recovers and the clinical branch becomes additive
+rather than substitutive:
+
+| | full | image pathway alone | gap |
+|---|---|---|---|
+| fusion, co-adapted | 0.9523 | 0.8638 | +0.0885 |
+| fusion, modality dropout | **0.9560** | **0.9515** | +0.0045 |
+| `cnn` reference | — | 0.9562 | — |
+
+0.8638 → 0.9515 restores the backbone to within 0.005 of the dedicated
+image-only model, and the fused result improves as well. On the internal test
+split the ablation verdict flips across the three configurations:
+
+| configuration | fusion vs cnn | DeLong p |
+|---|---|---|
+| poor features, co-adapted | fusion +0.0002 | 0.92 — tied |
+| good features, co-adapted | **cnn +0.0058** | **0.040 — cnn wins** |
+| good features, modality dropout | **fusion +0.0025** | 0.242 — not significant |
+
+Fusion moves from a statistically significant deficit to a non-significant lead,
+an 0.0083 AUC swing. It is now the best arm on every axis at once —
+AUC 0.9558, sensitivity 0.901, specificity 0.866, QWK 0.8538 — and the **only**
+arm meeting both problem-statement targets on this cohort. The AUC margin over
+`cnn` is *not* statistically significant and is not claimed as such; what the
+fix establishes is that the fusion architecture is no longer worse than its own
+image pathway.
+
+Artefacts: `outputs/validation_fusionfix/`, grader in
+`outputs/grader_fusion_fix/`. Five regression tests in `tests/test_fusion.py`.
+
 ---
 
 ## 8. Simulink
@@ -697,7 +770,13 @@ segmentation, ~21 min features, ~15 min per grader arm, ~15 min to validate;
 
 In descending order of expected value:
 
-1. **A grade-aware decision rule.** Referral is validated; the printed ICDR
+1. **Retrain the deployed fusion arm with modality dropout.** The fix in
+   [§7.3](#73-the-fusion-arm-was-starving-its-own-backbone) was demonstrated on
+   the DDR cohort; the deployed APTOS+IDRiD fusion checkpoint predates it and is
+   very likely co-adapted the same way. Cheapest way to find out is to measure
+   its image pathway in isolation, which takes one inference pass and no
+   training.
+2. **A grade-aware decision rule.** Referral is validated; the printed ICDR
    grade is not (see [§4.1](#41-exact-grade-assignment-is-weaker-than-referral)).
    The referral threshold is fitted on val and moved 0.5 → 0.1999, which
    transformed the referral decision. The *grade* boundaries still sit at a
@@ -705,18 +784,9 @@ In descending order of expected value:
    on the CORN cumulative probabilities, on val, is the cheapest remaining fix
    and needs no new data or retraining — moved to first place because the
    evidence for it is now three checkpoints deep.
-2. **Per-site threshold calibration.** A few hundred locally-graded images per
+3. **Per-site threshold calibration.** A few hundred locally-graded images per
    deployment site. The ranking already transfers (external AUC 0.908); only
    the operating point does not.
-3. **Train segmentation on DDR's 383 lesion-annotated images**, alongside
-   IDRiD's 64. Promoted to third on direct evidence: adding DDR to the *grading*
-   pool without adding it to the *segmentation* pool dropped the clinical arm
-   from AUC 0.9272 to 0.8125, because its features come from a segmenter that
-   has never seen a DDR image ([§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke)).
-   Six times the annotation, from the domain that now supplies most of the
-   grading data. DDR annotates EX/HE/MA/SE and, like IDRiD, **no
-   neovascularisation** — so that gap is now confirmed across two corpora rather
-   than assumed.
 4. **Re-fit calibration on a source-balanced val split.** DDR improved
    discrimination transfer (internal→external AUC gap 0.080 → 0.041) while
    degrading calibration transfer (external specificity 0.922 → 0.753), because
@@ -735,6 +805,16 @@ In descending order of expected value:
    still improving at the final epoch, so more epochs may also help.
 8. **Test-time augmentation and ensembling** — reliable but small gains, and
    they cost latency the edge deployment cannot spare.
+
+**Done since this list was first written**, both with their results recorded
+above rather than assumed:
+
+* *Train segmentation on DDR's lesion annotations* — [§7.2](#72-fixing-the-segmentation-domain-gap--and-what-it-revealed).
+  Closed the domain gap on DDR images (mean Dice 0.372 → 0.511) and lifted the
+  two feature-only arms substantially, while leaving IDRiD-domain Dice unchanged.
+* *Fix the fusion head* — [§7.3](#73-the-fusion-arm-was-starving-its-own-backbone).
+  Modality dropout restored the under-trained backbone from AUC 0.864 to 0.952
+  and turned the clinical branch from a substitute into an additive contribution.
 
 ---
 
