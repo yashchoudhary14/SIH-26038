@@ -679,8 +679,39 @@ arm meeting both problem-statement targets on this cohort. The AUC margin over
 fix establishes is that the fusion architecture is no longer worse than its own
 image pathway.
 
+**Is the deployed checkpoint affected? No — and the reason completes the story.**
+The deployed APTOS+IDRiD fusion arm predates the fix, so the obvious worry is
+that the decision to deploy the image-only arm was measuring this defect rather
+than a real architectural verdict. `scripts/diagnose_fusion.py` answers it in one
+inference pass:
+
+| deployed cohort, val | referable AUC |
+|---|---|
+| fusion, as trained | 0.9745 |
+| fusion, **backbone alone** | 0.9743 |
+| image-only arm (reference) | 0.9748 |
+| **backbone deficit** | **+0.0005** |
+
+Healthy. The backbone matches the image-only arm, so nothing was starved. The
+clinical branch there contributes **+0.0002** — nothing — and the learned gate
+tells you why: its median is **0.316** on the deployed model against **0.773** on
+the DDR model. With weak features (the old segmenter, an unfitted blanket 0.5
+threshold) the model learned to hold the gate mostly shut, so there was no crutch
+to lean on and the backbone trained normally.
+
+**Co-adaptation requires the shortcut to be good enough to be worth taking.**
+That is why it appeared only after the segmentation was fixed, and it means the
+original decision to deploy the image-only arm was a genuine result rather than
+an artefact of this bug: on that cohort the clinical branch really did add
+nothing.
+
 Artefacts: `outputs/validation_fusionfix/`, grader in
-`outputs/grader_fusion_fix/`. Five regression tests in `tests/test_fusion.py`.
+`outputs/grader_fusion_fix/`. Five regression tests in `tests/test_fusion.py`,
+and `scripts/diagnose_fusion.py` for checking any fusion checkpoint. Note that
+the diagnostic reads the training-time `clinical_dropout` from the checkpoint
+rather than off the rebuilt model: the constructor default is now 0.5, so a
+live attribute would report 0.5 for a checkpoint trained long before the flag
+existed. Checkpoints written from now on record it.
 
 ---
 
@@ -770,13 +801,7 @@ segmentation, ~21 min features, ~15 min per grader arm, ~15 min to validate;
 
 In descending order of expected value:
 
-1. **Retrain the deployed fusion arm with modality dropout.** The fix in
-   [§7.3](#73-the-fusion-arm-was-starving-its-own-backbone) was demonstrated on
-   the DDR cohort; the deployed APTOS+IDRiD fusion checkpoint predates it and is
-   very likely co-adapted the same way. Cheapest way to find out is to measure
-   its image pathway in isolation, which takes one inference pass and no
-   training.
-2. **A grade-aware decision rule.** Referral is validated; the printed ICDR
+1. **A grade-aware decision rule.** Referral is validated; the printed ICDR
    grade is not (see [§4.1](#41-exact-grade-assignment-is-weaker-than-referral)).
    The referral threshold is fitted on val and moved 0.5 → 0.1999, which
    transformed the referral decision. The *grade* boundaries still sit at a
@@ -784,26 +809,26 @@ In descending order of expected value:
    on the CORN cumulative probabilities, on val, is the cheapest remaining fix
    and needs no new data or retraining — moved to first place because the
    evidence for it is now three checkpoints deep.
-3. **Per-site threshold calibration.** A few hundred locally-graded images per
+2. **Per-site threshold calibration.** A few hundred locally-graded images per
    deployment site. The ranking already transfers (external AUC 0.908); only
    the operating point does not.
-4. **Re-fit calibration on a source-balanced val split.** DDR improved
+3. **Re-fit calibration on a source-balanced val split.** DDR improved
    discrimination transfer (internal→external AUC gap 0.080 → 0.041) while
    degrading calibration transfer (external specificity 0.922 → 0.753), because
    val became DDR-dominated. Selecting the temperature and isotonic fit on a
    val subsample balanced across sources should recover the operating point
    without giving up the grading gains — the cheapest way to make the DDR model
    deployable.
-5. **Download EyePACS.** DDR is done ([§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke));
+4. **Download EyePACS.** DDR is done ([§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke));
    EyePACS still needs its one-time licence acceptance. It would add ~3,200
    grade-3 and ~2,600 grade-4 images, and — unlike DDR — enough grade-3 volume
    to matter, since DDR carries only 236 in total.
-6. **Multi-source training** with harmonised grades, to learn a reference
+5. **Multi-source training** with harmonised grades, to learn a reference
    standard rather than one panel's habits — the root cause in [§3](#3-why-moderate-npdr-fails--the-reference-standards-disagree).
-7. **Higher grading resolution.** The grader runs at 512; the segmentation
+6. **Higher grading resolution.** The grader runs at 512; the segmentation
    result suggests 768–1024 would help early disease. Segmentation Dice was
    still improving at the final epoch, so more epochs may also help.
-8. **Test-time augmentation and ensembling** — reliable but small gains, and
+7. **Test-time augmentation and ensembling** — reliable but small gains, and
    they cost latency the edge deployment cannot spare.
 
 **Done since this list was first written**, both with their results recorded
@@ -815,6 +840,12 @@ above rather than assumed:
 * *Fix the fusion head* — [§7.3](#73-the-fusion-arm-was-starving-its-own-backbone).
   Modality dropout restored the under-trained backbone from AUC 0.864 to 0.952
   and turned the clinical branch from a substitute into an additive contribution.
+* *Check whether the deployed fusion checkpoint is co-adapted too* —
+  [§7.3](#73-the-fusion-arm-was-starving-its-own-backbone). It is not: backbone
+  deficit +0.0005. The expected answer was that it would be, and it was wrong;
+  the deployed cohort's lesion features were too weak to be worth leaning on, so
+  the model held the gate mostly shut and the backbone trained normally. The
+  decision to deploy the image-only arm therefore stands on its own evidence.
 
 ---
 

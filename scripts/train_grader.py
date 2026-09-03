@@ -155,6 +155,11 @@ def main():
     ck.update({"use_clinical": use_clinical,
                "backbone": a.backbone if a.arm != "clinical" else "resnet18",
                "use_image": a.arm != "clinical",
+               # Recorded because DRGrader's constructor default has changed:
+               # reading the live attribute off a rebuilt model reports the
+               # default, not how this checkpoint was actually trained.
+               "clinical_dropout": (0.0 if a.arm == "clinical"
+                                    else a.clinical_dropout),
                "arm": a.arm, "size": a.size})
     torch.save(ck, out / "best.pt")
     (out / "arm.json").write_text(json.dumps(
