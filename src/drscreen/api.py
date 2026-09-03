@@ -84,6 +84,16 @@ def index() -> str:
     return "<h1>DR Screening</h1><p>Console not found. POST an image to /screen.</p>"
 
 
+@app.get("/console", response_class=HTMLResponse)
+def console() -> str:
+    """The original review console (single-page app). The landing page ``/`` is
+    the presentation portal; this keeps the reviewer/audit workflow available."""
+    f = _WEB_DIR / "console.html"
+    if f.exists():
+        return f.read_text(encoding="utf-8")
+    raise HTTPException(404, "console.html not found")
+
+
 @app.post("/screen")
 async def screen(file: UploadFile = File(...), explain: bool = True) -> JSONResponse:
     img = _decode(await file.read())

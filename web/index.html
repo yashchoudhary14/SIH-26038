@@ -3,411 +3,578 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DR Screening Console</title>
+<title>RetinaScope — DR Screening Portal</title>
 <style>
 :root{
-  --bg:#0a0e13; --panel:#121a23; --panel2:#0f161e; --line:#1f2b38;
-  --text:#e7eef6; --muted:#8ea0b4; --accent:#3d8bfd;
-  --ok:#2f9e6b; --warn:#d99a2b; --danger:#d95757;
+  --bg:#070b11; --bg2:#0b1119; --panel:#0f1720; --panel2:#121c27; --line:#1e2b3a;
+  --line2:#2a3b4f; --text:#eaf2fb; --muted:#8fa3ba; --faint:#5f7288;
+  --accent:#4c8dff; --accent2:#7c5cff;
+  --g0:#22c55e; --g1:#a3e635; --g2:#f59e0b; --g3:#fb7136; --g4:#ef4444;
+  --ok:#22c55e; --warn:#f5a524; --danger:#ef4444; --info:#4c8dff;
+  --shadow:0 18px 50px -22px rgba(0,0,0,.75);
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);
-  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-header{display:flex;align-items:center;justify-content:space-between;gap:16px;
-  padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel2);
-  position:sticky;top:0;z-index:10;flex-wrap:wrap}
-.brand{display:flex;align-items:baseline;gap:12px}
-.brand h1{font-size:16px;margin:0;letter-spacing:.3px}
-.brand small{color:var(--muted);font-size:12px}
-#status{font-size:12px;color:var(--muted);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
-.dot.on{background:var(--ok)} .dot.off{background:var(--danger)}
-main{display:grid;grid-template-columns:320px 1fr;gap:18px;padding:18px 22px;
-  max-width:1700px;margin:0 auto}
-@media(max-width:1000px){main{grid-template-columns:1fr}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:11px;
-  padding:15px 17px;margin-bottom:16px}
-.card h2{font-size:11.5px;text-transform:uppercase;letter-spacing:1.1px;
-  color:var(--muted);margin:0 0 12px;font-weight:600}
-button{background:var(--accent);color:#fff;border:0;border-radius:7px;
-  padding:9px 15px;font-size:13px;font-weight:500;cursor:pointer;
-  transition:filter .12s}
-button:hover:not(:disabled){filter:brightness(1.12)}
-button:disabled{opacity:.45;cursor:not-allowed}
-button.ghost{background:#1b2531;color:var(--text);border:1px solid var(--line)}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px}
-.drop{border:1.5px dashed #2c3a4b;border-radius:9px;padding:24px 14px;
-  text-align:center;color:var(--muted);cursor:pointer;transition:.15s;font-size:13px}
-.drop:hover,.drop.over{border-color:var(--accent);background:#141e2a;color:var(--text)}
+html,body{margin:0}
+body{background:
+   radial-gradient(1100px 600px at 82% -6%,rgba(124,92,255,.16),transparent 60%),
+   radial-gradient(1000px 560px at -8% 8%,rgba(76,141,255,.14),transparent 55%),
+   var(--bg);
+  color:var(--text);
+  font:14.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+
+/* header */
+header{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
+  background:linear-gradient(180deg,rgba(7,11,17,.92),rgba(7,11,17,.72));
+  border-bottom:1px solid var(--line)}
+.hd{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:13px 0;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:12px}
+.mark{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:0 8px 22px -8px rgba(76,141,255,.7);flex:none}
+.mark svg{width:22px;height:22px}
+.logo h1{font-size:16.5px;margin:0;letter-spacing:.2px;font-weight:700}
+.logo .sub{font-size:11.5px;color:var(--muted);margin-top:1px}
+.status{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.status b{color:var(--text);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;
+  background:var(--faint);box-shadow:0 0 0 0 rgba(34,197,94,.5)}
+.dot.on{background:var(--ok);animation:pulse 2s infinite}
+.dot.off{background:var(--danger)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.45)}70%{box-shadow:0 0 0 7px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+
+/* hero */
+.hero{padding:34px 0 8px;text-align:center}
+.hero h2{font-size:30px;line-height:1.15;margin:0 0 10px;font-weight:800;letter-spacing:-.5px}
+.hero h2 .grad{background:linear-gradient(120deg,#7cc0ff,#b79bff 60%,#7c5cff);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--muted);max-width:640px;margin:0 auto;font-size:14.5px}
+.pills{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:16px 0 2px}
+.pill{font-size:12px;color:var(--text);background:var(--panel2);border:1px solid var(--line2);
+  padding:6px 12px;border-radius:999px;display:flex;align-items:center;gap:7px}
+.pill svg{width:14px;height:14px;opacity:.9}
+
+/* upload */
+.uploadCard{background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line2);border-radius:18px;padding:8px;margin:22px 0 8px;box-shadow:var(--shadow)}
+.drop{border:2px dashed #33475e;border-radius:14px;padding:34px 20px;text-align:center;
+  cursor:pointer;transition:.18s;background:radial-gradient(500px 200px at 50% 0%,rgba(76,141,255,.06),transparent)}
+.drop:hover,.drop.over{border-color:var(--accent);background:rgba(76,141,255,.09)}
+.drop .ic{width:52px;height:52px;border-radius:14px;margin:0 auto 12px;display:grid;place-items:center;
+  background:rgba(76,141,255,.12);border:1px solid rgba(76,141,255,.3)}
+.drop .ic svg{width:26px;height:26px}
+.drop h3{margin:0 0 4px;font-size:16px}
+.drop p{margin:0;color:var(--muted);font-size:13px}
+.drop .browse{color:var(--accent);font-weight:600}
 input[type=file]{display:none}
-.verdict{border-radius:10px;padding:14px 17px;margin-bottom:14px}
-.verdict .u{font-size:10.5px;font-weight:700;letter-spacing:1.5px;opacity:.9}
-.verdict .g{font-size:23px;font-weight:700;margin:3px 0}
-.verdict .d{font-size:12.5px;opacity:.92}
-.v-urgent{background:#3d1414;color:#ffc9c9;border:1px solid #6d2020}
-.v-soon{background:#3a2a10;color:#ffdfae;border:1px solid #6d5020}
-.v-routine{background:#12301f;color:#b6f0cf;border:1px solid #1f5c39}
-.v-recapture{background:#2b2b33;color:#dcdce6;border:1px solid #45454f}
-img.panel{width:100%;border-radius:9px;display:block;background:#000}
-.bar{display:flex;align-items:center;gap:9px;margin:5px 0;font-size:12.5px}
-.bar .lb{width:145px;color:var(--muted)}
-.bar .tr{flex:1;height:8px;background:#182029;border-radius:4px;overflow:hidden}
-.bar .fl{display:block;height:100%;background:#3b6ea5;transition:width .35s}
-.bar .fl.pred{background:var(--ok)}
-.bar .vl{width:50px;text-align:right;font-variant-numeric:tabular-nums}
-ul.ev{margin:0;padding-left:18px;font-size:13px}
-ul.ev li{margin:5px 0}
-li.criterion{color:#9fd3ff} li.macula{color:#ffd28a} li.caution{color:#ffb0b0}
-table{width:100%;border-collapse:collapse;font-size:12.5px}
-td{padding:4px 5px;border-bottom:1px solid #18222d}
-td.n{text-align:right;font-variant-numeric:tabular-nums}
-.pass{color:#5fd39a}.borderline{color:#e8c468}.fail{color:#f08a8a}
-.kv{display:flex;justify-content:space-between;padding:3px 0;
-  border-bottom:1px solid #18222d;font-size:12.5px}
-.kv span{color:var(--muted)}
-.warn{background:#2a1d10;border-left:3px solid var(--warn);padding:9px 12px;
-  border-radius:5px;margin-bottom:9px;font-size:12.5px}
-#degraded{max-width:1700px;margin:14px auto 0;padding:11px 16px;
-  background:#3a2410;border:1px solid #7a4d14;border-left:4px solid var(--warn);
-  border-radius:8px;font-size:13px;color:#ffdfae}
-#degraded b{color:#fff}
-#degraded code{background:#00000040;padding:1px 5px;border-radius:3px;
-  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
-.grid2{display:grid;grid-template-columns:1fr 340px;gap:18px}
-@media(max-width:1300px){.grid2{grid-template-columns:1fr}}
-.spin{display:inline-block;width:14px;height:14px;border:2px solid #2a3846;
-  border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;
-  vertical-align:-2px;margin-right:7px}
+.hint{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;
+  margin-top:12px;color:var(--faint);font-size:12px}
+.hint code{background:#0009;border:1px solid var(--line);padding:2px 7px;border-radius:5px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;color:#bcd0e6;font-size:11.5px}
+.demorow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
+.demorow .lbl{color:var(--faint);font-size:12px;align-self:center;margin-right:2px}
+.gbtn{border:1px solid var(--line2);background:var(--panel);color:var(--text);
+  border-radius:8px;padding:7px 12px;font-size:12.5px;cursor:pointer;transition:.14s;font-weight:600}
+.gbtn:hover{border-color:var(--accent);background:rgba(76,141,255,.1)}
+.gbtn .d{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:0}
+
+/* loading / error */
+.note{margin:16px 0;padding:12px 15px;border-radius:11px;font-size:13.5px;display:none;align-items:center;gap:11px}
+.note.show{display:flex}
+.note.err{background:#2a1215;border:1px solid #6d2530;color:#ffc9cf}
+.note.load{background:var(--panel2);border:1px solid var(--line2);color:var(--muted)}
+.spin{width:17px;height:17px;border:2.5px solid #26384b;border-top-color:var(--accent);
+  border-radius:50%;animation:sp .7s linear infinite;flex:none}
 @keyframes sp{to{transform:rotate(360deg)}}
-.hidden{display:none}
-.rev{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.rev button{padding:6px 11px;font-size:12px}
-.timer{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}
-footer{color:var(--muted);font-size:11.5px;padding:16px 22px;
-  border-top:1px solid var(--line);max-width:1700px;margin:0 auto}
+
+/* results */
+#results{display:none;margin:8px 0 40px}
+#results.show{display:block;animation:rise .4s ease both}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.grid{display:grid;grid-template-columns:1.35fr .95fr;gap:18px}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:17px 18px;margin-bottom:18px}
+.card.pad0{padding:0;overflow:hidden}
+.card h4{margin:0 0 13px;font-size:11px;letter-spacing:1.3px;text-transform:uppercase;
+  color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px}
+.card h4 svg{width:14px;height:14px;opacity:.75}
+
+/* verdict */
+.verdict{display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+  border-radius:15px;padding:20px 22px;margin-bottom:18px;border:1px solid var(--line2);
+  background:linear-gradient(180deg,var(--panel2),var(--panel))}
+.gbadge{width:104px;height:104px;border-radius:22px;flex:none;display:grid;place-items:center;
+  position:relative;color:#04101a;font-weight:800;box-shadow:var(--shadow)}
+.gbadge .num{font-size:52px;line-height:1}
+.gbadge .lab{position:absolute;bottom:9px;font-size:10px;letter-spacing:1px;font-weight:800;opacity:.82}
+.vmeta{flex:1;min-width:220px}
+.vmeta .gl{font-size:22px;font-weight:800;margin:0 0 3px;letter-spacing:-.3px}
+.vmeta .sc{color:var(--muted);font-size:13px;margin-bottom:11px}
+.decc{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;
+  font-weight:700;font-size:13px;letter-spacing:.3px}
+.uwrap{display:flex;gap:9px;flex-wrap:wrap;margin-top:9px;align-items:center}
+.tag{font-size:11.5px;padding:4px 10px;border-radius:7px;background:#0d1620;
+  border:1px solid var(--line2);color:var(--muted)}
+.tag b{color:var(--text)}
+.ring{--p:0;width:96px;height:96px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:conic-gradient(var(--rc,var(--accent)) calc(var(--p)*1%),#1a2735 0);position:relative}
+.ring::before{content:"";position:absolute;inset:9px;border-radius:50%;background:var(--panel2)}
+.ring .rv{position:relative;text-align:center}
+.ring .rv b{font-size:21px;font-weight:800;display:block;line-height:1}
+.ring .rv span{font-size:9.5px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase}
+
+/* heatmap */
+.panelimg{width:100%;display:block;background:#000}
+.legend{display:flex;gap:14px;flex-wrap:wrap;padding:11px 16px;border-top:1px solid var(--line);
+  background:var(--panel2);font-size:11.5px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.capt{padding:11px 16px 13px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line)}
+
+/* prob bars */
+.bar{display:flex;align-items:center;gap:11px;margin:8px 0;font-size:13px}
+.bar .lb{width:118px;color:var(--muted);flex:none}
+.bar .lb b{color:var(--text);font-weight:600}
+.bar .tr{flex:1;height:9px;background:#111c27;border-radius:5px;overflow:hidden}
+.bar .fl{display:block;height:100%;border-radius:5px;width:0;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+.bar .vl{width:52px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.bar.pred .lb b,.bar.pred .vl{color:var(--text)}
+
+/* chips / kv / quality */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:flex;align-items:center;gap:8px;background:#0d1620;border:1px solid var(--line2);
+  border-radius:9px;padding:8px 11px;font-size:13px}
+.chip .d{width:10px;height:10px;border-radius:3px;flex:none}
+.chip b{font-variant-numeric:tabular-nums}
+.qgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px 16px}
+.q{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #14202c;font-size:12.5px}
+.q .qn{color:var(--muted);text-transform:capitalize}
+.qv{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}
+.qv.pass{background:rgba(34,197,94,.14);color:#7ee2a8}
+.qv.borderline{background:rgba(245,165,36,.14);color:#f5c877}
+.qv.fail{background:rgba(239,68,68,.15);color:#ff9ea6}
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #14202c;font-size:13px}
+.kv:last-child{border-bottom:0}
+.kv span{color:var(--muted)}
+.kv b{font-variant-numeric:tabular-nums;font-weight:600}
+ul.ev{margin:0;padding:0;list-style:none}
+ul.ev li{padding:9px 0;border-bottom:1px solid #14202c;font-size:13px;display:flex;gap:10px}
+ul.ev li:last-child{border-bottom:0}
+.st{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:6px;height:fit-content;flex:none;text-transform:uppercase}
+.st.present{background:rgba(239,68,68,.15);color:#ff9ea6}
+.st.absent{background:rgba(34,197,94,.14);color:#7ee2a8}
+.st.na{background:rgba(245,165,36,.14);color:#f5c877}
+.ev .fx{font-weight:700;text-transform:capitalize}
+.ev .dt{color:var(--muted);font-size:12px;margin-top:2px}
+.reasons{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px}
+.reasons li{margin:5px 0}
+.gt{margin-top:12px;padding:10px 13px;border-radius:10px;background:rgba(124,92,255,.1);
+  border:1px solid rgba(124,92,255,.3);font-size:12.5px;color:#cdbcff}
+
+/* differentiators */
+.why{margin:26px 0 8px}
+.why h4{text-align:center}
+.whyg{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+@media(max-width:820px){.whyg{grid-template-columns:1fr}}
+.wc{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px}
+.wc .i{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;margin-bottom:10px;
+  background:rgba(76,141,255,.12);border:1px solid rgba(76,141,255,.28)}
+.wc .i svg{width:18px;height:18px}
+.wc h5{margin:0 0 5px;font-size:14px}
+.wc p{margin:0;color:var(--muted);font-size:12.5px}
+
+footer{border-top:1px solid var(--line);color:var(--faint);font-size:12px;padding:20px 0 34px;text-align:center}
+footer a{color:var(--muted)}
+.reset{border:1px solid var(--line2);background:var(--panel);color:var(--text);border-radius:8px;
+  padding:8px 14px;font-size:13px;cursor:pointer;font-weight:600}
+.reset:hover{border-color:var(--accent)}
+.rtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:12px;flex-wrap:wrap}
+.rtop .fn{color:var(--muted);font-size:13px}
+.rtop .fn b{color:var(--text)}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="brand">
-    <h1>Diabetic Retinopathy Screening Console</h1>
-    <small>ICDR 0&ndash;4 &middot; referable = grade &ge; 2</small>
+  <div class="wrap hd">
+    <div class="logo">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2"/>
+          <path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
+        </svg>
+      </div>
+      <div>
+        <h1>RetinaScope</h1>
+        <div class="sub">Explainable diabetic retinopathy screening</div>
+      </div>
+    </div>
+    <div class="status" id="status">
+      <span><span class="dot" id="hdot"></span><span id="hstat">connecting…</span></span>
+      <span id="hdev"></span>
+      <span id="hthr"></span>
+      <a href="/console" title="Reviewer / audit console">Console →</a>
+    </div>
   </div>
-  <div id="status"><span class="spin"></span>connecting&hellip;</div>
 </header>
 
-<div id="degraded" class="hidden"></div>
+<div class="wrap">
 
-<main>
-  <aside>
-    <div class="card">
-      <h2>Screen an image</h2>
-      <label class="drop" id="drop">
-        <input type="file" id="file" accept="image/*">
-        Drop a fundus image here<br><small>or click to browse</small>
-      </label>
-      <div class="row" style="margin-top:11px">
-        <button id="btn-run" disabled>Analyse</button>
-        <button class="ghost" id="btn-report" disabled>Full report</button>
+  <section class="hero">
+    <h2>Upload a fundus image.<br><span class="grad">Get a graded, explainable result.</span></h2>
+    <p>ICDR grade 0–4, a referral decision, and a pixel-level heatmap of exactly what the model looked at — the evidence a black-box classifier can't give you.</p>
+    <div class="pills">
+      <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee2a8" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>5-grade ICDR</span>
+      <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#f5c877" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Grad-CAM++ heatmap</span>
+      <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#7cc0ff" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Lesion-level evidence</span>
+      <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="#cdbcff" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Calibrated referral</span>
+    </div>
+  </section>
+
+  <div class="uploadCard">
+    <div class="drop" id="drop">
+      <div class="ic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#7cc0ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v13"/>
+        </svg>
       </div>
+      <h3>Drop a fundus image here</h3>
+      <p>or <span class="browse">click to browse</span> · JPG / PNG</p>
+    </div>
+    <input type="file" id="file" accept="image/*">
+  </div>
+
+  <div class="hint">
+    <span>Demo images live in</span><code>outputs/verification_set/images/</code><span>— 12 labelled cases.</span>
+  </div>
+  <div class="demorow">
+    <span class="lbl">No image handy? Generate a live case:</span>
+    <button class="gbtn" data-g="0"><span class="d" style="background:var(--g0)"></span>Grade 0</button>
+    <button class="gbtn" data-g="1"><span class="d" style="background:var(--g1)"></span>Grade 1</button>
+    <button class="gbtn" data-g="2"><span class="d" style="background:var(--g2)"></span>Grade 2</button>
+    <button class="gbtn" data-g="3"><span class="d" style="background:var(--g3)"></span>Grade 3</button>
+    <button class="gbtn" data-g="4"><span class="d" style="background:var(--g4)"></span>Grade 4</button>
+  </div>
+
+  <div class="note load" id="loading"><span class="spin"></span><span id="loadtx">Running the screening pipeline…</span></div>
+  <div class="note err" id="error"></div>
+
+  <section id="results">
+    <div class="rtop">
+      <div class="fn">Result for <b id="rfn">—</b></div>
+      <button class="reset" id="reset">↺ Screen another image</button>
     </div>
 
-    <div class="card">
-      <h2>Demo &mdash; generated phantom</h2>
-      <p style="color:var(--muted);font-size:12px;margin:0 0 9px">
-        Synthetic retinas with known ground truth, for demonstrating the flow
-        without patient data.</p>
-      <div class="row">
-        <button class="ghost demo" data-g="0">Grade 0</button>
-        <button class="ghost demo" data-g="1">Grade 1</button>
-        <button class="ghost demo" data-g="2">Grade 2</button>
-        <button class="ghost demo" data-g="3">Grade 3</button>
-        <button class="ghost demo" data-g="4">Grade 4</button>
+    <div class="verdict">
+      <div class="gbadge" id="gbadge"><span class="num" id="gnum">–</span><span class="lab">ICDR GRADE</span></div>
+      <div class="vmeta">
+        <div class="gl" id="glabel">—</div>
+        <div class="sc" id="gsub">—</div>
+        <div class="decc" id="decc">—</div>
+        <div class="uwrap" id="utags"></div>
       </div>
-      <label style="font-size:12px;color:var(--muted)">
-        Capture quality
-        <input type="range" id="sev" min="0" max="100" value="25" style="width:100%">
-        <span id="sevlab">good</span>
-      </label>
+      <div class="ring" id="confring"><div class="rv"><b id="confv">–</b><span>confidence</span></div></div>
     </div>
 
-    <div class="card" id="gt-card" style="display:none">
-      <h2>Ground truth (synthetic)</h2>
-      <div id="gt"></div>
-    </div>
-  </aside>
-
-  <section>
-    <div id="empty" class="card" style="text-align:center;padding:60px 20px;color:var(--muted)">
-      Upload a fundus image or run a demo phantom to begin.
-    </div>
-
-    <div id="result" class="hidden">
-      <div id="verdict" class="verdict"></div>
-      <div id="warnings"></div>
-      <div class="grid2">
-        <div>
-          <div class="card">
-            <h2>Image review</h2>
-            <img class="panel" id="panel" alt="review panel">
+    <div class="grid">
+      <div>
+        <div class="card pad0">
+          <img class="panelimg" id="panel" alt="model explanation panel">
+          <div class="legend">
+            <span><i style="background:#ef4444"></i>microaneurysm</span>
+            <span><i style="background:#fb7136"></i>haemorrhage</span>
+            <span><i style="background:#f5d90a"></i>hard exudate</span>
+            <span><i style="background:#e8eef5"></i>soft exudate</span>
+            <span><i style="background:#e24be2"></i>neovascularization</span>
           </div>
-          <div class="card">
-            <h2>Clinical evidence &mdash; ICDR criteria</h2>
-            <ul class="ev" id="evidence"></ul>
-          </div>
+          <div class="capt">Left → right: enhanced fundus · detected lesions with optic-disc &amp; fovea landmarks · Grad-CAM++ model attention.</div>
         </div>
-        <div>
-          <div class="card">
-            <h2>Ophthalmologist review <span class="timer" id="timer"></span></h2>
-            <p style="font-size:12px;color:var(--muted);margin:0 0 6px">
-              Confirm or correct the grade. Logged for drift monitoring.</p>
-            <div class="rev" id="review"></div>
-          </div>
-          <div class="card">
-            <h2>Severity distribution</h2>
-            <div id="probs"></div>
-          </div>
-          <div class="card">
-            <h2>Cross-check</h2>
-            <div id="cross"></div>
-          </div>
-          <div class="card">
-            <h2>Image quality</h2>
-            <table id="quality"></table>
-          </div>
-          <div class="card">
-            <h2>Latency</h2>
-            <table id="timing"></table>
-          </div>
+
+        <div class="card">
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8"/><rect x="12" y="6" width="3" height="12"/><rect x="17" y="13" width="3" height="5"/></svg>Grade probability distribution</h4>
+          <div id="probs"></div>
+        </div>
+
+        <div class="card">
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Lesion evidence (detected counts)</h4>
+          <div class="chips" id="lesions"></div>
+          <ul class="ev" id="evidence" style="margin-top:14px"></ul>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Referral</h4>
+          <div class="bar"><div class="lb">P(referable)</div><div class="tr"><span class="fl" id="reffl"></span></div><div class="vl" id="refv">–</div></div>
+          <div class="kv"><span>Referable</span><b id="refyn">–</b></div>
+          <div class="kv"><span>Decision threshold</span><b id="refthr">–</b></div>
+          <div class="kv"><span>DME risk</span><b id="dme">–</b></div>
+        </div>
+
+        <div class="card">
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>Image quality gate</h4>
+          <div class="kv"><span>Overall</span><b id="qoverall">–</b></div>
+          <div class="qgrid" id="quality" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card">
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>Landmarks &amp; uncertainty</h4>
+          <div class="kv"><span>Laterality</span><b id="lat">–</b></div>
+          <div class="kv"><span>Optic disc</span><b id="disc">–</b></div>
+          <div class="kv"><span>Fovea</span><b id="fovea">–</b></div>
+          <div class="kv"><span>Predictive entropy</span><b id="entropy">–</b></div>
+          <div class="kv"><span>Epistemic variance</span><b id="epis">–</b></div>
+        </div>
+
+        <div class="card">
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Rule-based cross-check</h4>
+          <div class="kv"><span>Rule-based grade</span><b id="rgrade">–</b></div>
+          <div class="kv"><span>Neural ↔ rule agreement</span><b id="agree">–</b></div>
+          <ul class="reasons" id="reasons"></ul>
+        </div>
+
+        <div class="card" id="timingcard">
+          <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Performance</h4>
+          <div class="kv"><span>End-to-end inference</span><b id="ttotal">–</b></div>
+          <div class="kv"><span>Model version</span><b id="mver">–</b></div>
         </div>
       </div>
     </div>
   </section>
-</main>
 
-<footer>
-  Decision-support output &mdash; not a diagnosis. Every referable and every
-  sight-threatening finding is reviewed by a qualified ophthalmologist before
-  clinical action.
+  <section class="why">
+    <h4>Why this beats a black-box classifier</h4>
+    <div class="whyg">
+      <div class="wc"><div class="i"><svg viewBox="0 0 24 24" fill="none" stroke="#7cc0ff" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <h5>It shows its work</h5><p>A Grad-CAM++ heatmap plus outlined lesions — you see <em>where</em> the decision came from, not just a number.</p></div>
+      <div class="wc"><div class="i"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee2a8" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h5>Safe by design</h5><p>A calibrated referral gate: it errs toward "refer" on sight-threatening disease rather than silently under-grading.</p></div>
+      <div class="wc"><div class="i"><svg viewBox="0 0 24 24" fill="none" stroke="#f5c877" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+        <h5>Honest about limits</h5><p>It reports a quality gate and flags findings it can't assess (e.g. neovascularization) instead of faking confidence.</p></div>
+    </div>
+  </section>
+
+</div>
+
+<footer class="wrap">
+  RetinaScope · runs the trained pipeline in <code style="background:#0009;padding:1px 6px;border-radius:4px">drscreen.api</code> · not a medical device — research/education demo.
 </footer>
 
 <script>
-const GRADES = ["No apparent DR","Mild NPDR","Moderate NPDR","Severe NPDR","Proliferative DR"];
-const DECISION = {
-  auto_report: "Auto-reported — model confident, no referral",
-  refer: "Referral recommended",
-  defer_to_human: "Deferred for human grading — model uncertain",
-  recapture: "Ungradeable — recapture required"
-};
-let currentFile = null, currentResult = null, reviewStart = 0, timerId = null;
+const ICDR = ["No apparent DR","Mild NPDR","Moderate NPDR","Severe NPDR","Proliferative DR"];
+const GC = ["#22c55e","#a3e635","#f59e0b","#fb7136","#ef4444"];
+const LESION_COLORS = {microaneurysm:"#ef4444",hemorrhage:"#fb7136",hard_exudate:"#f5d90a",soft_exudate:"#e8eef5",neovascularization:"#e24be2"};
+const LESION_NAME = {microaneurysm:"Microaneurysm",hemorrhage:"Haemorrhage",hard_exudate:"Hard exudate",soft_exudate:"Soft exudate",neovascularization:"Neovascularization"};
 const $ = s => document.querySelector(s);
 
-// ---- health -------------------------------------------------------------
-fetch("/health").then(r => r.json()).then(h => {
-  $("#status").innerHTML =
-    `<span><span class="dot ${h.segmentation_loaded?'on':'off'}"></span>segmentation</span>
-     <span><span class="dot ${h.grader_loaded?'on':'off'}"></span>grader</span>
-     <span>${h.device}</span>
-     <span>thr ${Number(h.referral_threshold).toFixed(3)}</span>
-     <span>T ${Number(h.temperature).toFixed(2)}</span>
-     <span>${h.model_version}</span>`;
-  const missing = [];
-  if (!h.segmentation_loaded) missing.push("lesion segmentation");
-  if (!h.grader_loaded) missing.push("severity grader");
-  if (missing.length) {
-    const el = $("#degraded");
-    el.classList.remove("hidden");
-    el.innerHTML =
-      `<b>Running in degraded mode — ${esc(missing.join(" and "))} not loaded.</b><br>
-       Screening still runs end to end (quality gate, landmarks, and the
-       rule-based ICDR grader), but ` +
-      (!h.segmentation_loaded
-        ? `with no lesion detector every image reports <b>Grade 0</b>. That is the
-           fallback behaving correctly, not a detection of "no disease".`
-        : `severity comes from the rule engine rather than the calibrated
-           ordinal model, so confidences are placeholders.`) +
-      `<br>Train and install the artefacts with
-       <code>python scripts/run_all.py</code>, then restart the server.`;
-  }
-}).catch(() => {
-  $("#status").textContent = "backend unreachable";
-  const el = $("#degraded");
-  el.classList.remove("hidden");
-  el.innerHTML = `<b>Cannot reach the backend.</b> Start it with
-    <code>python -m uvicorn drscreen.api:app --port 8000</code> from the project
-    root, then reload this page.`;
-});
+let THRESHOLD = 0.4;
 
-// ---- upload -------------------------------------------------------------
-const drop = $("#drop"), fileInput = $("#file");
-drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
-drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-drop.addEventListener("drop", e => {
-  e.preventDefault(); drop.classList.remove("over");
-  if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener("change", e => { if (e.target.files.length) setFile(e.target.files[0]); });
+async function health(){
+  try{
+    const r = await fetch('/health'); const h = await r.json();
+    const ok = h.segmentation_loaded && h.grader_loaded;
+    $('#hdot').className = 'dot ' + (ok?'on':'off');
+    $('#hstat').innerHTML = ok ? 'Model loaded' : 'Rule-based only';
+    $('#hdev').innerHTML = 'Device <b>'+(h.device||'?')+'</b>';
+    if(typeof h.referral_threshold==='number'){THRESHOLD=h.referral_threshold;
+      $('#hthr').innerHTML = 'Referral τ <b>'+h.referral_threshold.toFixed(2)+'</b>';}
+  }catch(e){ $('#hdot').className='dot off'; $('#hstat').textContent='API offline'; }
+}
+health();
 
-function setFile(f) {
-  currentFile = f;
-  drop.innerHTML = `<b>${f.name}</b><br><small>${(f.size/1024).toFixed(0)} KB &middot; click to change</small>`;
-  drop.appendChild(fileInput);
-  $("#btn-run").disabled = false; $("#btn-report").disabled = false;
+function pct(x){ return (100*x).toFixed(0)+'%'; }
+function show(el,on){ el.classList.toggle('show',on); }
+
+async function screenFile(file){
+  begin(file.name);
+  const fd = new FormData(); fd.append('file', file);
+  try{
+    const r = await fetch('/screen?explain=true',{method:'POST',body:fd});
+    if(!r.ok) throw new Error('Server returned '+r.status);
+    render(await r.json());
+  }catch(e){ fail(e.message); }
+}
+async function screenDemo(g){
+  begin('generated grade-'+g+' case');
+  try{
+    const r = await fetch('/demo/'+g+'?severity=0.18');
+    if(!r.ok) throw new Error('Server returned '+r.status);
+    render(await r.json());
+  }catch(e){ fail(e.message); }
 }
 
-$("#btn-run").addEventListener("click", async () => {
-  if (!currentFile) return;
-  const fd = new FormData(); fd.append("file", currentFile);
-  await runRequest(fetch("/screen", { method: "POST", body: fd }));
-});
-
-$("#btn-report").addEventListener("click", () => {
-  if (!currentFile) return;
-  const fd = new FormData(); fd.append("file", currentFile);
-  fetch("/screen/report", { method: "POST", body: fd })
-    .then(r => r.text())
-    .then(html => {
-      const w = window.open("", "_blank");
-      w.document.write(html); w.document.close();
-    });
-});
-
-$("#sev").addEventListener("input", e => {
-  const v = +e.target.value;
-  $("#sevlab").textContent = v < 25 ? "good" : v < 55 ? "borderline" : v < 80 ? "poor" : "very poor";
-});
-
-document.querySelectorAll(".demo").forEach(b => b.addEventListener("click", () => {
-  const sev = (+$("#sev").value) / 100;
-  runRequest(fetch(`/demo/${b.dataset.g}?severity=${sev}`));
-}));
-
-async function runRequest(promise) {
-  $("#empty").classList.remove("hidden");
-  $("#empty").innerHTML = '<span class="spin"></span> Running pipeline…';
-  $("#result").classList.add("hidden");
-  try {
-    const res = await promise;
-    if (!res.ok) throw new Error(await res.text());
-    render(await res.json());
-  } catch (err) {
-    $("#empty").textContent = "Error: " + err.message;
-  }
+function begin(name){
+  $('#rfn').textContent = name;
+  show($('#error'),false);
+  show($('#loading'),true);
+  $('#results').classList.remove('show');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function fail(msg){
+  show($('#loading'),false);
+  const e=$('#error'); e.textContent='⚠ '+msg+' — is the API running? Start it with: python -m uvicorn drscreen.api:app --port 8000';
+  show(e,true);
 }
 
-// ---- rendering ----------------------------------------------------------
-function render(r) {
-  currentResult = r;
-  $("#empty").classList.add("hidden");
-  $("#result").classList.remove("hidden");
+function render(d){
+  show($('#loading'),false);
+  const res = $('#results'); res.style.display='block';
 
-  const cls = r.decision === "recapture" ? "recapture" : r.urgency;
-  const label = r.decision === "recapture" ? "RECAPTURE"
-              : r.urgency === "urgent" ? "URGENT REFERRAL"
-              : r.urgency === "soon" ? "REFER" : "ROUTINE";
-  $("#verdict").className = "verdict v-" + cls;
-  $("#verdict").innerHTML = `
-    <div class="u">${label}</div>
-    <div class="g">${r.gradeable ? `Grade ${r.grade} — ${GRADES[r.grade]}` : "Ungradeable"}</div>
-    <div class="d">${DECISION[r.decision] || r.decision}
-      ${r.gradeable ? ` &middot; P(referable) = <b>${r.referable_probability.toFixed(3)}</b>
-        &middot; confidence ${(r.confidence*100).toFixed(1)}%` : ""}</div>`;
+  const ungrad = d.gradeable===false;
+  const g = d.grade;
+  const badge = $('#gbadge');
+  if(ungrad || g==null || g<0){
+    badge.style.background='#2b3947'; $('#gnum').textContent='—';
+    $('#glabel').textContent='Ungradeable image';
+    $('#gsub').textContent='Quality gate rejected this capture before grading.';
+  }else{
+    badge.style.background='linear-gradient(150deg,'+GC[g]+','+shade(GC[g])+')';
+    $('#gnum').textContent=g;
+    $('#glabel').textContent=(d.grade_label||ICDR[g])+' · ICDR '+g;
+    $('#gsub').textContent = g>=2 ? 'Referable diabetic retinopathy detected.'
+             : (g===1 ? 'Early changes — routine monitoring.' : 'No apparent diabetic retinopathy.');
+  }
 
-  const warns = [];
-  if (r.quality?.overall === "borderline")
-    warns.push("Image quality borderline; enhancement applied — interpret subtle findings with caution.");
-  if (r.agreement === "disagree")
-    warns.push(`Deep model (${r.grade}) and rule-based criteria (${r.rule_based_grade}) disagree.`);
-  if ((r.uncertainty?.epistemic_variance || 0) > 0.05)
-    warns.push("High model uncertainty on this image.");
-  (r.recapture_advice || []).forEach(a => warns.push(a));
-  $("#warnings").innerHTML = warns.map(w => `<div class="warn">${esc(w)}</div>`).join("");
+  // decision pill
+  const dec = d.decision||'—', urg = d.urgency||'routine';
+  const dc = $('#decc');
+  const dmap = {auto_report:['#123122','#7ee2a8','Auto-report'],refer:['#3a1418','#ff9ea6','Refer to ophthalmology'],
+                defer_to_human:['#33280f','#f5c877','Defer to human review'],recapture:['#25262e','#cfd6e2','Recapture image']};
+  const dv = dmap[dec]||['#25262e','#cfd6e2',dec];
+  dc.style.background=dv[0]; dc.style.color=dv[1]; dc.style.border='1px solid '+dv[1]+'44';
+  dc.innerHTML = dotSvg(dv[1])+dv[2];
 
-  $("#panel").src = r.panel_jpeg_b64 ? "data:image/jpeg;base64," + r.panel_jpeg_b64 : "";
-  $("#panel").style.display = r.panel_jpeg_b64 ? "block" : "none";
+  // urgency + confidence tags
+  const uc={routine:'#7ee2a8',soon:'#f5c877',urgent:'#ff9ea6'}[urg]||'#cfd6e2';
+  $('#utags').innerHTML =
+     '<span class="tag">Urgency <b style="color:'+uc+'">'+urg.toUpperCase()+'</b></span>'+
+     (d.agreement?'<span class="tag">Cross-check <b>'+d.agreement.replace(/_/g,' ')+'</b></span>':'');
 
-  $("#probs").innerHTML = (r.class_probabilities || []).map((p, g) => `
-    <div class="bar"><span class="lb">${g} &middot; ${GRADES[g]}</span>
-      <span class="tr"><span class="fl ${g===r.grade?'pred':''}" style="width:${Math.max(0.4,p*100)}%"></span></span>
-      <span class="vl">${(p*100).toFixed(1)}%</span></div>`).join("");
+  // confidence ring
+  const conf = d.confidence||0;
+  const ring=$('#confring'); ring.style.setProperty('--p',(conf*100).toFixed(0));
+  ring.style.setProperty('--rc', ungrad?'#5f7288':GC[Math.max(0,g||0)]);
+  $('#confv').textContent = pct(conf);
 
-  $("#evidence").innerHTML = (r.evidence || []).map(e => {
-    if (e.finding) {
-      const q = Object.entries(e.per_quadrant || {}).map(([k,v])=>`${k} ${v}`).join(", ");
-      return `<li><b>${esc(e.finding)}</b>: ${e.count} detected${q?` (${esc(q)})`:""}
-              &mdash; ${e.area_percent}% of retinal area</li>`;
+  // probabilities
+  const probs = d.class_probabilities||[];
+  $('#probs').innerHTML = probs.map((p,i)=>{
+    const pred = i===g;
+    return '<div class="bar'+(pred?' pred':'')+'">'+
+      '<div class="lb"><b>'+i+'</b> '+ICDR[i]+'</div>'+
+      '<div class="tr"><span class="fl" style="background:'+GC[i]+(pred?'':'99')+'"></span></div>'+
+      '<div class="vl">'+pct(p)+'</div></div>';
+  }).join('');
+  requestAnimationFrame(()=>document.querySelectorAll('#probs .fl').forEach((el,i)=>el.style.width=pct(probs[i]||0)));
+
+  // heatmap panel
+  if(d.panel_jpeg_b64){ $('#panel').src='data:image/jpeg;base64,'+d.panel_jpeg_b64; $('#panel').style.display='block'; }
+  else{ $('#panel').style.display='none'; }
+
+  // lesions
+  const counts = (d.clinical_features&&d.clinical_features.counts)||{};
+  const order=['microaneurysm','hemorrhage','hard_exudate','soft_exudate','neovascularization'];
+  $('#lesions').innerHTML = order.map(k=>{
+    const v = counts[k]; const na = (v==null);
+    return '<div class="chip"><span class="d" style="background:'+LESION_COLORS[k]+'"></span>'+
+      LESION_NAME[k]+' <b>'+(na?'n/a':v)+'</b></div>';
+  }).join('');
+
+  // evidence — heterogeneous: status findings, count findings (shown as chips
+  // above, skipped here), and clinical-reasoning notes.
+  const ev = d.evidence||[];
+  $('#evidence').innerHTML = ev.map(e=>{
+    if(e.count!=null) return '';                       // counts already shown as chips
+    if(e.status){
+      const s=e.status.toLowerCase();
+      const cls = s.includes('not')?'na':(s.includes('present')||s.includes('detected')?'present':'absent');
+      return '<li><span class="st '+cls+'">'+e.status+'</span><div><div class="fx">'+
+        (e.finding||'').replace(/_/g,' ')+'</div>'+(e.detail?'<div class="dt">'+e.detail+'</div>':'')+'</div></li>';
     }
-    if (e.criterion) return `<li class="criterion">${esc(e.criterion)}</li>`;
-    if (e.macular_assessment) return `<li class="macula">${esc(e.macular_assessment)}</li>`;
-    if (e.caution) return `<li class="caution">${esc(e.caution)}</li>`;
-    return "";
-  }).join("") || "<li>No lesions detected.</li>";
+    const note = e.macular_assessment||e.caution||e.criterion;
+    if(note){
+      const cls = (e.caution||e.macular_assessment)?'na':'absent';
+      const lbl = e.caution?'Caution':(e.macular_assessment?'Macula':'Criterion');
+      return '<li><span class="st '+cls+'">'+lbl+'</span><div class="dt" style="color:var(--text)">'+note+'</div></li>';
+    }
+    return '';
+  }).join('');
 
-  $("#cross").innerHTML = `
-    <div class="kv"><span>Deep model grade</span><b>${r.grade}</b></div>
-    <div class="kv"><span>Rule-based grade</span><b>${r.rule_based_grade}</b></div>
-    <div class="kv"><span>Agreement</span><b>${esc(r.agreement||"-")}</b></div>
-    <div class="kv"><span>Macular oedema risk</span><b>${r.dme_risk}</b></div>
-    <div class="kv"><span>Predictive entropy</span><b>${(r.uncertainty?.entropy||0).toFixed(3)}</b></div>
-    <div class="kv"><span>Epistemic variance</span><b>${(r.uncertainty?.epistemic_variance||0).toFixed(4)}</b></div>`;
+  // referral
+  const rp=d.referable_probability||0;
+  $('#reffl').style.background = rp>=THRESHOLD?'#ef4444':'#22c55e';
+  requestAnimationFrame(()=>$('#reffl').style.width=pct(rp));
+  $('#refv').textContent=pct(rp);
+  $('#refyn').innerHTML = d.referable?'<span style="color:#ff9ea6">YES</span>':'<span style="color:#7ee2a8">No</span>';
+  $('#refthr').textContent=THRESHOLD.toFixed(3);
+  $('#dme').textContent = (d.dme_risk!=null? d.dme_risk : '–');
 
-  $("#quality").innerHTML = Object.entries(r.quality?.scores || {}).map(([k,v]) => {
-    const vd = (r.quality.verdicts || {})[k] || "pass";
-    return `<tr><td>${esc(k.replace(/_/g," "))}</td><td class="n">${v.toFixed(2)}</td>
-            <td class="${vd}">${vd}</td></tr>`;
-  }).join("");
+  // quality
+  const q=d.quality||{};
+  $('#qoverall').innerHTML = badgeQ(q.overall);
+  const sc=q.scores||{}, vd=q.verdicts||{};
+  $('#quality').innerHTML = Object.keys(vd).length? Object.keys(vd).map(k=>{
+    return '<div class="q"><span class="qn">'+k.replace(/_/g,' ')+'</span><span class="qv '+vd[k]+'">'+
+      vd[k]+(sc[k]!=null?' '+sc[k].toFixed(2):'')+'</span></div>';
+  }).join('') : '<div class="q"><span class="qn">no quality detail</span></div>';
 
-  $("#timing").innerHTML = Object.entries(r.timing_ms || {}).map(([k,v]) =>
-    `<tr><td>${esc(k)}</td><td class="n">${v.toFixed(1)} ms</td></tr>`).join("");
+  // landmarks + uncertainty
+  const lm=d.landmarks||{};
+  $('#lat').textContent = lm.laterality||'–';
+  $('#disc').textContent = lm.disc_xy? '('+lm.disc_xy.join(', ')+') · r '+Math.round(lm.disc_radius||0)+'px' : '–';
+  $('#fovea').textContent = lm.fovea_xy? '('+lm.fovea_xy.join(', ')+')' : '–';
+  const un=d.uncertainty||{};
+  $('#entropy').textContent = un.entropy!=null? un.entropy.toFixed(3):'–';
+  $('#epis').textContent = un.epistemic_variance!=null? un.epistemic_variance.toFixed(4):'–';
 
-  const gt = r.ground_truth;
-  $("#gt-card").style.display = gt ? "block" : "none";
-  if (gt) {
-    const hit = gt.grade === r.grade ? "pass" : (Math.abs(gt.grade-r.grade)===1 ? "borderline" : "fail");
-    $("#gt").innerHTML = `
-      <div class="kv"><span>True grade</span><b class="${hit}">${gt.grade} &middot; ${GRADES[gt.grade]}</b></div>
-      <div class="kv"><span>Camera</span><b>${esc(gt.camera)}</b></div>
-      ${Object.entries(gt.lesion_counts||{}).filter(([,v])=>v>0)
-        .map(([k,v])=>`<div class="kv"><span>${esc(k.replace(/_/g," "))}</span><b>${v}</b></div>`).join("")}`;
+  // rule-based
+  $('#rgrade').textContent = d.rule_based_grade!=null? d.rule_based_grade : '–';
+  $('#agree').textContent = (d.agreement||'–').replace(/_/g,' ');
+  const rr=d.rule_based_reasons||[];
+  $('#reasons').innerHTML = rr.slice(0,4).map(r=>'<li>'+r+'</li>').join('');
+
+  // timing
+  const t=d.timing_ms||{};
+  $('#ttotal').textContent = t.total!=null? Math.round(t.total)+' ms' : '–';
+  $('#mver').textContent = d.model_version||'–';
+
+  // ground-truth (only from /demo)
+  const old=document.getElementById('gtbox'); if(old) old.remove();
+  if(d.ground_truth){
+    const gt=d.ground_truth; const box=document.createElement('div');
+    box.id='gtbox'; box.className='gt';
+    const match = gt.grade===g;
+    box.innerHTML='◆ Synthetic ground truth: <b>grade '+gt.grade+' ('+ICDR[gt.grade]+')</b> — '+
+      (match?'✓ exact match':'model read as grade '+g+(d.referable?' · still referred':''));
+    $('#gsub').after(box);
   }
 
-  buildReview(r);
+  res.classList.add('show');
 }
 
-function buildReview(r) {
-  reviewStart = Date.now();
-  clearInterval(timerId);
-  timerId = setInterval(() => {
-    $("#timer").textContent = `${((Date.now()-reviewStart)/1000).toFixed(0)}s`;
-  }, 200);
-  $("#review").innerHTML = GRADES.map((g, i) =>
-    `<button class="${i===r.grade?'':'ghost'}" data-grade="${i}">${i===r.grade?'✓ ':''}${i}</button>`
-  ).join("");
-  document.querySelectorAll("#review button").forEach(b =>
-    b.addEventListener("click", () => submitReview(+b.dataset.grade)));
+function shade(hex){ // darker variant for badge gradient
+  const n=parseInt(hex.slice(1),16); let r=(n>>16)-30,gg=((n>>8)&255)-30,b=(n&255)-30;
+  r=Math.max(0,r);gg=Math.max(0,gg);b=Math.max(0,b);
+  return '#'+(r<<16|gg<<8|b).toString(16).padStart(6,'0');
+}
+function dotSvg(c){ return '<span style="width:8px;height:8px;border-radius:50%;background:'+c+';display:inline-block"></span>'; }
+function badgeQ(o){
+  const m={good:'#7ee2a8',borderline:'#f5c877',ungradeable:'#ff9ea6',poor:'#ff9ea6'};
+  return '<span style="color:'+(m[o]||'#cfd6e2')+';font-weight:700;text-transform:capitalize">'+(o||'–')+'</span>';
 }
 
-async function submitReview(grade) {
-  if (!currentResult) return;
-  clearInterval(timerId);
-  const secs = (Date.now() - reviewStart) / 1000;
-  const fd = new FormData();
-  fd.append("image_id", currentResult.image_id);
-  fd.append("model_grade", currentResult.grade);
-  fd.append("reviewer_grade", grade);
-  fd.append("seconds", secs.toFixed(1));
-  const res = await fetch("/review", { method: "POST", body: fd }).then(r => r.json());
-  $("#review").innerHTML =
-    `<div style="font-size:12.5px;color:var(--muted)">Recorded: reviewer graded
-     <b style="color:var(--text)">${grade}</b>, model said
-     <b style="color:var(--text)">${currentResult.grade}</b>
-     (${esc(res.agreement)}) in ${secs.toFixed(1)}s
-     ${secs<=30?'— within the 30s target':''}.</div>`;
-}
-
-function esc(s){ return String(s).replace(/[&<>"']/g, c =>
-  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+// wiring
+const fileEl=$('#file'), drop=$('#drop');
+drop.onclick=()=>fileEl.click();
+fileEl.onchange=e=>{ if(e.target.files[0]) screenFile(e.target.files[0]); };
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) screenFile(f); });
+document.querySelectorAll('.gbtn').forEach(b=>b.onclick=()=>screenDemo(+b.dataset.g));
+$('#reset').onclick=()=>{ $('#results').classList.remove('show'); fileEl.value=''; window.scrollTo({top:0,behavior:'smooth'}); };
 </script>
 </body>
 </html>
