@@ -156,7 +156,17 @@ DECISION_LABEL = {
 }
 
 
-def render_html(result, artifacts: dict, title: str = "DR Screening Report") -> str:
+def render_html(result, artifacts: dict, title: str = "DR Screening Report",
+                provenance: str | None = None) -> str:
+    """Render the standalone HTML report.
+
+    ``provenance`` is a one-line statement of where the pixels came from,
+    shown above the verdict. A reader's first question about any screening
+    output is "what was this run on?", and a report that does not answer it
+    lets a demonstration on generated phantoms be mistaken for one on a real
+    photograph. It is a free-text note, not a claim the code can verify --
+    the caller is the one that knows.
+    """
     r = result
     grade_colour, grade_bg, urgency_text = URGENCY_STYLE.get(
         r.urgency, URGENCY_STYLE["routine"])
@@ -222,6 +232,11 @@ def render_html(result, artifacts: dict, title: str = "DR Screening Report") -> 
         warnings.append("Image was rejected by the quality gate.")
     warn_html = "".join(f"<div class='warn'>{html.escape(w)}</div>" for w in warnings)
 
+    prov_html = ""
+    if provenance:
+        prov_html = ("<div class='prov'><span class='k'>Image of eye</span>"
+                     f"<span class='v'>{html.escape(provenance)}</span></div>")
+
     advice_html = ""
     if r.recapture_advice:
         advice_html = ("<div class='card'><h2>Recapture instructions</h2><ol>"
@@ -246,6 +261,12 @@ header {{ display:flex; justify-content:space-between; align-items:flex-start;
   gap:20px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:14px; }}
 h1 {{ font-size:19px; margin:0 0 4px; letter-spacing:.2px; }}
 .meta {{ color:var(--muted); font-size:12.5px; }}
+.prov {{ display:flex; align-items:center; gap:10px; margin:14px 0 0;
+  background:#10241a; border:1px solid #1f4c34; border-left:3px solid #2ea36a;
+  border-radius:8px; padding:9px 13px; font-size:13px; }}
+.prov .k {{ color:#7fd6a6; font-weight:700; letter-spacing:.3px;
+  text-transform:uppercase; font-size:11px; white-space:nowrap; }}
+.prov .v {{ color:var(--fg); }}
 .verdict {{ background:{grade_bg}; color:{grade_colour}; border-radius:10px;
   padding:12px 18px; min-width:290px; }}
 .verdict .g {{ font-size:26px; font-weight:700; line-height:1.15; }}
@@ -297,6 +318,7 @@ footer {{ color:var(--muted); font-size:11.5px; margin-top:22px;
   </div>
 </header>
 
+{prov_html}
 {warn_html}
 
 <div class="grid">
@@ -354,13 +376,14 @@ footer {{ color:var(--muted); font-size:11.5px; margin-top:22px;
 
 
 def save_report(result, artifacts: dict, out_dir: str | Path,
-                write_panel: bool = True) -> dict:
+                write_panel: bool = True, provenance: str | None = None) -> dict:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     paths = {}
 
     html_path = out / f"{result.image_id}_report.html"
-    html_path.write_text(render_html(result, artifacts), encoding="utf-8")
+    html_path.write_text(render_html(result, artifacts, provenance=provenance),
+                         encoding="utf-8")
     paths["html"] = html_path
 
     if write_panel:

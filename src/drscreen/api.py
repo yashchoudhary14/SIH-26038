@@ -6,6 +6,8 @@ Endpoints
 ``GET  /health``         liveness + which artefacts are loaded
 ``POST /screen``         upload a fundus image, get the full JSON result
 ``POST /screen/report``  same, but returns the rendered HTML report
+``GET  /cases``          list the real held-out verification photographs
+``GET  /cases/{name}``   screen one of them, straight off disk
 ``GET  /demo/{grade}``   run a generated phantom of a given grade
 ``POST /review``         record an ophthalmologist's agree/disagree decision
 ``GET  /audit``          the review log, for programme-level monitoring
@@ -37,6 +39,7 @@ app = FastAPI(title="DR Screening", version="1.0.0",
 
 _PIPELINE: DRScreeningPipeline | None = None
 _ARTIFACTS_DIR = Path("outputs/artifacts")
+_CASES_DIR = Path("outputs/verification_set")
 _AUDIT_LOG = Path("outputs/audit/reviews.jsonl")
 _WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 
@@ -104,10 +107,115 @@ async def screen(file: UploadFile = File(...), explain: bool = True) -> JSONResp
 
 @app.post("/screen/report", response_class=HTMLResponse)
 async def screen_report(file: UploadFile = File(...)) -> str:
-    img = _decode(await file.read())
+    raw = await file.read()
+    img = _decode(raw)
     p = get_pipeline()
-    result, artifacts = p.run(img, image_id=Path(file.filename or "case").stem)
-    return render_html(result, artifacts)
+    name = Path(file.filename or "case").stem
+    result, artifacts = p.run(img, image_id=name)
+    h, w = img.shape[:2]
+    return render_html(result, artifacts,
+                       provenance=f"Real image attached — uploaded file "
+                                  f"'{file.filename or 'case'}', {w}×{h} px.")
+
+
+# --------------------------------------------------------------------------
+# Real held-out cases
+# --------------------------------------------------------------------------
+# The demo used to be twelve generated phantoms, and every viewer worked that
+# out in about a second -- which is the worst possible outcome, because a
+# system that only ever demonstrates on images it drew itself gives a reviewer
+# no reason to believe any of it. These endpoints serve real photographs from
+# the APTOS-2019 and IDRiD held-out test splits instead: never trained on,
+# never validated on, never used to fit a threshold. The grade shown is the
+# model's own live output on the file, computed on request -- nothing here is
+# a stored answer keyed to a filename.
+def _load_cases() -> dict:
+    f = _CASES_DIR / "verification_summary.json"
+    if not f.exists():
+        return {}
+    try:
+        rows = json.loads(f.read_text(encoding="utf-8")).get("cases", [])
+    except Exception:
+        return {}
+    return {r["case"]: r for r in rows}
+
+
+@app.get("/cases")
+def list_cases() -> dict:
+    """The real verification photographs available to screen.
+
+    ``true_grade`` is the reference standard shipped with the corpus, not
+    anything this project produced; it is returned so the console can show
+    the reviewer what the answer should have been.
+    """
+    cases = _load_cases()
+    if not cases:
+        return {"n": 0, "cases": [], "note": (
+            "No verification set on disk. Build it with "
+            "scripts/build_verification_set.py, or use /demo/{grade} for "
+            "synthetic phantoms.")}
+    out = []
+    for name, r in cases.items():
+        out.append({
+            "case": name,
+            "true_grade": r["true_grade"],
+            "true_label": r["true_label"],
+            "source": r["source"],
+            "subject": r.get("subject", ""),
+            "provenance": r.get("provenance", ""),
+            "thumbnail": f"/cases/{name}/image",
+        })
+    out.sort(key=lambda c: (c["true_grade"], c["case"]))
+    return {"n": len(out), "real_images": True, "cases": out}
+
+
+def _case_path(name: str) -> Path:
+    cases = _load_cases()
+    if name not in cases:
+        raise HTTPException(404, f"no such case: {name}")
+    img = _CASES_DIR / cases[name].get("image", f"images/{name}.jpg")
+    if not img.exists():
+        raise HTTPException(404, f"image missing on disk for case {name}")
+    return img
+
+
+@app.get("/cases/{name}/image")
+def case_image(name: str) -> Response:
+    p = _case_path(name)
+    media = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
+    return Response(p.read_bytes(), media_type=media)
+
+
+@app.get("/cases/{name}")
+def screen_case(name: str, report: bool = False):
+    """Run the pipeline on one real held-out photograph, live."""
+    meta = _load_cases()[name] if name in _load_cases() else {}
+    img_path = _case_path(name)
+    img = cv2.imread(str(img_path), cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(500, f"could not decode {img_path}")
+    p = get_pipeline()
+    result, artifacts = p.run(img, image_id=name)
+    prov = meta.get("provenance") or "Real image attached."
+    if report:
+        return HTMLResponse(render_html(result, artifacts, provenance=prov))
+    payload = result.to_dict()
+    payload["synthetic"] = False
+    payload["provenance"] = prov
+    payload["ground_truth"] = {"grade": meta.get("true_grade"),
+                               "label": meta.get("true_label"),
+                               "source": meta.get("source"),
+                               "subject": meta.get("subject"),
+                               "reference_standard": "corpus label, held-out split"}
+    try:
+        import base64
+        panel = build_review_panel(result, artifacts)
+        ok, buf = cv2.imencode(".jpg", panel, [cv2.IMWRITE_JPEG_QUALITY, 88])
+        if ok:
+            payload["panel_jpeg_b64"] = base64.b64encode(buf.tobytes()).decode()
+    except Exception:
+        pass
+    return JSONResponse(payload)
 
 
 @app.get("/demo/{grade}")
@@ -127,9 +235,15 @@ def demo(grade: int, severity: float = 0.3, seed: int | None = None,
     p = get_pipeline()
     result, artifacts = p.run(ph.image, image_id=f"phantom_g{grade}")
     if report:
-        return HTMLResponse(render_html(result, artifacts))
+        return HTMLResponse(render_html(
+            result, artifacts,
+            provenance=f"SYNTHETIC PHANTOM — generated, not a photograph "
+                       f"(grade {ph.grade}, seed {ph.seed if hasattr(ph, 'seed') else '?'}). "
+                       f"Not clinical evidence."))
     payload = result.to_dict()
     payload["synthetic"] = True
+    payload["provenance"] = ("SYNTHETIC PHANTOM — generated, not a "
+                             "photograph. Not clinical evidence.")
     payload["ground_truth"] = {"grade": ph.grade, "lesion_counts": ph.lesion_counts,
                                "camera": ph.camera, "quality_label": ph.quality_label}
     try:

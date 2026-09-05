@@ -501,8 +501,16 @@ class DRScreeningPipeline:
         confidently_negative = p < lo
 
         # Neovascularisation is the exception: it defines proliferative DR and
-        # is a specific finding, so it escalates on sight.
-        if feats.nv_at_disc or feats.nv_elsewhere:
+        # is a specific finding, so it escalates on sight -- *if* the channel
+        # that reports it was ever trained to. On the real cohort IDRiD ships
+        # no NV masks, so that channel is unsupervised; at the default 0.5 it
+        # returns a blob on essentially every retina. Wired unconditionally it
+        # escalated 631/631 held-out real images to refer/urgent, which is the
+        # exact 100%-escalation collapse the rest of this method exists to
+        # prevent. ``rule_grade`` already refuses to read this channel when it
+        # is unassessed; the decision rule has to refuse for the same reason.
+        nv_assessed = "neovascularization" not in feats.unassessed
+        if nv_assessed and (feats.nv_at_disc or feats.nv_elsewhere):
             return "refer", "urgent"
 
         # The urgent tier is decided on P(grade >= 3) against a threshold

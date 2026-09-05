@@ -67,6 +67,23 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 .kv span{color:var(--muted)}
 .warn{background:#2a1d10;border-left:3px solid var(--warn);padding:9px 12px;
   border-radius:5px;margin-bottom:9px;font-size:12.5px}
+.prov{display:flex;align-items:center;gap:10px;margin-bottom:12px;
+  background:#10241a;border:1px solid #1f4c34;border-left:3px solid #2ea36a;
+  border-radius:8px;padding:9px 13px;font-size:12.5px}
+.prov.synth{background:#2a1d10;border-color:#7a4d14;border-left-color:var(--warn)}
+.prov .k{color:#7fd6a6;font-weight:700;letter-spacing:.3px;text-transform:uppercase;
+  font-size:10.5px;white-space:nowrap}
+.prov.synth .k{color:#ffc86b}
+.cases{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:4px}
+.case{position:relative;padding:0;border:1px solid var(--line);border-radius:7px;
+  overflow:hidden;background:#0f1620;cursor:pointer;line-height:0}
+.case img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;opacity:.92}
+.case:hover img{opacity:1}
+.case.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.case .cap{position:absolute;left:0;right:0;bottom:0;line-height:1.25;
+  background:linear-gradient(transparent,rgba(6,10,15,.92) 45%);
+  color:#e6edf5;font-size:10px;font-weight:600;text-align:left;padding:12px 5px 4px}
+.case .cap i{display:block;font-style:normal;font-weight:400;color:#9fb0c2;font-size:9px}
 #degraded{max-width:1700px;margin:14px auto 0;padding:11px 16px;
   background:#3a2410;border:1px solid #7a4d14;border-left:4px solid var(--warn);
   border-radius:8px;font-size:13px;color:#ffdfae}
@@ -114,10 +131,28 @@ footer{color:var(--muted);font-size:11.5px;padding:16px 22px;
     </div>
 
     <div class="card">
-      <h2>Demo &mdash; generated phantom</h2>
+      <h2>Verification set &mdash; real photographs</h2>
       <p style="color:var(--muted);font-size:12px;margin:0 0 9px">
-        Synthetic retinas with known ground truth, for demonstrating the flow
-        without patient data.</p>
+        Twelve real fundus photographs from the APTOS-2019 and IDRiD
+        <b>held-out test</b> splits &mdash; never trained on, never validated
+        on, never used to fit a threshold. Click one to screen it live.</p>
+      <div class="cases" id="cases"></div>
+      <p style="color:var(--muted);font-size:11px;margin:9px 0 0" id="cases-note"></p>
+    </div>
+
+    <div class="card" id="gt-card" style="display:none">
+      <h2>Reference standard</h2>
+      <div id="gt"></div>
+    </div>
+
+    <details class="card" id="phantom-card">
+      <summary style="cursor:pointer;font-size:13px;font-weight:600;
+        letter-spacing:.02em;color:var(--muted)">Synthetic phantoms
+        (fallback, no real data needed)</summary>
+      <p style="color:var(--muted);font-size:12px;margin:9px 0">
+        Generated retinas, not photographs. Here only so the service is
+        demonstrable on a machine with no corpus on disk &mdash; never
+        clinical evidence, and never the basis of a reported number.</p>
       <div class="row">
         <button class="ghost demo" data-g="0">Grade 0</button>
         <button class="ghost demo" data-g="1">Grade 1</button>
@@ -130,20 +165,16 @@ footer{color:var(--muted);font-size:11.5px;padding:16px 22px;
         <input type="range" id="sev" min="0" max="100" value="25" style="width:100%">
         <span id="sevlab">good</span>
       </label>
-    </div>
-
-    <div class="card" id="gt-card" style="display:none">
-      <h2>Ground truth (synthetic)</h2>
-      <div id="gt"></div>
-    </div>
+    </details>
   </aside>
 
   <section>
     <div id="empty" class="card" style="text-align:center;padding:60px 20px;color:var(--muted)">
-      Upload a fundus image or run a demo phantom to begin.
+      Upload a fundus image, or pick one of the twelve real held-out photographs on the left, to begin.
     </div>
 
     <div id="result" class="hidden">
+      <div id="prov" class="prov hidden"></div>
       <div id="verdict" class="verdict"></div>
       <div id="warnings"></div>
       <div class="grid2">
@@ -200,7 +231,8 @@ const DECISION = {
   defer_to_human: "Deferred for human grading — model uncertain",
   recapture: "Ungradeable — recapture required"
 };
-let currentFile = null, currentResult = null, reviewStart = 0, timerId = null;
+let currentFile = null, currentCase = null, currentResult = null,
+    reviewStart = 0, timerId = null;
 const $ = s => document.querySelector(s);
 
 // ---- health -------------------------------------------------------------
@@ -251,6 +283,8 @@ fileInput.addEventListener("change", e => { if (e.target.files.length) setFile(e
 
 function setFile(f) {
   currentFile = f;
+  currentCase = null;
+  document.querySelectorAll(".case.on").forEach(x => x.classList.remove("on"));
   drop.innerHTML = `<b>${f.name}</b><br><small>${(f.size/1024).toFixed(0)} KB &middot; click to change</small>`;
   drop.appendChild(fileInput);
   $("#btn-run").disabled = false; $("#btn-report").disabled = false;
@@ -263,14 +297,19 @@ $("#btn-run").addEventListener("click", async () => {
 });
 
 $("#btn-report").addEventListener("click", () => {
+  const open = html => {
+    const w = window.open("", "_blank");
+    w.document.write(html); w.document.close();
+  };
+  if (currentCase) {
+    fetch(`/cases/${encodeURIComponent(currentCase)}?report=true`)
+      .then(r => r.text()).then(open);
+    return;
+  }
   if (!currentFile) return;
   const fd = new FormData(); fd.append("file", currentFile);
   fetch("/screen/report", { method: "POST", body: fd })
-    .then(r => r.text())
-    .then(html => {
-      const w = window.open("", "_blank");
-      w.document.write(html); w.document.close();
-    });
+    .then(r => r.text()).then(open);
 });
 
 $("#sev").addEventListener("input", e => {
@@ -280,8 +319,52 @@ $("#sev").addEventListener("input", e => {
 
 document.querySelectorAll(".demo").forEach(b => b.addEventListener("click", () => {
   const sev = (+$("#sev").value) / 100;
+  currentCase = null;
   runRequest(fetch(`/demo/${b.dataset.g}?severity=${sev}`));
 }));
+
+// ---- real held-out cases -------------------------------------------------
+// The grade is not stored anywhere in this page: clicking a tile posts the
+// photograph through the same pipeline an uploaded image goes through, and
+// what comes back is whatever the model says today.
+async function loadCases() {
+  let data;
+  try {
+    data = await (await fetch("/cases")).json();
+  } catch { data = {n: 0, cases: []}; }
+  const host = $("#cases");
+  if (!data.n) {
+    host.innerHTML = "";
+    $("#cases-note").textContent = data.note ||
+      "No verification set on disk — build it with scripts/build_verification_set.py.";
+    $("#phantom-card").open = true;
+    return;
+  }
+  host.innerHTML = data.cases.map(c => `
+    <button class="case" data-case="${esc(c.case)}"
+      title="${esc(c.provenance || "")}">
+      <img src="${esc(c.thumbnail)}" alt="${esc(c.true_label)} fundus photograph" loading="lazy">
+      <span class="cap">Grade ${c.true_grade}<i>${esc(shortSource(c.source))}</i></span>
+    </button>`).join("");
+  $("#cases-note").innerHTML =
+    `${data.n} real photographs &middot; reference grade shown on each tile &middot; ` +
+    `the model's verdict is computed live on click.`;
+  host.querySelectorAll(".case").forEach(b => b.addEventListener("click", () => {
+    host.querySelectorAll(".case").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    currentCase = b.dataset.case;
+    $("#btn-report").disabled = false;
+    runRequest(fetch(`/cases/${encodeURIComponent(currentCase)}`));
+  }));
+}
+
+function shortSource(s) {
+  return s === "aptos2019" ? "APTOS-2019"
+       : s === "idrid_grading" ? "IDRiD"
+       : (s || "").replace(/_/g, " ");
+}
+
+loadCases();
 
 async function runRequest(promise) {
   $("#empty").classList.remove("hidden");
@@ -306,6 +389,16 @@ function render(r) {
   const label = r.decision === "recapture" ? "RECAPTURE"
               : r.urgency === "urgent" ? "URGENT REFERRAL"
               : r.urgency === "soon" ? "REFER" : "ROUTINE";
+  const prov = $("#prov");
+  if (r.provenance) {
+    prov.classList.remove("hidden");
+    prov.classList.toggle("synth", !!r.synthetic);
+    prov.innerHTML = `<span class="k">Image of eye</span>
+      <span class="v">${esc(r.provenance)}</span>`;
+  } else {
+    prov.classList.add("hidden");
+  }
+
   $("#verdict").className = "verdict v-" + cls;
   $("#verdict").innerHTML = `
     <div class="u">${label}</div>
@@ -334,6 +427,14 @@ function render(r) {
 
   $("#evidence").innerHTML = (r.evidence || []).map(e => {
     if (e.finding) {
+      // An unassessed class carries a status and no counts. Rendering it down
+      // the counted-lesion path printed "undefined detected", which reads as a
+      // display glitch when it is in fact the one row a reader most needs to
+      // take seriously: the model never looked for this lesion.
+      if (e.status) {
+        return `<li class="caution"><b>${esc(e.finding)}</b>:
+                ${esc(e.status)}${e.detail ? ` &mdash; ${esc(e.detail)}` : ""}</li>`;
+      }
       const q = Object.entries(e.per_quadrant || {}).map(([k,v])=>`${k} ${v}`).join(", ");
       return `<li><b>${esc(e.finding)}</b>: ${e.count} detected${q?` (${esc(q)})`:""}
               &mdash; ${e.area_percent}% of retinal area</li>`;
@@ -362,14 +463,25 @@ function render(r) {
     `<tr><td>${esc(k)}</td><td class="n">${v.toFixed(1)} ms</td></tr>`).join("");
 
   const gt = r.ground_truth;
-  $("#gt-card").style.display = gt ? "block" : "none";
-  if (gt) {
-    const hit = gt.grade === r.grade ? "pass" : (Math.abs(gt.grade-r.grade)===1 ? "borderline" : "fail");
-    $("#gt").innerHTML = `
-      <div class="kv"><span>True grade</span><b class="${hit}">${gt.grade} &middot; ${GRADES[gt.grade]}</b></div>
-      <div class="kv"><span>Camera</span><b>${esc(gt.camera)}</b></div>
-      ${Object.entries(gt.lesion_counts||{}).filter(([,v])=>v>0)
-        .map(([k,v])=>`<div class="kv"><span>${esc(k.replace(/_/g," "))}</span><b>${v}</b></div>`).join("")}`;
+  const hasGt = gt && gt.grade !== null && gt.grade !== undefined;
+  $("#gt-card").style.display = hasGt ? "block" : "none";
+  if (hasGt) {
+    const d = Math.abs(gt.grade - r.grade);
+    const hit = d === 0 ? "pass" : (d === 1 ? "borderline" : "fail");
+    const rows = [`<div class="kv"><span>Reference grade</span>
+      <b class="${hit}">${gt.grade} &middot; ${GRADES[gt.grade]}</b></div>`,
+      `<div class="kv"><span>Model agreement</span><b class="${hit}">${
+        d === 0 ? "exact" : d === 1 ? "within one grade" : `off by ${d}`}</b></div>`];
+    if (gt.source) rows.push(`<div class="kv"><span>Corpus</span>
+      <b>${esc(shortSource(gt.source))}</b></div>`);
+    if (gt.subject) rows.push(`<div class="kv"><span>Subject</span>
+      <b>${esc(gt.subject)}</b></div>`);
+    if (gt.reference_standard) rows.push(`<div class="kv"><span>Standard</span>
+      <b>${esc(gt.reference_standard)}</b></div>`);
+    if (gt.camera) rows.push(`<div class="kv"><span>Camera</span><b>${esc(gt.camera)}</b></div>`);
+    rows.push(...Object.entries(gt.lesion_counts || {}).filter(([, v]) => v > 0)
+      .map(([k, v]) => `<div class="kv"><span>${esc(k.replace(/_/g, " "))}</span><b>${v}</b></div>`));
+    $("#gt").innerHTML = rows.join("");
   }
 
   buildReview(r);

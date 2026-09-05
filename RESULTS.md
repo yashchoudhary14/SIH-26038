@@ -299,7 +299,7 @@ learned. Proliferative DR is still graded from image features, but the
 *explanation* cannot cite NV as evidence. The channel is now excluded from the
 segmentation loss and recorded in the checkpoint as `supervised_lesion_classes`,
 so the pipeline reports NV as **"not assessed"** rather than as a zero count —
-see bug #11 in [§6](#6-fifteen-bugs-that-only-real-data-exposed).
+see bug #11 in [§6](#6-sixteen-bugs-that-only-real-data-exposed).
 
 ### Landmark localisation
 
@@ -381,16 +381,17 @@ problem statement's "existing solutions" critique is aimed at.
 The verdict string in `outputs/validation/ablation.txt` is generated, not
 written. It now correctly stars `cnn` as the deployed arm — until this run it
 hard-coded `"fusion"` as the reference, which silently dropped the deployed
-model from its own ablation (bug #14 in [§6](#6-fifteen-bugs-that-only-real-data-exposed)).
+model from its own ablation (bug #14 in [§6](#6-sixteen-bugs-that-only-real-data-exposed)).
 
 ---
 
-## 6. Fifteen bugs that only real data exposed
+## 6. Sixteen bugs that only real data exposed
 
 Listed because most are *invisible* failures — they produce a plausible number
 rather than a crash. The first nine were found during the first real-data run,
-the next four by asking why grades 3 and 4 were collapsing, and the last two
-while correcting a train/serve preprocessing skew.
+the next four by asking why grades 3 and 4 were collapsing, two more while
+correcting a train/serve preprocessing skew, and the last one by rebuilding the
+demonstration set out of real photographs instead of generated ones.
 
 | # | bug | how it presented |
 |---|---|---|
@@ -479,7 +480,50 @@ segmentation Dice is unchanged by the swap (a conv net learns whichever order
 it is given consistently), which is the point: the model was never broken, only
 the thing it was served at inference.
 
-Suite: **74 tests**, `pytest tests/ -q`.
+Suite: **78 tests**, `pytest tests/ -q`.
+
+### And one more, from replacing the demo phantoms with real photographs
+
+The demonstration set used to be twelve images this project generated. Rebuilt
+from real held-out photographs, the first run returned `refer / urgent` for
+**all twelve**, healthy eyes included. Widened to the whole held-out split:
+**631 of 631** real images escalated to urgent referral.
+
+| # | bug | how it presented |
+|---|---|---|
+| 16 | `_decide` escalated on the neovascularisation flag before checking whether that channel was ever supervised | IDRiD ships no NV masks, so on the real cohort the NV channel trains against all-zero targets and is never supervised. At the default 0.5 cut-point it still returns a blob on nearly every retina, and that blob short-circuited the decision rule in its first branch — ahead of the confident-negative guard the rest of the method is built around. 100% of real images escalated, at P(referable) as low as 0.000004 |
+
+This is the same 100%-urgent collapse as the pre-fix row in the table below,
+arriving by a second route after the first was closed. `rule_grade` had always
+refused to read that channel when unassessed —
+`constants.PIXEL_ANNOTATED_LESION_CLASSES` documents exactly why — but
+`_decide` had never been given the same guard, and the section above records
+the exemption being granted deliberately.
+
+**Why no metric caught it.** `validate.py` scores `referable_probability`
+against its threshold; it never calls `_decide`. Sensitivity, specificity,
+AUC, QWK and calibration are all computed on the probability, and the
+probability was fine. The defect lived entirely in the decision layer stacked
+on top, which only the serve path exercises — and the serve path was only ever
+demonstrated on phantoms, whose cohort *does* annotate NV, so the channel was
+supervised there and the branch behaved correctly. Synthetic demo data hid a
+real-data-only bug in the one component synthetic data cannot represent.
+
+Fix: one condition in `pipeline.py`, pinned by
+`tests/test_unassessed_escalation.py` (4 tests, verified to fail against the
+old behaviour). Measured on all 631 held-out real images, same weights:
+
+| | before | after |
+|---|---|---|
+| Escalated urgent | 631/631 (100%) | 319/631 (50.6%) |
+| Auto-reported without review | 0/631 (0%) | 278/631 (44.1%) |
+| Referral specificity | 0.000 | **0.839** |
+| Referral sensitivity | 1.000 (trivially — everything referred) | 0.989 |
+| Exact-grade accuracy | 0.781 | 0.783 |
+
+The grader was never the problem; the triage on top of it was, and it failed
+in the direction that looks safe. A screener that refers every patient has
+thrown away the only thing that makes it worth deploying.
 
 ### Effect on deployed behaviour (120 real test images)
 
@@ -497,7 +541,12 @@ The 100%-urgent figure was the rule engine — measured specificity **0.058** �
 unilaterally overriding a calibrated model with specificity 0.939. Lesion-based
 escalation now requires corroboration and cannot override a confidently
 negative neural verdict, though the disagreement still reaches the report and
-the audit log. Neovascularisation remains an unconditional escalation.
+the audit log.
+
+Neovascularisation was left as the one unconditional escalation, on the
+reasoning that it defines proliferative DR and is too specific a finding to
+gate behind corroboration. That exemption recreated the whole failure on its
+own — see bug #16.
 
 ---
 

@@ -46,7 +46,7 @@ demonstrable in minutes before any dataset arrives.
 
 > **[→ RESULTS.md](RESULTS.md)** — full results, the verdict on whether the
 > system works, root-cause analysis of the moderate-NPDR gap, why the *printed
-> grade* is less reliable than the referral flag, and the fifteen bugs real
+> grade* is less reliable than the referral flag, and the sixteen bugs real
 > data exposed. Start there if you want the findings rather than the
 > build instructions.
 
@@ -113,6 +113,23 @@ Then the demo and the console:
 python scripts/run_demo.py --demo
 python -m uvicorn drscreen.api:app --port 8000     # open http://localhost:8000
 ```
+
+### The verification set (12 real photographs)
+
+The console's demonstration set is twelve **real** fundus photographs from the
+APTOS-2019 and IDRiD held-out test splits — never trained on, never validated
+on, never used to fit a threshold. They ship in the repository, so the console
+runs on real retinas with no dataset download:
+
+```bash
+python -m uvicorn drscreen.api:app --port 8000     # click any thumbnail
+python scripts/build_verification_set.py           # rebuild from data/raw
+```
+
+Twelve hand-picked cases are a demonstration, not a measurement — the numbers
+that count are the whole-split ones in
+[`outputs/verification_set/README.md`](outputs/verification_set/README.md),
+which also documents the 100%-escalation bug rebuilding this set uncovered.
 
 Simulation and the MATLAB bridge:
 
