@@ -1,0 +1,175 @@
+{
+  "cohort": "data\\cohort_all",
+  "split": "test",
+  "n": 646,
+  "comparison_set": "blind intersection: old split in ('test', 'external'), new split 'test'",
+  "a": "pre-pool",
+  "b": "pooled",
+  "metrics": {
+    "referable sensitivity": {
+      "pre-pool": 0.6654676258992805,
+      "pooled": 0.8920863309352518,
+      "delta": 0.22661870503597126
+    },
+    "referable specificity": {
+      "pre-pool": 0.9429347826086957,
+      "pooled": 0.9103260869565217,
+      "delta": -0.03260869565217395
+    },
+    "referable AUC": {
+      "pre-pool": 0.8971203472005005,
+      "pooled": 0.9634716140131374,
+      "delta": 0.06635126681263692
+    },
+    "sight-threat sensitivity": {
+      "pre-pool": 0.9230769230769231,
+      "pooled": 0.9846153846153847,
+      "delta": 0.06153846153846154
+    },
+    "QWK": {
+      "pre-pool": 0.6914491960239616,
+      "pooled": 0.835031885932236,
+      "delta": 0.14358268990827439
+    },
+    "exact accuracy": {
+      "pre-pool": 0.6222910216718266,
+      "pooled": 0.7383900928792569,
+      "delta": 0.11609907120743035
+    },
+    "within-one-grade": {
+      "pre-pool": 0.8529411764705882,
+      "pooled": 0.9473684210526315,
+      "delta": 0.09442724458204332
+    },
+    "ECE": {
+      "pre-pool": 0.2007352884606453,
+      "pooled": 0.039611853672616375,
+      "delta": -0.16112343478802893
+    }
+  },
+  "per_grade": {
+    "0": {
+      "pre-pool": 0.9597523219814241,
+      "pooled": 0.8792569659442725,
+      "delta": -0.08049535603715163,
+      "n": 323
+    },
+    "1": {
+      "pre-pool": 0.15555555555555556,
+      "pooled": 0.5777777777777777,
+      "delta": 0.42222222222222217,
+      "n": 45
+    },
+    "2": {
+      "pre-pool": 0.2535211267605634,
+      "pooled": 0.5774647887323944,
+      "delta": 0.323943661971831,
+      "n": 213
+    },
+    "3": {
+      "pre-pool": 0.2608695652173913,
+      "pooled": 0.6521739130434783,
+      "delta": 0.391304347826087,
+      "n": 23
+    },
+    "4": {
+      "pre-pool": 0.5952380952380952,
+      "pooled": 0.6904761904761905,
+      "delta": 0.09523809523809523,
+      "n": 42
+    }
+  },
+  "tests": {
+    "delong_referable_auc": {
+      "metric": "AUC",
+      "value_a": 0.8971203472005005,
+      "value_b": 0.9634716140131374,
+      "difference": -0.06635126681263692,
+      "ci": [
+        -0.08693296759857892,
+        -0.04576956602669492
+      ],
+      "p_value": 2.640629936934147e-10,
+      "significant": true,
+      "interpretation": "pooled has the higher AUC by 0.0664; the difference is statistically significant (DeLong p = 2.641e-10)."
+    },
+    "mcnemar_referral": {
+      "metric": "accuracy",
+      "value_a": 0.8235294117647058,
+      "value_b": 0.9024767801857585,
+      "difference": -0.07894736842105265,
+      "ci": [
+        -0.10913528702474906,
+        -0.048759449817356255
+      ],
+      "p_value": 5.029367811104635e-07,
+      "significant": true,
+      "interpretation": "B is more accurate by 0.0789 (24 vs 75 discordant cases); significant (McNemar chi-square with continuity correction, p = 5.029e-07)."
+    }
+  },
+  "by_source": {
+    "aptos2019": {
+      "n": 89,
+      "pre-pool": {
+        "auc": 0.9797297297297298,
+        "sensitivity": 0.9807692307692307,
+        "specificity": 0.8918918918918919,
+        "exact_accuracy": 0.7752808988764045,
+        "within_one": 0.9775280898876404,
+        "referable_accuracy": 0.9438202247191011,
+        "qwk": 0.9123551246117718
+      },
+      "pooled": {
+        "auc": 0.9807692307692308,
+        "sensitivity": 1.0,
+        "specificity": 0.918918918918919,
+        "exact_accuracy": 0.7528089887640449,
+        "within_one": 0.9775280898876404,
+        "referable_accuracy": 0.9662921348314607,
+        "qwk": 0.890226125957765
+      }
+    },
+    "ddr": {
+      "n": 286,
+      "pre-pool": {
+        "auc": 0.9092198581560283,
+        "sensitivity": 0.5673758865248227,
+        "specificity": 0.9724137931034482,
+        "exact_accuracy": 0.5734265734265734,
+        "within_one": 0.7587412587412588,
+        "referable_accuracy": 0.7727272727272727,
+        "qwk": 0.61282232149855
+      },
+      "pooled": {
+        "auc": 0.9537295182196136,
+        "sensitivity": 0.851063829787234,
+        "specificity": 0.9172413793103448,
+        "exact_accuracy": 0.6853146853146853,
+        "within_one": 0.9300699300699301,
+        "referable_accuracy": 0.8846153846153846,
+        "qwk": 0.812323574481813
+      }
+    },
+    "messidor2": {
+      "n": 260,
+      "pre-pool": {
+        "auc": 0.8844444444444445,
+        "sensitivity": 0.6125,
+        "specificity": 0.9444444444444444,
+        "exact_accuracy": 0.6230769230769231,
+        "within_one": 0.9076923076923077,
+        "referable_accuracy": 0.8423076923076923,
+        "qwk": 0.6341601380207597
+      },
+      "pooled": {
+        "auc": 0.9624305555555556,
+        "sensitivity": 0.8875,
+        "specificity": 0.9055555555555556,
+        "exact_accuracy": 0.7923076923076923,
+        "within_one": 0.9538461538461539,
+        "referable_accuracy": 0.9,
+        "qwk": 0.8067735428389425
+      }
+    }
+  }
+}

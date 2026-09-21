@@ -1,0 +1,59 @@
+Comparison set: n=646  (blind intersection: old split in ('test', 'external'), new split 'test')
+  grades {0: 323, 1: 45, 2: 213, 3: 23, 4: 42}
+  referable prevalence 43.0%
+
+metric                          pre-pool        pooled     delta
+----------------------------------------------------------------
+referable sensitivity             0.6655        0.8921   +0.2266
+referable specificity             0.9429        0.9103   -0.0326
+referable AUC                     0.8971        0.9635   +0.0664
+sight-threat sensitivity          0.9231        0.9846   +0.0615
+QWK                               0.6914        0.8350   +0.1436
+exact accuracy                    0.6223        0.7384   +0.1161
+within-one-grade                  0.8529        0.9474   +0.0944
+ECE                               0.2007        0.0396   -0.1611
+
+per-grade recall                pre-pool        pooled     delta
+----------------------------------------------------------------
+grade 0  (n=323)                  0.9598        0.8793   -0.0805
+grade 1  (n=45)                   0.1556        0.5778   +0.4222
+grade 2  (n=213)                  0.2535        0.5775   +0.3239
+grade 3  (n=23)                   0.2609        0.6522   +0.3913
+grade 4  (n=42)                   0.5952        0.6905   +0.0952
+
+Paired tests
+  AUC     pooled has the higher AUC by 0.0664; the difference is statistically significant (DeLong p = 2.641e-10).
+  Referral decision  B is more accurate by 0.0789 (24 vs 75 discordant cases); significant (McNemar chi-square with continuity correction, p = 5.029e-07).
+
+  grade 1: n=45, so pooled recall 0.578 carries a 95% CI of [0.433, 0.710] -- treat the delta as indicative, not measured
+  grade 3: n=23, so pooled recall 0.652 carries a 95% CI of [0.449, 0.812] -- treat the delta as indicative, not measured
+  grade 4: n=42, so pooled recall 0.690 carries a 95% CI of [0.540, 0.809] -- treat the delta as indicative, not measured
+
+by source                       pre-pool        pooled     delta
+----------------------------------------------------------------
+aptos2019  (n=89)                                     
+   exact accuracy                 0.7753        0.7528   -0.0225
+   within-one-grade               0.9775        0.9775   +0.0000
+   referable accuracy             0.9438        0.9663   +0.0225
+   referable AUC                  0.9797        0.9808   +0.0010
+   referable sens                 0.9808        1.0000   +0.0192
+   referable spec                 0.8919        0.9189   +0.0270
+   QWK                            0.9124        0.8902   -0.0221
+ddr  (n=286)                                          
+   exact accuracy                 0.5734        0.6853   +0.1119
+   within-one-grade               0.7587        0.9301   +0.1713
+   referable accuracy             0.7727        0.8846   +0.1119
+   referable AUC                  0.9092        0.9537   +0.0445
+   referable sens                 0.5674        0.8511   +0.2837
+   referable spec                 0.9724        0.9172   -0.0552
+   QWK                            0.6128        0.8123   +0.1995
+messidor2  (n=260)                                    
+   exact accuracy                 0.6231        0.7923   +0.1692
+   within-one-grade               0.9077        0.9538   +0.0462
+   referable accuracy             0.8423        0.9000   +0.0577
+   referable AUC                  0.8844        0.9624   +0.0780
+   referable sens                 0.6125        0.8875   +0.2750
+   referable spec                 0.9444        0.9056   -0.0389
+   QWK                            0.6342        0.8068   +0.1726
+
+Wrote outputs\validation_all\head_to_head.json

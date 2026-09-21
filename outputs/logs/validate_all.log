@@ -1,0 +1,57 @@
+==============================================================================
+DR SCREENING - CLINICAL VALIDATION
+==============================================================================
+
+Grader: outputs\grader_cnn_all\best.pt  (arm=cnn, backbone=tf_efficientnet_b0, clinical=False)
+
+[1/5] Calibration and operating point (fitted on VAL only)
+  temperature T = 2.3494
+  ECE  0.0548 -> 0.0410
+  MCE  0.1913 -> 0.1666
+  Brier 0.0886 -> 0.0838
+  ECE for isotonic on P(referable), out-of-fold: 0.0248 vs 0.0410 temperature-only -> adopted
+  threshold = 0.3207   sens 0.910  spec 0.854
+  grade cut-points (macro_recall, val): P(y>0) > 0.59  P(y>1) > 0.56  P(y>2) > 0.33  P(y>3) > 0.42
+  urgent threshold = 0.0722 on P(grade>=3)   val sens 0.955  spec 0.851
+  Meets both targets (sens>=90%, spec>=85%); takes the most sensitive point clearing the specificity floor (screening policy). PPV/NPV restated at 18.0% deployment prevalence.
+
+[2/5] Internal held-out test
+  n = 1852   Sens 0.915 [0.895-0.932] (832/909)  Spec 0.887 [0.865-0.905] (836/943)  AUC 0.9642 [0.9560-0.9709]
+  QWK 0.8689 [0.8528, 0.8843]
+  ECE 0.0278
+
+[3/5] External validation (zero-shot; nothing fitted on this split)
+  NOT EVALUATED -- No records for split 'external' under data\cohort_all
+
+[4/5] Ablation: does the integrated pipeline beat single techniques?
+  built arm 'rule_based' from cached lesion features
+
+arm                  AUC            95% CI    Sens    Spec     QWK  targets
+---------------------------------------------------------------------------
+cnn *             0.9642 [0.9560,0.9709]   0.915   0.887  0.8667     PASS
+rule_based        0.8814 [0.8654,0.8956]   0.850   0.724  0.3380     fail
+
+* = integrated pipeline (cnn)
+
+The integrated pipeline (cnn) has a higher referable-DR AUC than every single-technique arm, and every difference is statistically significant (DeLong, alpha=0.05).
+
+Paired tests vs the integrated pipeline:
+  vs rule_based       cnn has the higher AUC by 0.0828; the difference is statistically significant (DeLong p = 0).
+
+[5/6] Explanation quality (is the heatmap worth showing a clinician?)
+  faithfulness -0.046 (insertion 0.840 - deletion 0.886)
+  attention sparsity (Gini) 0.684 over 40 referable images
+
+[6/6] Writing artefacts
+  lesion thresholds (F1-optimal on held-out IDRiD): {'microaneurysm': 0.75, 'hemorrhage': 0.9, 'hard_exudate': 0.95, 'soft_exudate': 0.95}
+  !! WARNING: features were cached at lesion thresholds {'microaneurysm': 0.9, 'hemorrhage': 0.75, 'hard_exudate': 0.95, 'soft_exudate': 0.95} but deployment will use {'microaneurysm': 0.75, 'hemorrhage': 0.9, 'hard_exudate': 0.95, 'soft_exudate': 0.95}. The fusion grader is served features it was not trained on. Recompute features with --thr-cohort against this segmentation model.
+  outputs\validation_all\validation.json
+  outputs\validation_all\summary.md
+  outputs\validation_all\model_card.md
+  deployable bundle -> outputs\artifacts_all
+
+==============================================================================
+TARGET: sensitivity >= 90%, specificity >= 85% for referable DR
+INTERNAL TEST: sensitivity 0.915 [0.895-0.932] PASS
+               specificity 0.887 [0.865-0.905] PASS
+==============================================================================
