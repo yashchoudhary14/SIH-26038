@@ -1,7 +1,7 @@
 flowchart TD
-  X["512 × 512 × 3<br/>hybrid planes"] --> BB["EfficientNet-B0<br/>4.01 M"]
+  X["512 × 512 × 3<br/>hybrid planes"] --> BB["EfficientNet-B0<br/>4.01 M params"]
   BB --> Z["1280-dim<br/>embedding"]
-  Z --> HD["Ordinal head<br/>4 logits z₀…z₃"]
+  Z --> HD["Ordinal head<br/>4 logits z₀…z₃<br/>0.33 M params"]
   HD --> CP["cumulative product of σ(z)<br/><b>MONOTONE BY CONSTRUCTION</b>"]
   CP --> R1["P(y ≥ 2) → REFERRAL"]
   CP --> R2["P(y ≥ 3) → URGENCY"]
