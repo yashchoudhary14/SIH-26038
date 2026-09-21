@@ -1,0 +1,31 @@
+# Build context hygiene. Without this the context is ~1 GB (the venv alone is
+# 600 MB+) and every rebuild re-uploads it.
+.venv/
+venv/
+.git/
+.pytest_cache/
+.mypy_cache/
+__pycache__/
+*.pyc
+*.egg-info/
+.DS_Store
+
+data/
+matlab/
+tests/
+docs/
+scripts/
+
+# Outputs: the container needs the model bundle and the labelled sample
+# images. Everything else under outputs/ is evidence for humans, not runtime.
+outputs/reports/
+outputs/logs/
+outputs/audit/
+outputs/simulation/
+outputs/segmentation/
+outputs/segmentation_512/
+outputs/grader_cnn/
+outputs/grader_fusion/
+outputs/grader_clinical/
+outputs/verification_set/RetinaScope_offline.html
+outputs/verification_set/reports/

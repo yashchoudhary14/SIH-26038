@@ -74,6 +74,27 @@ input[type=file]{display:none}
   margin-top:12px;color:var(--faint);font-size:12px}
 .hint code{background:#0009;border:1px solid var(--line);padding:2px 7px;border-radius:5px;
   font-family:ui-monospace,Menlo,Consolas,monospace;color:#bcd0e6;font-size:11.5px}
+
+/* get-started: the path for a reviewer who has no fundus images at all */
+.getstarted{margin:16px 0 4px;padding:15px 17px;border-radius:13px;
+  background:linear-gradient(180deg,rgba(76,141,255,.07),rgba(76,141,255,.02));
+  border:1px solid var(--line2);text-align:center}
+.gs-head{font-size:13.5px;font-weight:700;margin-bottom:11px}
+.gs-body{display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap}
+.dlbtn{display:inline-flex;align-items:center;gap:9px;padding:10px 17px;border-radius:10px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:700;
+  font-size:13.5px;box-shadow:0 10px 24px -12px rgba(76,141,255,.9);transition:.15s;flex:none}
+.dlbtn:hover{transform:translateY(-1px);box-shadow:0 14px 28px -12px rgba(76,141,255,1)}
+.dlbtn svg{width:17px;height:17px}
+.gs-steps{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;
+  color:var(--muted);font-size:12.5px}
+.gs-steps span{display:inline-flex;align-items:center;gap:7px}
+.gs-steps b{width:19px;height:19px;border-radius:50%;background:var(--panel2);
+  border:1px solid var(--line2);color:var(--text);display:grid;place-items:center;
+  font-size:11px;font-weight:700;flex:none}
+.gs-note{margin-top:11px;color:var(--faint);font-size:11.5px}
+.gs-note code{background:#0009;border:1px solid var(--line);padding:1px 6px;border-radius:4px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;color:#bcd0e6;font-size:11px}
 .demorow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
 .demorow .lbl{color:var(--faint);font-size:12px;align-self:center;margin-right:2px}
 .gbtn{border:1px solid var(--line2);background:var(--panel);color:var(--text);
@@ -247,11 +268,25 @@ footer a{color:var(--muted)}
     <input type="file" id="file" accept="image/*">
   </div>
 
-  <div class="hint">
-    <span>Demo images live in</span><code>outputs/verification_set/images/</code><span>— 12 labelled cases.</span>
+  <div class="getstarted" id="getstarted">
+    <div class="gs-head">No fundus images on this computer?</div>
+    <div class="gs-body">
+      <a class="dlbtn" id="dlsamples" href="/samples.zip" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>
+        </svg>
+        <span>Download the 12 test images</span>
+      </a>
+      <div class="gs-steps">
+        <span><b>1</b> Download &amp; unzip</span>
+        <span><b>2</b> Drag any image into the box above</span>
+        <span><b>3</b> Read the grade and the heatmap</span>
+      </div>
+    </div>
+    <div class="gs-note">The zip includes <code>EXPECTED_GRADES.md</code> — the grade each image should get, so you can check the model against it.</div>
   </div>
   <div class="demorow">
-    <span class="lbl">No image handy? Generate a live case:</span>
+    <span class="lbl">Or generate a fresh case on the server:</span>
     <button class="gbtn" data-g="0"><span class="d" style="background:var(--g0)"></span>Grade 0</button>
     <button class="gbtn" data-g="1"><span class="d" style="background:var(--g1)"></span>Grade 1</button>
     <button class="gbtn" data-g="2"><span class="d" style="background:var(--g2)"></span>Grade 2</button>
@@ -371,17 +406,37 @@ const LESION_NAME = {microaneurysm:"Microaneurysm",hemorrhage:"Haemorrhage",hard
 const $ = s => document.querySelector(s);
 
 let THRESHOLD = 0.4;
+let WARM = false;
+
+// Same-origin by default. Set window.RETINASCOPE_API before this script when
+// the portal is served from somewhere other than the API (e.g. the page on a
+// static host, the model on a container host) -- the API must then be started
+// with DRSCREEN_CORS_ORIGINS set to this page's origin.
+const API = (window.RETINASCOPE_API || '').replace(/\/$/,'');
+const api = path => API + path;
 
 async function health(){
   try{
-    const r = await fetch('/health'); const h = await r.json();
-    const ok = h.segmentation_loaded && h.grader_loaded;
-    $('#hdot').className = 'dot ' + (ok?'on':'off');
-    $('#hstat').innerHTML = ok ? 'Model loaded' : 'Rule-based only';
+    const r = await fetch(api('/health')); const h = await r.json();
+    WARM = h.warm === 'warm';
+    // trained_weights false means the .pt bundle is missing from the
+    // deployment and the rule-based fallback is answering. Say so loudly
+    // rather than letting it pass as a model result.
+    const real = h.trained_weights !== false;
+    if(!real){
+      $('#hdot').className='dot off';
+      $('#hstat').innerHTML='<b style="color:#ff9ea6">Trained weights missing</b>';
+    }else if(h.warm==='warm' || h.grader_loaded){
+      $('#hdot').className='dot on'; $('#hstat').innerHTML='Model loaded';
+    }else{
+      $('#hdot').className='dot'; $('#hstat').innerHTML='Model starting…';
+      setTimeout(health, 3000);   // poll until the container finishes warming
+    }
     $('#hdev').innerHTML = 'Device <b>'+(h.device||'?')+'</b>';
     if(typeof h.referral_threshold==='number'){THRESHOLD=h.referral_threshold;
       $('#hthr').innerHTML = 'Referral τ <b>'+h.referral_threshold.toFixed(2)+'</b>';}
-  }catch(e){ $('#hdot').className='dot off'; $('#hstat').textContent='API offline'; }
+    if(h.samples_available===false){ const b=$('#dlsamples'); if(b) b.style.display='none'; }
+  }catch(e){ $('#hdot').className='dot off'; $('#hstat').textContent='Server unreachable'; }
 }
 health();
 
@@ -392,7 +447,7 @@ async function screenFile(file){
   begin(file.name);
   const fd = new FormData(); fd.append('file', file);
   try{
-    const r = await fetch('/screen?explain=true',{method:'POST',body:fd});
+    const r = await fetch(api('/screen?explain=true'),{method:'POST',body:fd});
     if(!r.ok) throw new Error('Server returned '+r.status);
     render(await r.json());
   }catch(e){ fail(e.message); }
@@ -400,7 +455,7 @@ async function screenFile(file){
 async function screenDemo(g){
   begin('generated grade-'+g+' case');
   try{
-    const r = await fetch('/demo/'+g+'?severity=0.18');
+    const r = await fetch(api('/demo/'+g+'?severity=0.18'));
     if(!r.ok) throw new Error('Server returned '+r.status);
     render(await r.json());
   }catch(e){ fail(e.message); }
@@ -409,13 +464,26 @@ async function screenDemo(g){
 function begin(name){
   $('#rfn').textContent = name;
   show($('#error'),false);
+  // A free-tier container that has been idle is asleep; the first request
+  // pays the wake-up plus the model warm-up. Saying so beats a spinner that
+  // looks hung.
+  $('#loadtx').textContent = WARM
+    ? 'Running the screening pipeline\u2026 (about 3\u20135 seconds)'
+    : 'Waking the model server\u2026 the first screening can take up to a minute.';
   show($('#loading'),true);
   $('#results').classList.remove('show');
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function fail(msg){
   show($('#loading'),false);
-  const e=$('#error'); e.textContent='⚠ '+msg+' — is the API running? Start it with: python -m uvicorn drscreen.api:app --port 8000';
+  const e=$('#error');
+  let tip = 'Please try again in a moment.';
+  if(/413/.test(msg))       tip = 'That image is too large — use a file under 20 MB.';
+  else if(/400/.test(msg))  tip = 'That file could not be read as an image. Try a JPG or PNG.';
+  else if(/50[0-9]/.test(msg)) tip = 'The server hit an error on this image. Try another one.';
+  else if(/Failed to fetch|NetworkError|Load failed/i.test(msg))
+                            tip = 'The server may still be starting up. Wait ~30 seconds and try again.';
+  e.textContent = '\u26a0 ' + msg + ' — ' + tip;
   show(e,true);
 }
 
@@ -567,6 +635,10 @@ function badgeQ(o){
 }
 
 // wiring
+if(API){
+  const dl=$('#dlsamples'); if(dl) dl.href = api('/samples.zip');
+  const con=document.querySelector('a[href="/console"]'); if(con) con.href = api('/console');
+}
 const fileEl=$('#file'), drop=$('#drop');
 drop.onclick=()=>fileEl.click();
 fileEl.onchange=e=>{ if(e.target.files[0]) screenFile(e.target.files[0]); };

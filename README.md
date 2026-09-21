@@ -1,5 +1,9 @@
 #this is not the final readme, readme will be changed look at the codes for reference 
 
+> **Live deployment (this branch):** the portal runs as a public web service
+> with the trained model behind it — see **[DEPLOY.md](DEPLOY.md)** for the
+> deploy command, the verification script, and the measured results.
+
 # Explainable Diabetic Retinopathy Screening for Rural India
 An end-to-end, clinically-validated DR screening pipeline: image quality
 gating with recapture feedback, retinal structure and lesion segmentation,

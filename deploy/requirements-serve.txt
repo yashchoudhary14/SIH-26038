@@ -1,0 +1,23 @@
+# ---------------------------------------------------------------------------
+# Serving-only dependencies.
+#
+# This is deliberately NOT requirements.txt. The training/validation stack
+# (pandas, matplotlib, statsmodels, simpy, scikit-image, scikit-learn) is not
+# on the inference path and pulling it into the container roughly doubles the
+# image for code that never runs. The isotonic calibrator is replayed with
+# numpy.interp at load time (see models/calibration.py::from_dict), so sklearn
+# is a fit-time dependency only.
+#
+# torch/torchvision are installed separately in the Dockerfile from the CPU
+# wheel index: the default PyPI wheel bundles CUDA and is ~2.5 GB, the CPU
+# wheel is ~200 MB. Free hosting tiers will not build the former.
+#
+# Versions are pinned to the set this pipeline was verified on. To move them,
+# re-run deploy/smoke_test.sh and confirm the grades in DEPLOY.md still hold.
+# ---------------------------------------------------------------------------
+numpy==2.2.6
+opencv-python-headless==5.0.0.93
+timm==1.0.29
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-multipart==0.0.32

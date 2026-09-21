@@ -198,12 +198,24 @@ class DRGrader(nn.Module):
     # -- inference helpers -------------------------------------------------
     @torch.no_grad()
     def predict(self, image: torch.Tensor, clinical: torch.Tensor | None = None,
-                mc_samples: int = 0, temperature: float = 1.0) -> dict:
+                mc_samples: int = 0, temperature: float = 1.0,
+                seed: int | None = None) -> dict:
         """Return grade, class probabilities, referable probability, uncertainty.
 
         ``mc_samples > 0`` keeps dropout active and samples the posterior, so
         the returned ``epistemic`` term reflects model uncertainty (what a
         deep ensemble would give, at 1/N the training cost).
+
+        ``seed`` makes that sampling reproducible. Drawing the dropout masks
+        from the unseeded global RNG means the posterior mean shifts by a
+        percent or so between calls, which is harmless for the referral
+        probability but not for the reported grade: when the top two classes
+        are within that margin -- which is exactly what happens on the
+        genuinely ambiguous cases -- the argmax flips, and the same image
+        screened twice returns two different ICDR grades. Callers that screen
+        real images should pass a seed derived from the input, so a case is
+        reproducible and auditable while distinct cases still get independent
+        masks. Left as None the behaviour is unchanged.
         """
         was_training = self.training
         if mc_samples > 0:
@@ -211,10 +223,17 @@ class DRGrader(nn.Module):
             for m in self.modules():                 # dropout only, not norms
                 if isinstance(m, (nn.Dropout, nn.Dropout2d)):
                     m.train()
-            probs = []
-            for _ in range(mc_samples):
-                logits = self(image, clinical) / temperature
-                probs.append(corn_class_probs(logits))
+            # fork rather than manual_seed: seeding globally here would make
+            # every later consumer of the RNG -- augmentation, other models --
+            # silently replay the same stream.
+            devices = [image.device] if image.device.type == "cuda" else []
+            with torch.random.fork_rng(devices=devices, enabled=seed is not None):
+                if seed is not None:
+                    torch.manual_seed(seed)
+                probs = []
+                for _ in range(mc_samples):
+                    logits = self(image, clinical) / temperature
+                    probs.append(corn_class_probs(logits))
             P = torch.stack(probs)                    # (S, B, K)
             mean = P.mean(0)
             epistemic = P.var(0).sum(dim=1)

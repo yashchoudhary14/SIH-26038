@@ -23,6 +23,7 @@ it can be stored, audited, and replayed.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from dataclasses import dataclass, field, asdict
@@ -109,6 +110,13 @@ class PipelineConfig:
     defer_band: tuple[float, float] = (0.35, 0.65)
     temperature: float = 1.0
     mc_samples: int = 8
+    #: Seed the MC-dropout masks from the image itself, so screening the same
+    #: capture twice returns the same grade. Without it the posterior mean
+    #: wobbles by ~1% per call and the reported grade flips between the top two
+    #: classes on ambiguous cases -- see DRGrader.predict. The referral decision
+    #: is stable either way, but a portal that grades one image two different
+    #: ways cannot be audited and will not be believed.
+    mc_seed_from_input: bool = True
     uncertainty_defer: float = 0.05      # epistemic variance above which we defer
     enable_cam: bool = True
     cam_method: str = "gradcam++"
@@ -218,6 +226,18 @@ class DRScreeningPipeline:
         if probs.shape[0] != out_size:
             probs = cv2.resize(probs, (out_size, out_size), interpolation=cv2.INTER_AREA)
         return probs
+
+    def _mc_seed(self, x: torch.Tensor) -> int | None:
+        """A stable 63-bit seed derived from the model input.
+
+        Hashing the preprocessed tensor rather than the filename means two
+        uploads of the same photograph agree even when the file was renamed,
+        and two different photographs never share a mask sequence.
+        """
+        if not self.cfg.mc_seed_from_input:
+            return None
+        buf = x.detach().to("cpu", torch.float32).contiguous().numpy().tobytes()
+        return int.from_bytes(hashlib.blake2b(buf, digest_size=8).digest(), "big") >> 1
 
     # -- main -------------------------------------------------------------
     def run(self, image: np.ndarray | str | Path, image_id: str = "",
@@ -355,7 +375,8 @@ class DRScreeningPipeline:
         if self.grader is not None:
             c = torch.from_numpy(feats.to_vector()).unsqueeze(0).to(self.device)
             pred = self.grader.predict(x, c, mc_samples=self.cfg.mc_samples,
-                                       temperature=self.cfg.temperature)
+                                       temperature=self.cfg.temperature,
+                                       seed=self._mc_seed(x))
             probs = pred["class_probs"][0].cpu().numpy()
             res.grade = int(np.argmax(probs))
             res.class_probabilities = [round(float(p), 4) for p in probs]
