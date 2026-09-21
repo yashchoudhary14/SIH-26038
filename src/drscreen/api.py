@@ -8,7 +8,7 @@ Endpoints
 ``POST /screen/report``  same, but returns the rendered HTML report
 ``GET  /cases``          list the real held-out verification photographs
 ``GET  /cases/{name}``   screen one of them, straight off disk
-``GET  /demo/{grade}``   run a generated phantom of a given grade
+``GET  /demo/{grade}``   screen a real held-out photograph of a given grade
 ``POST /review``         record an ophthalmologist's agree/disagree decision
 ``GET  /audit``          the review log, for programme-level monitoring
 
@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import io
 import json
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,6 +30,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from .constants import ICDR_GRADES
+from .data import samples
 from .explain.report import build_review_panel, render_html
 from .pipeline import DRScreeningPipeline, PipelineConfig
 
@@ -152,8 +152,8 @@ def list_cases() -> dict:
     if not cases:
         return {"n": 0, "cases": [], "note": (
             "No verification set on disk. Build it with "
-            "scripts/build_verification_set.py, or use /demo/{grade} for "
-            "synthetic phantoms.")}
+            "scripts/build_verification_set.py, or use /demo/{grade} to screen "
+            "one of the committed held-out photographs.")}
     out = []
     for name, r in cases.items():
         out.append({
@@ -219,33 +219,34 @@ def screen_case(name: str, report: bool = False):
 
 
 @app.get("/demo/{grade}")
-def demo(grade: int, severity: float = 0.3, seed: int | None = None,
-         report: bool = False):
-    """Run a generated phantom of the requested ICDR grade.
+def demo(grade: int, case: str | None = None, report: bool = False):
+    """Screen a real held-out photograph of the requested ICDR grade.
 
-    Present so the service is demonstrable with no data on disk; it is never
-    part of the clinical path and the response says so explicitly.
+    Present so the service is demonstrable without a dataset on disk. It used
+    to render a generated phantom, which made the demo worthless as evidence:
+    a screening result carries no weight when the thing screened was drawn by
+    the same project that graded it. These are photographs from the APTOS-2019
+    and IDRiD held-out test splits -- never trained on, never used to fit a
+    threshold -- and the response carries their provenance.
     """
     if grade not in ICDR_GRADES:
         raise HTTPException(400, f"grade must be one of {list(ICDR_GRADES)}")
-    from .data.synthetic import generate
-    ph = generate(grade=grade, size=768,
-                  seed=seed if seed is not None else int(time.time()) % 100000,
-                  severity=float(np.clip(severity, 0, 1)))
+    try:
+        image, name, true_grade = samples.load(case, grade=grade)
+    except samples.NoSampleImages as e:
+        raise HTTPException(503, str(e))
+
     p = get_pipeline()
-    result, artifacts = p.run(ph.image, image_id=f"phantom_g{grade}")
+    result, artifacts = p.run(image, image_id=name)
+    provenance = (f"Real fundus photograph ({name}), held-out test split, "
+                  f"reference grade {true_grade}. Demonstration only, not "
+                  f"clinical evidence.")
     if report:
-        return HTMLResponse(render_html(
-            result, artifacts,
-            provenance=f"SYNTHETIC PHANTOM — generated, not a photograph "
-                       f"(grade {ph.grade}, seed {ph.seed if hasattr(ph, 'seed') else '?'}). "
-                       f"Not clinical evidence."))
+        return HTMLResponse(render_html(result, artifacts, provenance=provenance))
     payload = result.to_dict()
-    payload["synthetic"] = True
-    payload["provenance"] = ("SYNTHETIC PHANTOM — generated, not a "
-                             "photograph. Not clinical evidence.")
-    payload["ground_truth"] = {"grade": ph.grade, "lesion_counts": ph.lesion_counts,
-                               "camera": ph.camera, "quality_label": ph.quality_label}
+    payload["synthetic"] = False
+    payload["provenance"] = provenance
+    payload["ground_truth"] = {"grade": true_grade, "case": name}
     try:
         import base64
         panel = build_review_panel(result, artifacts)

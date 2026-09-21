@@ -92,14 +92,43 @@ def _retina_pixels(gray: np.ndarray, mask: np.ndarray) -> np.ndarray:
     return sel if sel.size else gray.ravel()
 
 
+#: Absolute-sharpness calibration: high-frequency energy as a fraction of the
+#: retina's own intensity spread, mapped through a logistic at (midpoint, width).
+#:
+#: Fitted on real photographs -- 12 committed APTOS/IDRiD held-out images plus 60
+#: IDRiD originals, against progressively defocused copies of the same images.
+#: Gradeable reals bottom out at 0.0111 and sit at a median of 0.026; a defocus
+#: of sigma >= 0.008 of the image width lands at 0.0084 or below. The midpoint is
+#: placed so the *fail* cut-point falls at 0.0085 -- below every gradeable real
+#: image measured, above every clearly defocused one.
+FOCUS_DENSITY_MIDPOINT = 0.014
+FOCUS_DENSITY_WIDTH = 0.005
+
+
 def focus_score(image: np.ndarray, mask: np.ndarray) -> float:
     """Scale-normalised focus measure.
 
     Plain variance-of-Laplacian is not comparable across resolutions or across
     images with different pathology load (a retina full of exudates has huge
-    Laplacian energy while being out of focus).  We therefore use the ratio of
-    high-frequency to mid-frequency energy in the green channel, which is
-    largely content-independent, and calibrate it with a soft curve.
+    Laplacian energy while being out of focus). The first term is therefore the
+    ratio of high-frequency to mid-frequency energy in the green channel, which
+    is largely content-independent.
+
+    That ratio alone is **not monotone in blur**, and on its own it passed
+    images no clinician could read. Measured on real photographs, defocusing to
+    sigma = 0.08 of the image width -- an image with no discernible vessel at
+    all -- scored 0.981, *better* than the same retina in focus at 0.746. The
+    reason is structural: both bands collapse under heavy blur, and the ratio of
+    two vanishing quantities is governed by their relative decay, not by how
+    much detail survives. It bottoms out around sigma ~ 0.004 and then climbs
+    back. Nothing in the phantom set explored that far, so the defect sat behind
+    a green suite.
+
+    The second term fixes it: absolute high-frequency energy, normalised by the
+    retina's own intensity spread so it stays dimensionless and exposure
+    independent. That quantity *is* monotone in blur. The two are combined as a
+    conjunction -- an image must be both plausibly-proportioned and actually
+    detailed -- matching how `assess` aggregates criteria overall.
     """
     green = image[..., 1] if image.ndim == 3 else image
     green = cv2.bitwise_and(green, green, mask=(mask > 0).astype(np.uint8) * 255)
@@ -118,7 +147,18 @@ def focus_score(image: np.ndarray, mask: np.ndarray) -> float:
     ratio = e_hi / max(e_mid, 1e-3)
 
     # ratio ~0.25 = badly blurred, ~0.9 = crisp. Map through a logistic.
-    return float(1.0 / (1.0 + np.exp(-(ratio - 0.45) / 0.12)))
+    ratio_score = 1.0 / (1.0 + np.exp(-(ratio - 0.45) / 0.12))
+
+    # Absolute detail: high-frequency energy against the retina's own contrast.
+    # Normalising by a robust spread rather than by the mean keeps a dark or
+    # over-exposed capture from being scored as blurred for its exposure.
+    sel = g[m]
+    spread = float(np.percentile(sel, 95) - np.percentile(sel, 5))
+    density = e_hi / max(spread, 1e-3)
+    density_score = 1.0 / (1.0 + np.exp(
+        -(density - FOCUS_DENSITY_MIDPOINT) / FOCUS_DENSITY_WIDTH))
+
+    return float(min(ratio_score, density_score))
 
 
 def illumination_score(image: np.ndarray, mask: np.ndarray,

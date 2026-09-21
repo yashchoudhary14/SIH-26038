@@ -40,7 +40,6 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from ..constants import NUM_LESION_CLASSES
 from ..preprocess.enhance import adaptive_enhance, to_model_input
 from ..preprocess.fov import standardize
 from ..preprocess.quality import assess
@@ -113,82 +112,6 @@ def to_tensor(image: np.ndarray, normalize: bool = True) -> torch.Tensor:
     if normalize:
         x = (x - IMAGENET_MEAN) / IMAGENET_STD
     return torch.from_numpy(np.ascontiguousarray(x.transpose(2, 0, 1)))
-
-
-# --------------------------------------------------------------------------
-# Datasets
-# --------------------------------------------------------------------------
-class PhantomDataset(Dataset):
-    """Synthetic phantoms generated on the fly (or pre-generated for stability).
-
-    ``deterministic=True`` regenerates the same phantom for a given index every
-    epoch, which is what you want for validation; training uses fresh draws so
-    the effective dataset is unbounded.
-    """
-
-    def __init__(self, n: int, size: int = 384, seed: int = 0, train: bool = True,
-                 deterministic: bool | None = None, domain_shift: bool = False,
-                 return_masks: bool = True, augment: bool = True,
-                 preprocess: bool = True):
-        self.n = n
-        self.size = size
-        self.seed = seed
-        self.train = train
-        self.deterministic = (not train) if deterministic is None else deterministic
-        self.domain_shift = domain_shift
-        self.return_masks = return_masks
-        self.preprocess = preprocess
-        self.aug = FundusAugment(size, train=train and augment)
-        self._epoch = 0
-
-    def set_epoch(self, e: int):
-        self._epoch = e
-
-    def __len__(self) -> int:
-        return self.n
-
-    def __getitem__(self, idx: int) -> dict:
-        from .synthetic import generate, CAMERAS
-        base = self.seed * 1_000_003 + idx * 7919
-        s = base if self.deterministic else base + self._epoch * 104_729
-        rng = np.random.default_rng(s)
-
-        cams = [c.name for c in (CAMERAS[2:] if self.domain_shift else CAMERAS)]
-        sev = float(np.clip(rng.beta(2.2, 2.0) if self.domain_shift else rng.beta(1.6, 3.2), 0, 1))
-        p = generate(size=self.size, seed=int(rng.integers(1 << 31)), severity=sev,
-                     camera=cams[int(rng.integers(len(cams)))])
-
-        img, fov_mask, fov = standardize(p.image, size=self.size)
-
-        # Keep every mask in register with the standardised image.
-        stack = [p.vessel_mask, p.disc_mask] + [p.lesion_masks[..., c]
-                                                for c in range(NUM_LESION_CLASSES)]
-        stack = np.stack(stack, axis=-1)
-        stack = _apply_same_geometry(stack, p.image.shape[:2], fov, self.size)
-
-        if self.preprocess:
-            q = assess(img, fov_mask, fov)
-            img, _ = adaptive_enhance(img, fov_mask, q.issues)
-            img = to_model_input(img, fov_mask, mode="hybrid")
-        else:
-            q = None
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-        img, stack = self.aug(img, stack, rng)
-
-        out = {
-            "image": to_tensor(img),
-            "grade": torch.tensor(p.grade, dtype=torch.long),
-            "quality_label": torch.tensor(p.quality_label, dtype=torch.long),
-            "fov_mask": torch.from_numpy((fov_mask > 0).astype(np.float32))[None],
-        }
-        if self.return_masks:
-            m = (stack > 127).astype(np.float32)
-            out["vessel_mask"] = torch.from_numpy(m[..., 0])[None]
-            out["disc_mask"] = torch.from_numpy(m[..., 1])[None]
-            out["lesion_mask"] = torch.from_numpy(
-                np.ascontiguousarray(m[..., 2:].transpose(2, 0, 1)))
-        return out
 
 
 def _apply_same_geometry(masks: np.ndarray, raw_shape: tuple[int, int],

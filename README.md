@@ -40,9 +40,11 @@ Grade 2 is 76% of the referable cases, which is why it drags the aggregate to
 proliferative DR can cost sight within months, a missed moderate NPDR is
 caught at the next annual screen.
 
-It also **runs on a fresh clone with no downloads**: a procedural fundus
-phantom generator exercises every stage for real, so the system is
-demonstrable in minutes before any dataset arrives.
+It also **runs on a fresh clone with no downloads**: twelve real held-out
+fundus photographs are committed to the repository, so the demo, the benchmark
+and the test suite all exercise the full pipeline on actual retinas before any
+dataset arrives. There is no synthetic-image path — see
+[Why there are no generated images](#why-there-are-no-generated-images).
 
 > **[→ RESULTS.md](RESULTS.md)** — full results, the verdict on whether the
 > system works, root-cause analysis of the moderate-NPDR gap, why the *printed
@@ -73,8 +75,8 @@ python scripts/extract_datasets.py --src data --out data/raw
 
 ```bash
 # grading cohort at 512; lesion cohort at 1024, where microaneurysms survive
-python scripts/build_cohort.py --source real --data-root data/raw --out data/cohort_real --size 512 --workers 14
-python scripts/build_cohort.py --source real --data-root data/raw --out data/cohort_seg1024 --size 1024 --workers 12 --only-splits seg_train seg_val
+python scripts/build_cohort.py --data-root data/raw --out data/cohort_real --size 512 --workers 14
+python scripts/build_cohort.py --data-root data/raw --out data/cohort_seg1024 --size 1024 --workers 12 --only-splits seg_train seg_val
 
 python scripts/train_seg.py --cohort data/cohort_seg1024 --epochs 160 --batch-size 3 --size 1024 --pos-weight 12
 
@@ -97,15 +99,14 @@ python scripts/validate.py --cohort data/cohort_real --seg-cohort data/cohort_se
     --threshold-policy max_sensitivity
 ```
 
-### Without any downloads (synthetic phantoms)
+### Without any downloads
 
 ```bash
-python scripts/build_cohort.py --source synthetic --n 6000 --out data/cohort_synth --workers 16
-python scripts/train_seg.py --cohort data/cohort_synth --epochs 14
-python scripts/precompute_features.py --cohort data/cohort_synth --seg outputs/segmentation/best.pt
-python scripts/train_grader.py --cohort data/cohort_synth --arm fusion
-python scripts/validate.py --cohort data/cohort_synth
+python scripts/run_demo.py --demo        # screens the 12 committed real photographs
+python -m pytest                         # full suite, real images throughout
 ```
+
+Training needs the real corpora; there is no generated-image substitute.
 
 Then the demo and the console:
 
@@ -212,8 +213,11 @@ a coordinate frame, and one that fails silently is worse than none. The
 closed-form detector needs no training data, returns a confidence, and runs in
 ~120 ms.
 
-Measured on phantoms (`scripts/eval_landmarks.py`): optic disc median error
-**0.015 DD**, fovea **0.077 DD**, 97% of foveae within 1 DD.
+Measured on IDRiD's hand-marked disc and fovea centres
+(`scripts/eval_landmarks.py`, 103 held-out real photographs): optic disc median
+error **0.098 DD** with **98.1%** within 1 DD, fovea median **0.178 DD** with
+**93.2%** within 1 DD — in line with the 95–99% / 90–96% published on real
+fundus images.
 
 ### 4. Fusion of CNN features with explicit clinical features
 
@@ -448,6 +452,41 @@ cameras. Closing it needs domain adaptation, multi-source training, or
 site-specific threshold re-fitting with local labels — and the audit log
 (`/audit`) exists precisely to detect this in the field before it harms anyone.
 
+## Why there are no generated images
+
+This project used to ship a procedural fundus phantom generator. It is gone,
+and the reason is worth stating because generating training data is a common
+suggestion.
+
+A phantom is drawn from the pipeline's own assumptions, so it agrees with them.
+That makes it useless as evidence — a screening result carries no weight when
+the thing screened was drawn by the same project that graded it — and worse than
+useless as a test fixture, because a test that only ever sees agreement cannot
+fail on a mistaken assumption. Four defects reached the deployed pipeline behind
+a green suite for exactly that reason:
+
+- The FOV criterion rejected **34% of genuinely gradeable real images**, because
+  phantoms always render a black margin and real fundus apertures touch the
+  sensor edge.
+- The triage rule escalated **631 of 631** real photographs to urgent referral,
+  because phantoms annotate neovascularisation and no real corpus here does.
+- The focus criterion **passed severely defocused images** — it was non-monotone
+  in blur, and the phantom set never explored past the range where it worked.
+- The optic-disc detector's vessel-convergence weight was fitted on drawn
+  vessels and was **2.5 points worse** than the real-data optimum.
+
+The last two were found by deleting the generator and re-pointing everything at
+real photographs. See [RESULTS.md §6](RESULTS.md#6-eighteen-bugs-that-only-real-data-exposed).
+
+What replaced it: twelve real APTOS-2019 and IDRiD held-out photographs
+committed to the repository (2.2 MB, `drscreen.data.samples`), covering all five
+ICDR grades. Where a test needs a *degraded* image, the degradation is applied to
+one of those photographs rather than simulated from scratch — blurring a real
+retina tests whether the gate can tell a defocused real image from a sharp one,
+which is the actual question.
+
+---
+
 ## What real data broke that phantoms never could
 
 Eight bugs surfaced only once real corpora were loaded. They are listed
@@ -548,19 +587,12 @@ AUC plus McNemar on the decision, paired on the same cases. The verdict string
 reports honestly when a margin is *not* significant — and would report it if
 fusion lost.
 
-> **The ablation is at ceiling on phantom data and you should not read a
-> clinical finding into it.** A phantom's grade is a near-deterministic
-> function of its lesion counts, so every arm reaches referable-DR AUC ≈ 0.99–1.00
-> and there is nothing left for fusion to win. This is a property of the data,
-> not evidence that the arms are equivalent. The ablation is a *machine* that
-> becomes informative when pointed at APTOS/IDRiD, where grading is genuinely
-> ambiguous.
->
-> To make the synthetic study less degenerate, `build_cohort.py --label-noise
-> 0.25` injects ±1-grade reference-standard error, which is what real ICDR
-> grading looks like: human graders agree exactly only ~60–75% of the time and
-> almost all disagreement is by one grade. Validating against noiseless labels
-> flatters any model.
+> The ablation only says something when the grading task is genuinely
+> ambiguous, which is why it is run on APTOS/IDRiD/DDR/Messidor-2 and not on
+> anything easier. On a corpus where the grade is a near-deterministic function
+> of lesion counts every arm reaches referable-DR AUC ≈ 0.99–1.00 and there is
+> nothing left for any arm to win — a property of the data, not evidence that
+> the arms are equivalent.
 
 ---
 
@@ -686,7 +718,7 @@ data/raw/
 ```
 
 ```bash
-python scripts/build_cohort.py --source real --data-root data/raw --out data/cohort_real
+python scripts/build_cohort.py --data-root data/raw --out data/cohort_real
 # ...then the same train/validate commands, pointed at data/cohort_real
 ```
 
@@ -699,32 +731,20 @@ for inference but metrics are unavailable.
 
 ## Honest limitations
 
-- **The trained weights in this repository are fitted on phantoms, not
-  patients.** The numbers `validate.py` prints on synthetic data measure
-  whether the pipeline is correctly wired, *not* clinical performance. Any
-  clinical claim requires re-running the same scripts on APTOS/IDRiD with
-  Messidor-2 held out. Nothing about the code changes; only the cohort path.
-- The phantom generator is anatomically structured but is **not** a claim of
-  photorealism. Its jobs are integration testing, demonstration, and catching
-  training bugs.
+- **The trained weights are fitted on APTOS-2019, IDRiD and DDR**, and
+  validated with Messidor-2 held out entirely. Every number in
+  [RESULTS.md](RESULTS.md) is measured on real fundus photographs.
+- This is a research prototype, not a cleared device. Nothing here has been
+  through a clinical trial, a regulator, or a prospective deployment.
 - The venous-beading cue currently runs on a morphological vessel proxy and is
   deliberately conservative — it does not fire on healthy retinas
   (regression-tested), but it will under-detect real beading until a vessel
   U-Net is trained on DRIVE. The 4-2-1 "2" arm is therefore weaker than the
   "4" arm today.
-- Severe-NPDR phantoms pick one of the three 4-2-1 arms at random
-  (4-quadrant / beading / IRMA), and the 4-quadrant arm places haemorrhages
-  and microaneurysms quadrant-uniformly so the label is actually satisfied by
-  the pixels. An earlier version scattered them at random, which reached the
-  ≥20-per-quadrant threshold in only ~1.6 quadrants and quietly penalised any
-  grader that implements ICDR correctly. Worth knowing if you extend the
-  generator: **a phantom whose label contradicts its own pixels makes the
-  correct model look wrong.**
-- Optic-disc localisation is ~89% within 1 DD on phantoms, below the 95–99%
-  published on real fundus images. The vessel-convergence weight is tuned on
-  phantoms and should be re-fit on IDRiD's optic-disc masks; the failure mode
-  it defends against (a bright confluent exudate) is under-represented in
-  phantoms.
+- Neovascularisation is **never assessed**. No corpus here annotates it at
+  pixel level, so that channel trains against all-zero targets; the report says
+  "not assessed" rather than "absent", and the grade-4 rule arm is unreachable
+  from lesion evidence alone.
 - Cost figures in `DEFAULT_COSTS` are order-of-magnitude inputs, not findings.
 
 ---
@@ -743,7 +763,7 @@ src/drscreen/
     landmarks.py            analytic optic disc / fovea, clinical coordinate frame
   data/
     registry.py             dataset discovery + enforced split policy
-    synthetic.py            procedural fundus phantom generator
+    samples.py              the 12 committed real held-out photographs
     torch_data.py           datasets, augmentation policy, caching
     cohort.py               materialised on-disk cohort format
   models/

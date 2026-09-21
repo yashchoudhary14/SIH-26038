@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from drscreen.data.synthetic import generate
+from drscreen.data import samples
 from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
 
 
@@ -61,7 +61,11 @@ def main():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
     print(f"resolution: {a.size}x{a.size}\n")
 
-    phantom = generate(grade=2, size=1024, seed=1, severity=0.25)
+    # A real held-out photograph, not a generated one: latency depends on how
+    # much the quality gate and the lesion head actually find, and a phantom
+    # understates both.
+    image, case_name, _ = samples.load(grade=2, size=1024)
+    print(f"image: {case_name} (real held-out photograph)\n")
     results: dict = {"size": a.size, "device_gpu": torch.cuda.is_available()}
 
     # ---- CPU-only: the PHC edge device path ------------------------------
@@ -77,8 +81,8 @@ def main():
     from drscreen.preprocess.landmarks import locate
     from drscreen.preprocess.quality import assess
 
-    img, mask, fov = standardize(phantom.image, size=a.size)
-    r = timeit(lambda: standardize(phantom.image, size=a.size), a.n)
+    img, mask, fov = standardize(image, size=a.size)
+    r = timeit(lambda: standardize(image, size=a.size), a.n)
     print(f"  geometry (FOV crop/resize)   {r['median_ms']:7.1f} ms")
     results["cpu_geometry"] = r
 
@@ -98,7 +102,7 @@ def main():
           f"(technician-facing feedback loop)")
     results["edge_gate_ms"] = gate_ms
 
-    r = timeit(lambda: pipe_cpu.run(phantom.image, explain=False), max(5, a.n // 3))
+    r = timeit(lambda: pipe_cpu.run(image, explain=False), max(5, a.n // 3))
     print(f"  full pipeline (CPU)          {r['median_ms']:7.1f} ms")
     results["cpu_full"] = r
 
@@ -107,13 +111,13 @@ def main():
         print("\n[district server / GPU]")
         pipe_gpu = DRScreeningPipeline.load(a.artifacts, PipelineConfig(
             size=a.size, device="cuda", enable_cam=False, mc_samples=0))
-        r = timeit(lambda: pipe_gpu.run(phantom.image, explain=False), a.n)
+        r = timeit(lambda: pipe_gpu.run(image, explain=False), a.n)
         print(f"  full pipeline (GPU, bs=1)    {r['median_ms']:7.1f} ms")
         results["gpu_full"] = r
 
         pipe_cam = DRScreeningPipeline.load(a.artifacts, PipelineConfig(
             size=a.size, device="cuda", enable_cam=True, mc_samples=8))
-        r = timeit(lambda: pipe_cam.run(phantom.image, explain=True), max(5, a.n // 2))
+        r = timeit(lambda: pipe_cam.run(image, explain=True), max(5, a.n // 2))
         print(f"  + Grad-CAM++ & MC dropout    {r['median_ms']:7.1f} ms")
         results["gpu_full_explained"] = r
 

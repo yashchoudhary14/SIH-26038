@@ -1,6 +1,6 @@
 """End-to-end demonstration: image in, clinical report out.
 
-    python scripts/run_demo.py --demo                    # one phantom per grade
+    python scripts/run_demo.py --demo                    # the committed real held-out cases
     python scripts/run_demo.py --image path/to/fundus.jpg
     python scripts/run_demo.py --dir path/to/folder --out outputs/reports
 """
@@ -54,8 +54,8 @@ def main():
     ap.add_argument("--image", type=Path)
     ap.add_argument("--dir", type=Path)
     ap.add_argument("--demo", action="store_true",
-                    help="generate one phantom per ICDR grade")
-    ap.add_argument("--severity", type=float, default=0.3)
+                    help="screen the committed real held-out photographs "
+                         "(outputs/verification_set/images), covering every ICDR grade")
     ap.add_argument("--artifacts", type=Path, default=Path("outputs/artifacts"))
     ap.add_argument("--out", type=Path, default=Path("outputs/reports"))
     ap.add_argument("--size", type=int, default=512)
@@ -69,13 +69,13 @@ def main():
 
     jobs: list[tuple[str, np.ndarray, int | None]] = []
     if a.demo:
-        from drscreen.data.synthetic import generate
-        for g in range(5):
-            ph = generate(grade=g, size=768, seed=2024 + g * 31, severity=a.severity)
-            jobs.append((f"phantom_grade{g}", ph.image, ph.grade))
-        # One deliberately unusable capture, to show the gate firing.
-        ph = generate(grade=2, size=768, seed=99, severity=0.97)
-        jobs.append(("phantom_ungradeable", ph.image, ph.grade))
+        # Real held-out photographs, one or more per ICDR grade. These used to
+        # be generated phantoms; a demonstration that screens a picture this
+        # project drew proves only that the code runs, and the phantom set
+        # concealed two defects that only real retinas exposed.
+        from drscreen.data import samples
+        for img, name, true_grade in samples.load_all():
+            jobs.append((name, img, true_grade))
     if a.image:
         img = cv2.imread(str(a.image), cv2.IMREAD_COLOR)
         if img is None:
@@ -109,7 +109,7 @@ def main():
     dt = time.time() - t0
     print(f"\n{len(jobs)} images in {dt:.1f}s ({dt/len(jobs)*1000:.0f} ms/image)")
     if gradeable_n:
-        print(f"exact grade match on phantoms: {correct}/{gradeable_n}")
+        print(f"exact grade match on held-out photographs: {correct}/{gradeable_n}")
     (a.out / "batch_results.json").write_text(json.dumps(results, indent=2, default=float))
     print(f"Results: {a.out/'batch_results.json'}")
 

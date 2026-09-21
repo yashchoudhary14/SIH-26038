@@ -1,0 +1,30 @@
+flowchart LR
+  A["Fundus<br/>Image"] --> B["FOV Detect<br/>Crop · Pad · 512²"]
+  B --> C{"Quality<br/>Gate"}
+  C -- "ungradable" --> R["Recapture<br/>Instructions"]
+  C -- "pass" --> D["Adaptive<br/>Enhancement"]
+  D --> E["Landmarks<br/>Disc 0.015 DD"]
+  E --> F["Attention U-Net<br/>1024px · 4 lesions"]
+  F --> G["Clinical Features<br/>39-dim vector"]
+  D --> H["Ordinal CNN<br/>EfficientNet-B0"]
+  H --> I["Calibration<br/>T=2.708 + Isotonic"]
+  G --> J["Rule Engine<br/>ICDR 4-2-1"]
+  I --> K["Decision<br/>Ladder"]
+  J --> K
+  K --> L["Report<br/>Grad-CAM++ · Evidence"]
+
+  classDef inp fill:#2D9CDB,stroke:#1B6FA8,color:#fff,stroke-width:1.5px
+  classDef pre fill:#5FB3E8,stroke:#1B6FA8,color:#0B2033,stroke-width:1.5px
+  classDef seg fill:#E8833A,stroke:#B45F1E,color:#fff,stroke-width:1.5px
+  classDef net fill:#141B34,stroke:#000,color:#fff,stroke-width:1.5px
+  classDef out fill:#1E9E5A,stroke:#14713F,color:#fff,stroke-width:1.5px
+  classDef gate fill:#FFF,stroke:#141B34,color:#141B34,stroke-width:2px
+  classDef stop fill:#D64545,stroke:#8F2626,color:#fff,stroke-width:1.5px
+
+  class A inp
+  class B,D,E pre
+  class C gate
+  class R stop
+  class F,G,J seg
+  class H,I,K net
+  class L out

@@ -1,22 +1,29 @@
-"""Materialise a cohort to disk.
+"""Materialise a cohort of real fundus photographs to disk.
 
-Two sources, one output format:
+Discovers APTOS / EyePACS / DDR / IDRiD / DRIVE / Messidor-2 under
+``--data-root`` and standardises them into one on-disk format.
 
-* ``--source synthetic`` generates phantoms (no downloads required).
-* ``--source real`` discovers APTOS / EyePACS / DDR / IDRiD / DRIVE /
-  Messidor-2 under ``--data-root`` and standardises them.
+There is no generated-phantom source. There used to be, and it was a liability:
+a model measured on images the same project drew cannot be evidence of
+anything, and the phantoms actively hid real defects because they were drawn
+from the pipeline's own assumptions. Two examples that reached production --
+the FOV gate rejected a third of genuinely gradeable real images because
+phantoms always render a black margin, and the triage rule escalated every real
+photograph to urgent because phantoms never exercised an unsupervised lesion
+channel. Neither was visible until real data was fed through.
 
 ``--curate`` down-samples over-represented grades in the **training split
 only**, mixing sources within each grade so the model cannot shortcut on the
 imaging chain. Val and test keep the natural distribution.
 
 Split policy is enforced here, not left to convention: Messidor-2 always lands
-in the ``external`` split and never in ``train`` or ``val``.
+in the ``external`` split and never in ``train`` or ``val``. (``scripts/
+resplit_cohort.py`` can override that deliberately; it is a separate script so
+the override cannot happen by accident.)
 
-Examples
---------
-    python scripts/build_cohort.py --source synthetic --n 4000 --out data/cohort_synth
-    python scripts/build_cohort.py --source real --data-root data/raw --out data/cohort_real
+Example
+-------
+    python scripts/build_cohort.py --data-root data/raw --out data/cohort_real
 """
 from __future__ import annotations
 
@@ -30,7 +37,6 @@ import numpy as np
 
 from drscreen.constants import NUM_LESION_CLASSES
 from drscreen.data.cohort import CohortRecord, CohortWriter
-from drscreen.data.synthetic import generate, CAMERAS
 from drscreen.preprocess.enhance import adaptive_enhance, to_model_input
 from drscreen.preprocess.fov import standardize
 from drscreen.preprocess.quality import assess
@@ -39,103 +45,6 @@ from drscreen.preprocess.quality import assess
 def _warp_masks(masks: np.ndarray, raw_shape, fov, size: int) -> np.ndarray:
     from drscreen.data.torch_data import _apply_same_geometry
     return _apply_same_geometry(masks, raw_shape, fov, size)
-
-
-def _make_one(job: tuple) -> tuple:
-    """Worker: generate + standardise + assess one phantom.
-
-    Returns picklable arrays; the parent process does all the disk writing so
-    the manifest stays a single append-ordered file.
-    """
-    split, i, size, case_seed, shift, enhance, label_noise = job
-    rng = np.random.default_rng(case_seed)
-    cams = [c.name for c in (CAMERAS[2:] if shift else CAMERAS)]
-    sev = float(np.clip(rng.beta(2.2, 2.0) if shift else rng.beta(1.6, 3.2), 0, 1))
-    p = generate(size=size, seed=int(rng.integers(1 << 31)), severity=sev,
-                 camera=cams[int(rng.integers(len(cams)))])
-    img, fov_mask, fov = standardize(p.image, size=size)
-
-    stack = np.stack(
-        [p.vessel_mask, p.disc_mask] +
-        [p.lesion_masks[..., c] for c in range(NUM_LESION_CLASSES)], axis=-1)
-    stack = _warp_masks(stack, p.image.shape[:2], fov, size)
-
-    q = assess(img, fov_mask, fov)
-    if enhance:
-        img, applied = adaptive_enhance(img, fov_mask, q.issues)
-        img = to_model_input(img, fov_mask, mode="hybrid")
-        # NO colour conversion here. to_model_input already returns the exact
-        # 3-channel representation the model consumes -- [CLAHE-green,
-        # Ben-Graham, L*], feature planes, not an RGB image. The previous
-        # cv2.COLOR_RGB2BGR reversed channels 0 and 2 before cv2.imwrite, and
-        # since imwrite/imread round-trips an array unchanged, the cohort stored
-        # [L*, Ben-Graham, CLAHE-green] -- the reverse of what the live pipeline
-        # (pipeline.py, no conversion) feeds the same model. Training and
-        # deployment saw mirror-image inputs. See test_train_serve_channel_parity.
-    else:
-        applied = []
-
-    # Optional reference-standard noise. Real ICDR reference standards are not
-    # ground truth: human graders agree exactly only ~60-75% of the time, and
-    # almost all disagreement is by one grade. A pipeline validated against
-    # noiseless labels looks better than it will ever be in the field -- on the
-    # noiseless phantoms the fusion grader reaches AUC 1.00, which tells you
-    # nothing except that the task was too easy. Disagreement is modelled as
-    # +/-1 grade, matching the observed shape.
-    label = p.grade
-    if label_noise > 0:
-        nrng = np.random.default_rng(case_seed ^ 0x5EED)
-        if nrng.random() < label_noise:
-            label = int(np.clip(p.grade + nrng.choice([-1, 1]), 0, 4))
-
-    rec = CohortRecord(uid=f"{split}_{i:06d}", grade=label, split=split,
-                       source="synthetic", quality_label=p.quality_label,
-                       camera=p.camera,
-                       meta={"applied": applied, "quality_overall": q.overall,
-                             "true_grade": p.grade,
-                             "label_noise_applied": bool(label != p.grade),
-                             "lesion_counts": p.lesion_counts,
-                             "degradations": p.degradations,
-                             "domain_shift": shift})
-    return rec, img, fov_mask, stack
-
-
-def build_synthetic(out: Path, n_train: int, n_val: int, n_test: int,
-                    n_external: int, size: int, seed: int, enhance: bool,
-                    workers: int = 0, label_noise: float = 0.0):
-    plan = [("train", n_train, False), ("val", n_val, False),
-            ("test", n_test, False), ("external", n_external, True)]
-    rng = np.random.default_rng(seed)
-    jobs = [(split, i, size, int(rng.integers(1 << 31)), shift, enhance, label_noise)
-            for split, n, shift in plan for i in range(n)]
-    total = len(jobs)
-    t0 = time.time()
-    done = 0
-
-    def _write(w, payload):
-        rec, img, fov_mask, stack = payload
-        w.add(rec, img, fov_mask,
-              masks={"vessel": stack[..., 0], "disc": stack[..., 1],
-                     "lesions": stack[..., 2:]})
-
-    with CohortWriter(out) as w:
-        if workers and workers > 1:
-            import multiprocessing as mp
-            with mp.Pool(workers) as pool:
-                for payload in pool.imap(_make_one, jobs, chunksize=8):
-                    _write(w, payload)
-                    done += 1
-                    if done % 250 == 0:
-                        el = time.time() - t0
-                        print(f"  {done}/{total}  ({el:.0f}s, {done/el:.1f}/s)", flush=True)
-        else:
-            for job in jobs:
-                _write(w, _make_one(job))
-                done += 1
-                if done % 250 == 0:
-                    el = time.time() - t0
-                    print(f"  {done}/{total}  ({el:.0f}s, {done/el:.1f}/s)", flush=True)
-    print(f"Wrote {done} cases to {out} in {time.time()-t0:.0f}s")
 
 
 def _process_real(job: tuple):
@@ -153,8 +62,14 @@ def _process_real(job: tuple):
     if enhance:
         img, applied = adaptive_enhance(img, fov_mask, q.issues)
         img = to_model_input(img, fov_mask, mode="hybrid")
-        # No colour conversion: store exactly what the live pipeline feeds the
-        # model. See the note in the synthetic path and the parity test.
+        # NO colour conversion here. to_model_input already returns the exact
+        # 3-channel representation the model consumes -- [CLAHE-green,
+        # Ben-Graham, L*], feature planes, not an RGB image. An earlier
+        # cv2.COLOR_RGB2BGR reversed channels 0 and 2 before cv2.imwrite, and
+        # since imwrite/imread round-trips an array unchanged, the cohort stored
+        # [L*, Ben-Graham, CLAHE-green] -- the reverse of what the live pipeline
+        # (pipeline.py, no conversion) feeds the same model. Training and
+        # deployment saw mirror-image inputs. See test_train_serve_channel_parity.
     else:
         applied = []
 
@@ -348,22 +263,16 @@ def build_real(out: Path, data_root: Path, size: int, val_frac: float,
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--source", choices=["synthetic", "real"], default="synthetic")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--data-root", type=Path, default=Path("data/raw"))
-    ap.add_argument("--n", type=int, default=4000, help="total synthetic cases")
     ap.add_argument("--size", type=int, default=384)
-    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--val-frac", type=float, default=0.15)
     ap.add_argument("--only-splits", nargs="*", default=None,
                     help="build only these splits, e.g. seg_train seg_val. Lets the "
                          "lesion model use a higher resolution than the grading "
                          "cohort without materialising every image twice.")
-    ap.add_argument("--label-noise", type=float, default=0.0,
-                    help="probability a case gets a +/-1 grade label error, "
-                         "modelling real inter-grader disagreement (try 0.25)")
     ap.add_argument("--workers", type=int, default=0,
-                    help="parallel generation workers (0/1 = serial)")
+                    help="parallel preprocessing workers (0/1 = serial)")
     ap.add_argument("--no-enhance", action="store_true",
                     help="store standardised BGR instead of the hybrid model input")
     ap.add_argument("--curate", action="store_true",
@@ -377,12 +286,6 @@ def main():
     a = ap.parse_args()
 
     a.out.mkdir(parents=True, exist_ok=True)
-    if a.source == "synthetic":
-        n = a.n
-        build_synthetic(a.out, int(n * 0.62), int(n * 0.13), int(n * 0.13),
-                        int(n * 0.12), a.size, a.seed, not a.no_enhance,
-                        workers=a.workers, label_noise=a.label_noise)
-        return 0
     return build_real(a.out, a.data_root, a.size, a.val_frac,
                       not a.no_enhance, workers=a.workers,
                       only_splits=set(a.only_splits) if a.only_splits else None,

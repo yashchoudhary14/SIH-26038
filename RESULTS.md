@@ -26,6 +26,11 @@ for why the image-only arm is deployed rather than the fusion arm.
 
 Trained on **APTOS 2019 + IDRiD only**. DDR was added, measured and
 deliberately *not* promoted — see [§7.1](#71-adding-ddr-what-it-fixed-and-what-it-broke).
+Pooling Messidor-2 into training instead of holding it out closes most of the
+external-sensitivity gap — +0.227 sensitivity and +0.066 AUC on images blind to
+both models — at the price of having no zero-shot cohort left at all; measured
+in [§7.5](#75-pooling-messidor-2-into-training--the-biggest-single-gain-and-what-it-cost),
+not deployed.
 Grade boundaries are the per-boundary cut-points **[0.30, 0.39, 0.39, 0.36]**
 fitted on val, not the hard-coded 0.5 that shipped previously
 ([§4.1](#41-exact-grade-assignment-is-weaker-than-referral)).
@@ -385,13 +390,15 @@ model from its own ablation (bug #14 in [§6](#6-sixteen-bugs-that-only-real-dat
 
 ---
 
-## 6. Sixteen bugs that only real data exposed
+## 6. Eighteen bugs that only real data exposed
 
 Listed because most are *invisible* failures — they produce a plausible number
 rather than a crash. The first nine were found during the first real-data run,
 the next four by asking why grades 3 and 4 were collapsing, two more while
-correcting a train/serve preprocessing skew, and the last one by rebuilding the
-demonstration set out of real photographs instead of generated ones.
+correcting a train/serve preprocessing skew, one by rebuilding the
+demonstration set out of real photographs instead of generated ones, and the
+last two by deleting the synthetic generator entirely and re-pointing everything
+that had depended on it at real data.
 
 | # | bug | how it presented |
 |---|---|---|
@@ -548,6 +555,61 @@ reasoning that it defines proliferative DR and is too specific a finding to
 gate behind corroboration. That exemption recreated the whole failure on its
 own — see bug #16.
 
+### Two more, from deleting the synthetic generator
+
+Removing the phantom generator meant re-pointing the tests and the landmark
+fitting script at real photographs. Both had been agreeing with a drawing.
+
+| # | bug | how it presented |
+|---|---|---|
+| 17 | the focus criterion is **not monotone in blur** — severe defocus scores *better* than a sharp image | `focus_score` was the ratio of high-band to mid-band energy. Both bands collapse under heavy blur, so the ratio of two vanishing quantities is governed by their relative decay, not by surviving detail. Measured on real photographs it bottoms out at σ ≈ 0.004·W and then **climbs back**: a retina blurred to σ = 0.08·W, with no discernible vessel anywhere, scored **0.981** against **0.746** for the same retina in focus. An unreadable image passed the gate and was graded |
+| 18 | the optic-disc detector's vessel-convergence weight was fitted on phantoms and is wrong on real retinas | Phantoms draw vessels converging cleanly on the disc, so the fit over-trusted that cue. On IDRiD's hand-marked disc centres the shipped 0.70 gives **96.0%** within 1 DD; the decline is monotone across the whole sweep and the real-data optimum is **0.10** at **98.5%** |
+
+Bug #17 is the one that mattered. The gate's entire purpose is to refuse images
+a clinician could not read, and defocus is the canonical reason to refuse one —
+it is in `NON_CORRECTABLE` precisely because no enhancer can invent detail that
+was never captured. The phantom suite never explored past mild blur, so the
+turning point sat outside everything that was ever tested.
+
+**Fix for #17.** Absolute high-frequency energy, normalised by the retina's own
+intensity spread, combined with the existing ratio as a conjunction. That
+quantity *is* monotone in blur. Calibrated on real images only — 12 committed
+APTOS/IDRiD held-out photographs plus 60 IDRiD originals against progressively
+defocused copies — with the fail cut-point placed at 0.0085, below the lowest
+gradeable real image measured (0.0111) and above every clearly defocused one
+(≤ 0.0084).
+
+| blur σ (fraction of width) | focus score before | after |
+|---|---|---|
+| 0 (sharp) | 0.746 | 0.690 → **pass** |
+| 0.004 | 0.162 | 0.193 → fail |
+| 0.012 | 0.307 | 0.198 → fail |
+| 0.020 | 0.542 → **passed** | 0.170 → fail |
+| 0.080 | 0.981 → **passed** | 0.132 → fail |
+
+Verified not to have over-corrected: **0 of 72** real gradeable photographs are
+rejected on focus, and the demonstration set still grades 12/12 exact with all
+six sight-threatening cases referred urgent.
+
+**Fix for #18.** `DISC_VESSEL_WEIGHT` 0.70 → **0.10**, fitted on the IDRiD
+localization train split and confirmed on its held-out test split.
+
+| weight | disc ≤1 DD, train (n=200) | disc ≤1 DD, test (n=103) |
+|---|---|---|
+| 0.00 | 97.0% | 98.1% |
+| **0.10** | **98.5%** | **98.1%** |
+| 0.20 | 98.0% | 98.1% |
+| 0.50 | 97.0% | 96.1% |
+| 0.70 *(was shipped)* | 96.0% | 96.1% |
+| 1.00 | 93.5% | 96.1% |
+
+0.10 rather than 0.00 because the term still has a job — a confluent hard-exudate
+plaque is as bright as the disc and has no vessels running into it — and that
+case is too rare in 303 images to show up in the aggregate but too damaging to
+leave unguarded. Fovea accuracy is flat at 93–94% across the whole sweep, so
+this trades nothing.
+
+
 ---
 
 ## 7. Data
@@ -650,7 +712,7 @@ is the missing half of this experiment, and it is now the top roadmap item.
 
 Artefacts: `outputs/validation_ddr/` (`max_sensitivity`) and
 `outputs/validation_ddr_youden/` (`youden`), with the cohort reproducible via
-`build_cohort --source real --curate`.
+`build_cohort --curate`.
 
 ### 7.2 Fixing the segmentation domain gap — and what it revealed
 
@@ -871,6 +933,137 @@ negative result stays reproducible, not because it is used.
 
 Artefacts: `outputs/grader_cnn_merged/`.
 
+### 7.5 Pooling Messidor-2 into training — the biggest single gain, and what it cost
+
+Every result above keeps Messidor-2 as a blind external cohort. This experiment
+deliberately gives that up: all four graded corpora are pooled, shuffled and
+re-cut into train/val/test, so Messidor-2 becomes training data like any other.
+
+Built with `scripts/resplit_cohort.py --pool-external`, a separate script from
+`build_cohort.py` on purpose — the normal build path still refuses to let
+Messidor-2 near the training pool, and `assert_no_leakage` still raises
+`SplitViolation` if it tries. Pooling has to be asked for by name.
+
+| split | n | grades 0–4 | sources |
+|---|---|---|---|
+| train | 5,941 | 1840 / 926 / 1840 / 415 / 920 | APTOS 1888, DDR 2635, IDRiD 343, Messidor-2 1075 |
+| val | 1,860 | 805 / 212 / 575 / 86 / 182 | — |
+| test | 1,852 | 786 / 157 / 610 / 96 / 203 | APTOS 502, DDR 1015, IDRiD 75, Messidor-2 260 |
+
+Messidor-2's fellow eyes are grouped by patient via the ADCIS `left;right`
+pairing CSV (1,748 images → 874 patients). Without it, correlated eyes straddle
+the train/test boundary and flatter the test estimate; the per-image subject ids
+in the filenames do not recover the patient.
+
+#### The comparison is not the one it looks like
+
+The two models were validated on different test splits — 631 images against
+1,852, different corpora, different grade mix — so their headline numbers are
+not measuring the same thing. Read naively, exact accuracy *falls* from 0.786 to
+0.727 and referable sensitivity from 0.986 to 0.915. That is the test set getting
+harder, not the model getting worse.
+
+Scoring the old model on the new test split is contaminated in the other
+direction: the re-shuffle moved **850** of those 1,852 images out of its training
+split, and it memorised them.
+
+What is left is the intersection blind to both — old split `test` or `external`
+(never trained on, never used to fit the old threshold), new split `test`.
+**646 images.** `scripts/compare_graders.py` scores each model with its own fitted
+temperature, calibrator and operating point, because that is how each would
+actually be deployed.
+
+| metric | pre-pool | pooled | Δ |
+|---|---|---|---|
+| referable sensitivity | 0.6655 | **0.8921** | +0.227 |
+| referable specificity | 0.9429 | 0.9103 | −0.033 |
+| referable AUC | 0.8971 | **0.9635** | +0.066 |
+| sight-threatening sensitivity | 0.9231 | **0.9846** | +0.062 |
+| exact accuracy | 0.6223 | **0.7384** | +0.116 |
+| within-one-grade | 0.8529 | **0.9474** | +0.094 |
+| referable accuracy | 0.8235 | **0.9025** | +0.079 |
+| QWK | 0.6914 | **0.8350** | +0.144 |
+| ECE | 0.2007 | **0.0396** | −0.161 |
+
+DeLong on the AUC: **p = 2.6 × 10⁻¹⁰**. McNemar on the realised referral
+decision: **p = 5.0 × 10⁻⁷** (24 vs 75 discordant cases). The AUC result matters
+because it is threshold-free — the gain is not the old operating point simply
+transferring badly.
+
+#### It is not a composition artifact
+
+The comparison set is 40% Messidor-2, where the old model was known weak, so the
+obvious objection is Simpson's paradox. The gain holds **within every corpus**:
+
+| corpus | n | AUC pre → pooled | sensitivity | specificity | exact acc |
+|---|---|---|---|---|---|
+| APTOS | 89 | 0.9797 → 0.9808 | 0.981 → 1.000 | 0.892 → 0.919 | 0.775 → 0.753 |
+| DDR | 286 | 0.9092 → **0.9537** | 0.567 → **0.851** | 0.972 → 0.917 | 0.573 → **0.685** |
+| Messidor-2 | 260 | 0.8844 → **0.9624** | 0.613 → **0.888** | 0.944 → 0.906 | 0.623 → **0.792** |
+
+APTOS was already near-saturated and is a wash; its 2.3-point exact-accuracy dip
+on n=89 is two images. The gain is concentrated exactly where the old model
+failed to transfer.
+
+The Messidor-2 subset is representative, not cherry-picked: the old model scored
+0.6411 exact / 0.9140 within-one / 0.8658 referable on the **full** 1,744-image
+cohort, against 0.6231 / 0.9077 / 0.8423 on these 260.
+
+#### Pooled model, full test split (n=1,852)
+
+| | value | 95% CI | count |
+|---|---|---|---|
+| referable sensitivity | 0.9153 | 0.895–0.932 | 832/909 |
+| referable specificity | 0.8865 | 0.865–0.905 | 836/943 |
+| referable AUC | 0.9642 | — | — |
+| sight-threatening sensitivity | 0.9967 | 0.981–0.999 | 298/299 |
+| QWK | 0.8689 | — | — |
+| within-one-grade | 0.9476 | — | — |
+| ECE | 0.0278 | — | — |
+
+Per-grade recall 0.872 / 0.618 / 0.571 / 0.740 / 0.714. Grades 3–4 are up
+sharply; **grade 2 at 0.571 is now the weak class**, which is the mild/moderate
+label-definition boundary of [§3](#3-why-moderate-npdr-fails--the-reference-standards-disagree),
+not a data-volume problem. Per corpus: APTOS 0.980/0.884, DDR 0.890/0.883,
+IDRiD 0.917/0.852, Messidor-2 0.888/0.906 — every corpus clears the 85%
+specificity floor; APTOS and IDRiD clear the 90% sensitivity target outright.
+
+Fitted operating point: threshold **0.3207**, T **2.349**, grade cut-points
+**[0.59, 0.56, 0.33, 0.42]**.
+
+#### What it cost
+
+**There is no zero-shot cohort left.** The 97.3% sight-threatening sensitivity in
+[§1](#1-the-headline) was measured on a corpus the model had never encountered,
+and that measurement cannot be reproduced from a pooled split because no such
+corpus exists any more. Every number in this section is in-distribution. The
+Messidor-2 rows are unseen *images* from a seen *corpus* — strictly between an
+internal estimate and a zero-shot one, and not a substitute for the latter.
+`outputs/validation_pre_messidor/validation.json` is retained so the zero-shot
+result stays on the record.
+
+**The trade is real.** Specificity fell 3.3 points on the common set to buy 22.7
+points of sensitivity. Out of 943 non-referable eyes in the pooled test, 107 are
+now falsely flagged. For a screening programme that is the right direction — a
+false referral costs one clinic slot, a missed referable eye costs a year — but
+it is a cost, not a free gain.
+
+**Two smaller caveats.** Grade 3 and 4 cells in the head-to-head are n=23 and
+n=42, so those per-grade deltas carry 95% CIs of roughly ±0.18 and ±0.13:
+directionally clear, not precisely measured. And pooled val/test referable
+prevalence sits about 4 points above the raw corpus prevalence, because 6,074
+grade-0/2 images were curated away at the original cohort build and were never
+materialised; recorded in `data/cohort_all/resplit.json`.
+
+#### Deployment status
+
+**Not deployed.** `outputs/artifacts/` still holds the pre-pool CNN arm and is
+byte-identical to what [§1](#1-the-headline) describes. The pooled model lives in
+`outputs/artifacts_all/` alongside it, and the decision of which to ship turns on
+whether an auditable zero-shot number or a better in-distribution one is worth
+more for this deployment — which is a programme decision, not a metric.
+
+
 ---
 
 ## 8. Simulink
@@ -913,8 +1106,8 @@ review and edge inference; both are outputs, not assumptions.
 ```bash
 python scripts/extract_datasets.py --src data --out data/raw
 
-python scripts/build_cohort.py --source real --data-root data/raw --out data/cohort_real --size 512 --workers 14
-python scripts/build_cohort.py --source real --data-root data/raw --out data/cohort_seg1024 --size 1024 --workers 12 --only-splits seg_train seg_val
+python scripts/build_cohort.py --data-root data/raw --out data/cohort_real --size 512 --workers 14
+python scripts/build_cohort.py --data-root data/raw --out data/cohort_seg1024 --size 1024 --workers 12 --only-splits seg_train seg_val
 
 python scripts/train_seg.py --cohort data/cohort_seg1024 --epochs 160 --batch-size 3 --size 1024 --pos-weight 12
 
@@ -936,6 +1129,25 @@ python scripts/validate.py --cohort data/cohort_real --seg-cohort data/cohort_se
     --seg outputs/segmentation/best.pt --grader outputs/grader_cnn/best.pt \
     --arms fusion=outputs/grader_fusion/best.pt clinical_only=outputs/grader_clinical/best.pt \
     --threshold-policy max_sensitivity
+```
+
+
+Pooled-data experiment of [§7.5](#75-pooling-messidor-2-into-training--the-biggest-single-gain-and-what-it-cost)
+(reuses the materialised cohort; nothing is re-preprocessed):
+
+```bash
+python scripts/resplit_cohort.py --src data/cohort_real_ddr --out data/cohort_all     --pool-external --curate
+python scripts/train_grader.py --cohort data/cohort_all --arm cnn --epochs 30     --out outputs/grader_cnn_all --select-on qwk
+python scripts/validate.py --cohort data/cohort_all --grader outputs/grader_cnn_all/best.pt     --seg outputs/artifacts/segmentation.pt --seg-cohort data/cohort_seg1024_ddr     --out outputs/validation_all --artifacts outputs/artifacts_all     --threshold-policy max_sensitivity
+python scripts/compare_graders.py --cohort data/cohort_all --by-source     --a outputs/artifacts_pre_messidor --a-name pre-pool     --b outputs/artifacts_all --b-name pooled
+```
+
+Landmark constants are fitted, not assumed
+([bug #18](#two-more-from-deleting-the-synthetic-generator)):
+
+```bash
+python scripts/eval_landmarks.py --split train --sweep   # fit
+python scripts/eval_landmarks.py --split test --sweep    # confirm held out
 ```
 
 All three arms must be retrained together whenever the loss, the sampler or the

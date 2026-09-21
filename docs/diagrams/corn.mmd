@@ -1,0 +1,18 @@
+flowchart TD
+  X["512 × 512 × 3<br/>hybrid planes"] --> BB["EfficientNet-B0<br/>4.01 M"]
+  BB --> Z["1280-dim<br/>embedding"]
+  Z --> HD["Ordinal head<br/>4 logits z₀…z₃"]
+  HD --> CP["cumulative product of σ(z)<br/><b>MONOTONE BY CONSTRUCTION</b>"]
+  CP --> R1["P(y ≥ 2) → REFERRAL"]
+  CP --> R2["P(y ≥ 3) → URGENCY"]
+  CP --> R3["first-failure → GRADE"]
+
+  classDef inp fill:#2D9CDB,stroke:#1B6FA8,color:#fff,stroke-width:2px
+  classDef net fill:#141B34,stroke:#000,color:#fff,stroke-width:2px
+  classDef key fill:#E8833A,stroke:#B45F1E,color:#fff,stroke-width:2.5px
+  classDef out fill:#1E9E5A,stroke:#14713F,color:#fff,stroke-width:2px
+
+  class X inp
+  class BB,Z,HD net
+  class CP key
+  class R1,R2,R3 out

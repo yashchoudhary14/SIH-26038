@@ -1,4 +1,4 @@
-"""Materialised cohorts: a single on-disk format for phantom and real data.
+"""Materialised cohorts: a single on-disk format for every source corpus.
 
 Training the fusion grader needs clinical features, which need lesion masks,
 which need a trained segmentation model.  That is a genuine three-stage

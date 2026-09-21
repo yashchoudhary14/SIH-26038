@@ -67,9 +67,11 @@ def test_unsupervised_nv_at_the_disc_cannot_escalate_either():
 def test_supervised_nv_still_escalates_on_sight():
     """The guard is about provenance, not about softening the rule.
 
-    A cohort that does annotate NV -- the synthetic phantoms do -- must keep
-    the original behaviour: neovascularisation defines proliferative DR and
-    outranks a confident negative.
+    A cohort that does annotate NV at pixel level must keep the original
+    behaviour: neovascularisation defines proliferative DR and outranks a
+    confident negative. No corpus here supplies that supervision yet -- IDRiD
+    ships masks for MA, HE, EX and SE only -- so the case is constructed
+    directly from features rather than from an image.
     """
     for feats in (_feats(nv_at_disc=True), _feats(nv_elsewhere=True)):
         assert _pipe()._decide(_confident_negative(), feats) == ("refer", "urgent")

@@ -154,8 +154,51 @@ def vessel_density(image: np.ndarray, mask: np.ndarray,
     return cv2.GaussianBlur(resp, (0, 0), max(3.0, 0.04 * max(image.shape[:2])))
 
 
-def locate(image: np.ndarray, mask: np.ndarray | None = None) -> Landmarks:
-    """Locate the optic disc and fovea in a standardised (square) fundus image."""
+#: Weight on vessel convergence in the optic-disc score, against raw brightness:
+#: ``score = brightness * ((1 - w) + w * vessel_density)``.
+#:
+#: The disc is both the brightest structure and the point every vessel converges
+#: on. Brightness alone is not enough -- a confluent hard-exudate plaque is just
+#: as bright and has no vessels running into it, which is the failure this term
+#: exists to defeat.
+#:
+#: Fitted on IDRiD's optic-disc centre ground truth with
+#: ``scripts/eval_landmarks.py --sweep``. The previous value, 0.70, was tuned on
+#: generated phantoms, where vessels are drawn converging cleanly on the disc --
+#: so the phantom fit over-trusted the vessel term relative to what real retinas
+#: support. Real vessels are noisier and their convergence is a weaker cue than
+#: the drawing implied.
+#:
+#: Disc localisation within 1 DD, by weight:
+#:
+#: ===========  =====================  ====================
+#: weight       train (200 images)     test (103 images)
+#: ===========  =====================  ====================
+#: 0.00         97.0%                  98.1%
+#: **0.10**     **98.5%**              **98.1%**
+#: 0.20         98.0%                  98.1%
+#: 0.50         97.0%                  96.1%
+#: 0.70 (old)   96.0%                  96.1%
+#: 1.00         93.5%                  96.1%
+#: ===========  =====================  ====================
+#:
+#: Fitted on train, confirmed on the held-out test split, and the decline is
+#: monotone across the whole range rather than a single lucky point. 0.10 rather
+#: than 0.00 because the term still has a job: a confluent hard-exudate plaque is
+#: as bright as the disc and has no vessels running into it, and that case is
+#: rare enough in 303 images to be worth keeping insurance against even where it
+#: does not show up in the aggregate. Fovea accuracy is flat across the sweep
+#: (93-94%), so this trades nothing.
+DISC_VESSEL_WEIGHT = 0.10
+
+
+def locate(image: np.ndarray, mask: np.ndarray | None = None,
+           vessel_weight: float | None = None) -> Landmarks:
+    """Locate the optic disc and fovea in a standardised (square) fundus image.
+
+    ``vessel_weight`` overrides :data:`DISC_VESSEL_WEIGHT` for one call; it
+    exists so the fitting script can sweep it without mutating module state.
+    """
     h, w = image.shape[:2]
     if mask is None:
         mask = np.full((h, w), 255, np.uint8)
@@ -178,11 +221,9 @@ def locate(image: np.ndarray, mask: np.ndarray | None = None) -> Landmarks:
     hi = float(np.percentile(flat[inner > 0], 99.5))
     bright_n = np.clip((bright - lo) / max(hi - lo, 1e-6), 0.0, 1.5)
 
-    # Weight on vessel convergence. Tuned on phantoms to 0.70; re-fit on the
-    # IDRiD optic-disc masks with scripts/eval_landmarks.py --real once the
-    # dataset is present, since a bright confluent exudate is the failure mode
-    # this term exists to defeat and phantoms under-represent those.
-    score = bright_n * (0.30 + 0.70 * vd_n)
+    # Weight on vessel convergence -- see DISC_VESSEL_WEIGHT.
+    wv = DISC_VESSEL_WEIGHT if vessel_weight is None else float(vessel_weight)
+    score = bright_n * ((1.0 - wv) + wv * vd_n)
     score[inner == 0] = -1.0
     idx = int(np.argmax(score))
     dy, dx = divmod(idx, w)

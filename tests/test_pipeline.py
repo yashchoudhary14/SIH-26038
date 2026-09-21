@@ -13,6 +13,18 @@ import pytest
 import torch
 
 from drscreen.constants import NUM_GRADES, NUM_LESION_CLASSES, REFERABLE_THRESHOLD
+from conftest import RECOVERABLE, UNRECOVERABLE, requires_samples
+
+
+def _load_script(name: str):
+    """Import a module from scripts/, which is not an installed package."""
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / "scripts" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"_script_{name}", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 # --------------------------------------------------------------------------
@@ -143,55 +155,61 @@ def test_isotonic_recalibration_never_inverts_a_pair():
 # --------------------------------------------------------------------------
 # Preprocessing and geometry
 # --------------------------------------------------------------------------
-def test_fov_detection_finds_the_aperture():
-    from drscreen.data.synthetic import generate
+@requires_samples
+def test_fov_detection_finds_the_aperture(real_images):
     from drscreen.preprocess.fov import detect_fov
-    p = generate(grade=0, size=512, seed=3)
-    fov = detect_fov(p.image)
-    assert 0.25 < fov.fill_ratio < 1.0
-    assert fov.radius > 512 * 0.25
+    for img, name, _ in real_images:
+        fov = detect_fov(img)
+        assert 0.25 < fov.fill_ratio <= 1.0, f"{name}: fill_ratio {fov.fill_ratio}"
+        assert fov.radius > min(img.shape[:2]) * 0.25, f"{name}: radius {fov.radius}"
 
 
-def test_standardize_is_square_and_masked():
-    from drscreen.data.synthetic import generate
+@requires_samples
+def test_standardize_is_square_and_masked(real_image):
     from drscreen.preprocess.fov import standardize
-    p = generate(grade=1, size=700, seed=4)
-    img, mask, _ = standardize(p.image, size=384)
+    img, mask, _ = standardize(real_image, size=384)
     assert img.shape == (384, 384, 3)
     assert mask.shape == (384, 384)
     assert (img[mask == 0] == 0).all()
 
 
 def test_landmarks_locate_disc_and_fovea():
-    """Both landmarks within 1 disc diameter on a clean phantom."""
+    """Both landmarks within 1 DD of a human marking, on real photographs.
+
+    Ground truth is IDRiD's ``C. Localization`` markup -- hand-placed optic-disc
+    and fovea centres. This used to assert against phantom coordinates, where
+    the detector was scoring its own generator's drawing conventions and the
+    pass was guaranteed by construction.
+
+    DD is derived per image from the markup itself (disc-to-fovea is ~2.5 DD),
+    so nothing here depends on a disc radius the CSVs do not provide.
+    """
     import math
-    from drscreen.data.synthetic import generate
-    from drscreen.preprocess.fov import standardize
+    from pathlib import Path
+
     from drscreen.preprocess.landmarks import locate
 
+    eval_landmarks = _load_script("eval_landmarks")
+    cases = eval_landmarks.load_localization(Path("data/raw/idrid"), "test")
+    if not cases:
+        pytest.skip("IDRiD localization ground truth not present")
+
+    prepared = eval_landmarks.prepare(cases, 512, limit=25)
+    if len(prepared) < 10:
+        pytest.skip("too few usable IDRiD localization cases")
+
     hits_d = hits_f = 0
-    n = 12
-    for i in range(n):
-        p = generate(size=512, seed=500 + i, severity=0.15)
-        img, mask, fov = standardize(p.image, size=512)
-        x0, y0, x1, y1 = fov.bbox
-        px, py = int(0.02 * (x1 - x0)), int(0.02 * (y1 - y0))
-        X0, Y0 = max(0, x0 - px), max(0, y0 - py)
-        X1 = min(p.image.shape[1], x1 + px); Y1 = min(p.image.shape[0], y1 + py)
-        ch, cw = Y1 - Y0, X1 - X0
-        side = max(ch, cw); top, left = (side - ch) // 2, (side - cw) // 2
-        sc = 512 / side
-        gd = ((p.disc_xy[0] - X0 + left) * sc, (p.disc_xy[1] - Y0 + top) * sc)
-        gf = ((p.fovea_xy[0] - X0 + left) * sc, (p.fovea_xy[1] - Y0 + top) * sc)
+    for img, mask, gd, gf, dd in prepared:
         lm = locate(img, mask)
-        dd = p.disc_radius * 2 * sc
         hits_d += math.dist(lm.disc_xy, gd) / dd <= 1.0
         hits_f += math.dist(lm.fovea_xy, gf) / dd <= 1.0
-    assert hits_d >= int(0.80 * n), f"optic disc {hits_d}/{n}"
-    assert hits_f >= int(0.80 * n), f"fovea {hits_f}/{n}"
+    n = len(prepared)
+    assert hits_d >= int(0.80 * n), f"optic disc {hits_d}/{n} within 1 DD"
+    assert hits_f >= int(0.80 * n), f"fovea {hits_f}/{n} within 1 DD"
 
 
-def test_quality_gate_rejects_what_enhancement_cannot_fix():
+@requires_samples
+def test_quality_gate_rejects_what_enhancement_cannot_fix(real_images):
     """Severely degraded images must be refused -- *after* enhancement is tried.
 
     The gate distinguishes correctable defects (uneven flash, exposure, low
@@ -202,38 +220,49 @@ def test_quality_gate_rejects_what_enhancement_cannot_fix():
 
     This test therefore runs the full pipeline rather than a bare `assess`,
     because a bare first-pass verdict is deliberately permissive now.
+
+    The degradations are applied to real photographs, so what is being tested is
+    whether the gate can tell a defocused retina from a sharp one -- not whether
+    it can recognise a drawing of a blurry retina.
     """
-    from drscreen.data.synthetic import generate
     from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
     pipe = DRScreeningPipeline(None, None, PipelineConfig(size=512, enable_cam=False))
     rejected = 0
-    for i in range(8):
-        p = generate(grade=0, size=512, seed=700 + i, severity=1.0,
-                     camera="smartphone_ro")
-        r, _ = pipe.run(p.image)
-        if not r.gradeable:
-            rejected += 1
-            assert r.recapture_advice, "rejection must come with actionable advice"
-    assert rejected >= 3, "quality gate is too permissive on severe degradation"
+    trials = 0
+    for img, name, _ in real_images[:4]:
+        for kind, fn in UNRECOVERABLE.items():
+            trials += 1
+            r, _ = pipe.run(fn(img))
+            if not r.gradeable:
+                rejected += 1
+                assert r.recapture_advice, (
+                    f"{name}/{kind}: rejection must come with actionable advice")
+    assert rejected >= trials // 2, (
+        f"quality gate is too permissive on unrecoverable defects: "
+        f"{rejected}/{trials} refused")
 
 
-def test_correctable_defects_do_not_trigger_recapture():
+@requires_samples
+def test_correctable_defects_do_not_trigger_recapture(real_images):
     """An uneven flash is a software problem, not a second patient visit.
 
     Regression guard for a real bug: the gate used to reject on `illumination`
     before enhancement ran, so a perfectly gradeable proliferative-DR image
     from a high-vignette handheld camera came back as "recapture" -- the worst
     possible failure, since that patient most needs the referral.
+
+    Run on the sight-threatening photographs specifically, because those are the
+    patients a spurious recapture harms most.
     """
-    from drscreen.data.synthetic import generate
     from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
     pipe = DRScreeningPipeline(None, None, PipelineConfig(size=512, enable_cam=False))
-    for cam in ("handheld_b", "handheld_a"):
-        for g in (2, 4):
-            p = generate(grade=g, size=640, seed=100 + g, severity=0.2, camera=cam)
-            r, _ = pipe.run(p.image)
+    severe = [(img, name) for img, name, g in real_images if g is not None and g >= 3]
+    assert severe, "no sight-threatening photographs to test"
+    for img, name in severe:
+        for kind, fn in RECOVERABLE.items():
+            r, _ = pipe.run(fn(img))
             assert r.gradeable, (
-                f"{cam} grade {g} rejected on correctable defects: "
+                f"{name} with {kind} rejected on correctable defects: "
                 f"{[k for k, v in r.quality['verdicts'].items() if v == 'fail']}")
 
 
@@ -271,31 +300,40 @@ def test_precropped_fundus_is_not_rejected_for_touching_the_frame():
     assert fov_score(fov2) < fov_score(fov), "a truly clipped field must score lower"
 
 
-def test_quality_gate_accepts_clean_images():
-    from drscreen.data.synthetic import generate
+@requires_samples
+def test_quality_gate_accepts_clean_images(real_images):
+    """Clinically usable photographs must not be sent back.
+
+    This is the criterion the phantom suite could not check: every one of these
+    is an image a human grader worked from, so any rejection here is a patient
+    recalled for nothing.
+    """
     from drscreen.preprocess.fov import standardize
     from drscreen.preprocess.quality import assess
-    accepted = 0
-    for i in range(8):
-        p = generate(grade=0, size=512, seed=800 + i, severity=0.0,
-                     camera="topcon_nw400")
-        img, mask, fov = standardize(p.image, size=512)
-        q = assess(img, mask, fov)
-        accepted += q.gradeable
-    assert accepted >= 7, "quality gate rejects clean images"
+    rejected = []
+    for img, name, _ in real_images:
+        std, mask, fov = standardize(img, size=512)
+        q = assess(std, mask, fov)
+        if not q.gradeable:
+            rejected.append((name, [k for k, v in q.verdicts.items() if v == "fail"]))
+    assert not rejected, f"quality gate rejects gradeable photographs: {rejected}"
 
 
-def test_ungradeable_images_produce_advice_not_a_grade():
+@requires_samples
+def test_ungradeable_images_produce_advice_not_a_grade(real_images):
     """The gate must never let a rejected image emerge with a confident grade."""
-    from drscreen.data.synthetic import generate
     from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
     pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
-    p = generate(grade=3, size=640, seed=13, severity=1.0, camera="smartphone_ro")
-    res, _ = pipe.run(p.image)
-    if not res.gradeable:
-        assert res.decision == "recapture"
-        assert res.recapture_advice
-        assert res.grade == -1
+    base = real_images[0][0]
+    checked = 0
+    for fn in UNRECOVERABLE.values():
+        res, _ = pipe.run(fn(base))
+        if not res.gradeable:
+            checked += 1
+            assert res.decision == "recapture"
+            assert res.recapture_advice
+            assert res.grade == -1
+    assert checked, "no degradation was refused, so the invariant went untested"
 
 
 # --------------------------------------------------------------------------
@@ -321,20 +359,24 @@ def test_rule_grader_follows_icdr_ordering():
     assert rule_grade(f)[0] == 4
 
 
-def test_no_beading_false_positive_on_healthy_vessels():
-    """The 4-2-1 'venous beading' arm must not fire on normal anatomy."""
-    from drscreen.data.synthetic import generate
+@requires_samples
+def test_no_beading_false_positive_on_healthy_vessels(healthy_images):
+    """The 4-2-1 'venous beading' arm must not fire on normal anatomy.
+
+    Real grade-0 retinas, so the vessels are real vessels. A generated healthy
+    retina draws uniform-calibre vessels, which is precisely the case a beading
+    detector finds easy; real ones taper and cross.
+    """
     from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
     pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
     fired = checked = 0
-    for i in range(10):
-        p = generate(grade=0, size=640, seed=300 + i, severity=0.10)
-        res, art = pipe.run(p.image)
+    for img in healthy_images:
+        res, art = pipe.run(img)
         if "features" not in art:      # gate rejected it; nothing to check
             continue
         checked += 1
         fired += art["features"].quadrants_with_beading >= 2
-    assert checked >= 5, "too few gradeable phantoms to test"
+    assert checked, "no gradeable healthy photographs to test"
     assert fired == 0, "venous-beading detector fires on healthy retinas"
 
 
@@ -465,25 +507,23 @@ def test_clinical_arm_is_actually_blind_to_the_image():
     assert copy.deepcopy(m).use_image is False, "EMA deepcopy loses use_image"
 
 
-def test_pipeline_runs_without_trained_models():
+@requires_samples
+def test_pipeline_runs_without_trained_models(real_image):
     """The service must degrade to the rule engine, never crash."""
-    from drscreen.data.synthetic import generate
     from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
     pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
-    p = generate(grade=2, size=600, seed=21, severity=0.2)
-    res, art = pipe.run(p.image, image_id="t")
+    res, art = pipe.run(real_image, image_id="t")
     assert res.image_id == "t"
     assert "total" in res.timing_ms
     assert res.rule_based_grade in range(NUM_GRADES)
 
 
-def test_report_renders_without_a_cam():
-    from drscreen.data.synthetic import generate
+@requires_samples
+def test_report_renders_without_a_cam(real_image):
     from drscreen.explain.report import render_html
     from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
     pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
-    p = generate(grade=1, size=600, seed=22, severity=0.2)
-    res, art = pipe.run(p.image, image_id="r")
+    res, art = pipe.run(real_image, image_id="r")
     html = render_html(res, art)
     assert "<!doctype html>" in html.lower()
     assert "Diabetic Retinopathy Screening Report" in html
@@ -587,7 +627,8 @@ def test_corn_loss_scale_is_independent_of_batch_composition():
     assert abs(float(corn_loss(logits, mixed, NUM_GRADES, cw)) - math.log(2)) < 1e-6
 
 
-def test_unassessed_lesion_class_is_never_reported_as_absent():
+@requires_samples
+def test_unassessed_lesion_class_is_never_reported_as_absent(real_image):
     """A class with no pixel supervision must not read as a negative finding.
 
     IDRiD annotates no neovascularisation, so that channel trains on all-zero
@@ -608,9 +649,7 @@ def test_unassessed_lesion_class_is_never_reported_as_absent():
     from drscreen.pipeline import DRScreeningPipeline, PipelineConfig
     pipe = DRScreeningPipeline(None, None, PipelineConfig(size=384, enable_cam=False))
     assert "neovascularization" in pipe.unassessed_lesions
-    from drscreen.data.synthetic import generate
-    p = generate(grade=2, size=600, seed=22, severity=0.4)
-    res, _ = pipe.run(p.image, image_id="nv")
+    res, _ = pipe.run(real_image, image_id="nv")
     assert res.gradeable, "need a gradeable image to reach the evidence block"
     flagged = [e for e in (res.evidence or []) if e.get("status") == "not assessed"]
     assert any(e["finding"] == "neovascularization".replace("_", " ") for e in flagged)
@@ -655,16 +694,15 @@ def test_threshold_sweep_rows_describe_their_own_threshold():
 # every grade degrades silently -- validation stays clean because it reads the
 # same cohort images training did. This guards the exact tensor.
 # --------------------------------------------------------------------------
-def test_train_serve_channel_parity(tmp_path):
+@requires_samples
+def test_train_serve_channel_parity(tmp_path, real_image):
     import cv2
     from drscreen.preprocess.enhance import to_model_input, adaptive_enhance
     from drscreen.preprocess.quality import assess
     from drscreen.preprocess.fov import standardize
     from drscreen.data.torch_data import to_tensor
-    from drscreen.data.synthetic import generate
 
-    p = generate(grade=2, size=512, seed=3, severity=0.5)
-    img0, fov, fbox = standardize(p.image, size=512)
+    img0, fov, fbox = standardize(real_image, size=512)
     enh, _ = adaptive_enhance(img0, fov, assess(img0, fov, fbox).issues)
 
     # TRAINING side: exactly what build_cohort writes, then what CohortDataset

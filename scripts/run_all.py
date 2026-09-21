@@ -1,8 +1,11 @@
 """One-command end-to-end build: cohort -> models -> calibration -> validation -> demo.
 
-    python scripts/run_all.py --quick              # ~15 min on a modern GPU
-    python scripts/run_all.py                      # full run
-    python scripts/run_all.py --real data/raw      # use APTOS/IDRiD/DRIVE/Messidor-2
+    python scripts/run_all.py --real data/raw           # full run
+    python scripts/run_all.py --real data/raw --quick   # fast smoke run
+    python scripts/run_all.py --cohort data/cohort_all  # reuse a built cohort
+
+--real (or an already-built --cohort) is required: real fundus photographs are
+the only data this pipeline accepts.
 
 Every stage is skipped if its output already exists, so a failed run resumes
 rather than restarting. Pass --force to rebuild from scratch.
@@ -43,17 +46,17 @@ def main():
     ap.add_argument("--cohort", type=Path, default=None)
     ap.add_argument("--size", type=int, default=512)
     ap.add_argument("--workers", type=int, default=8)
-    ap.add_argument("--gen-workers", type=int, default=16)
+    ap.add_argument("--gen-workers", type=int, default=16,
+                    help="workers for cohort preprocessing")
     ap.add_argument("--arms", action="store_true",
                     help="also train the cnn_only and clinical_only ablation arms")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
 
-    n = 1200 if a.quick else 6000
     seg_epochs = 4 if a.quick else 14
     grade_epochs = 5 if a.quick else 18
     size = 384 if a.quick else a.size
-    cohort = a.cohort or (ROOT / ("data/cohort_real" if a.real else "data/cohort_synth"))
+    cohort = a.cohort or (ROOT / "data/cohort_real")
 
     if a.force:
         for p in (cohort, ROOT / "outputs"):
@@ -65,15 +68,19 @@ def main():
 
     # ---- 1. cohort ------------------------------------------------------
     if not (cohort / "manifest.jsonl").exists():
-        if a.real:
-            total += run([PY, "scripts/build_cohort.py", "--source", "real",
-                          "--data-root", a.real, "--out", cohort, "--size", size],
-                         "1/6  Build cohort from real datasets")
-        else:
-            total += run([PY, "scripts/build_cohort.py", "--source", "synthetic",
-                          "--n", n, "--out", cohort, "--size", size,
-                          "--workers", a.gen_workers, "--seed", 7],
-                         f"1/6  Generate {n} fundus phantoms")
+        # Real datasets are the only source. There is no phantom fallback: a
+        # pipeline validated on generated images reports nothing about whether
+        # it works, and the fallback made it possible to get an encouraging
+        # number without ever downloading a retina.
+        if not a.real:
+            raise SystemExit(
+                f"No cohort at {cohort}, and --real was not given.\n"
+                "Point --real at the directory holding the downloaded datasets "
+                "(see docs/DATASETS.md), or pass --cohort for an existing one.")
+        total += run([PY, "scripts/build_cohort.py",
+                      "--data-root", a.real, "--out", cohort, "--size", size,
+                      "--workers", a.gen_workers],
+                     "1/6  Build cohort from real datasets")
     else:
         print(f"[skip] cohort exists at {cohort}")
 

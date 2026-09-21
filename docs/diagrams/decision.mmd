@@ -1,0 +1,28 @@
+flowchart LR
+  P["Calibrated<br/>P(y ≥ 2)"] --> NV{"Neovascularisation<br/>detected?"}
+  NV -- "yes" --> URG["REFER<br/>URGENT"]
+  NV -- "no" --> CN{"Confidently<br/>negative?<br/>P &lt; 0.05"}
+  CN -- "no" --> ST{"P(y ≥ 3)<br/>≥ 0.1184?"}
+  ST -- "yes" --> URG
+  ST -- "no" --> DME{"CSME<br/>risk ≥ 2?"}
+  DME -- "yes" --> URG
+  DME -- "no" --> BAND{"In defer band<br/>0.05 – 0.35?"}
+  CN -- "yes" --> BAND
+  BAND -- "yes" --> DEF["DEFER<br/>to human"]
+  BAND -- "no" --> THR{"P ≥ 0.1999?"}
+  THR -- "yes" --> REF["REFER<br/>soon"]
+  THR -- "no" --> AUTO["AUTO-REPORT<br/>routine"]
+
+  classDef start fill:#2D9CDB,stroke:#1B6FA8,color:#fff,stroke-width:1.5px
+  classDef gate fill:#FFF,stroke:#141B34,color:#141B34,stroke-width:2px
+  classDef urgent fill:#D64545,stroke:#8F2626,color:#fff,stroke-width:2px
+  classDef refer fill:#E8833A,stroke:#B45F1E,color:#fff,stroke-width:1.5px
+  classDef defer fill:#141B34,stroke:#000,color:#fff,stroke-width:1.5px
+  classDef auto fill:#1E9E5A,stroke:#14713F,color:#fff,stroke-width:1.5px
+
+  class P start
+  class NV,CN,ST,DME,BAND,THR gate
+  class URG urgent
+  class REF refer
+  class DEF defer
+  class AUTO auto

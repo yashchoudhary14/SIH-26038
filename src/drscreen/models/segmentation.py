@@ -6,9 +6,9 @@ what differs is the output channel count and the loss weighting:
 ===================  ========  =====================================
 head                 channels  trained on
 ===================  ========  =====================================
-``vessel``           1         DRIVE (or phantom vessel masks)
-``lesion``           5         IDRiD pixel ground truth
-``structure``        2         optic disc + fovea disc (IDRiD / phantom)
+``vessel``           1         DRIVE
+``lesion``           5         IDRiD + DDR pixel ground truth
+``structure``        2         optic disc + fovea disc (IDRiD)
 ===================  ========  =====================================
 
 Two design choices matter for microaneurysm sensitivity, which is what the
