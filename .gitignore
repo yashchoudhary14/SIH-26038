@@ -44,6 +44,13 @@ outputs/_archive_*/
 # Deploy bundles for experiment arms that were not promoted. The validation
 # JSON under outputs/validation_*/ is the evidence and IS committed.
 outputs/artifacts_*/
+# Exception: the pooled four-corpus bundle is committed, because the web
+# front-end deploys from it and a checkpoint on its own is not deployable --
+# the weights carry no temperature, no isotonic calibrator, no grade
+# cut-points and no urgency threshold, so a consumer without pipeline.json
+# silently falls back to a 0.5 cut-point that nothing here ever measured.
+# Tracked rather than force-added, so `git add -A` keeps picking up changes.
+!outputs/artifacts_all/
 outputs/benchmark.json
 outputs/_*.txt
 
