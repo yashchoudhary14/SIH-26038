@@ -59,5 +59,7 @@ lives on the `fix/sight-threatening-grades` branch.
 ## Reproducibility
 
 Screening the same image twice returns the same grade and the same
-probability, every time. The MC-dropout masks are seeded from the image
+probability, every time. This was not always true: before the masks were
+seeded, `image11` came back as grade 1 on 7 of 15 runs and grade 4 on the
+other 8 — the same file, two different diagnoses. The MC-dropout masks are seeded from the image
 content, so a result can be re-checked and audited rather than re-rolled.

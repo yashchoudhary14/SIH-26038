@@ -216,6 +216,21 @@ moved about 1% between calls. On ambiguous cases the top two classes sit inside
 that margin, and the reported grade flipped. Measured on `image11`, six
 consecutive screenings of the *same file* returned grades 4, 4, 4, 4, 1, 1.
 
+Screening all 12 images 15 times over, with the old unseeded behaviour, shows
+exactly where the instability lived:
+
+| image | true grade | grade over 15 repeats |
+|-------|-----------|------------------------|
+| `image1`–`image8` | 0–2 | stable |
+| `image9`  | 3 | **0** ×12, **1** ×3 |
+| `image10` | 3 | **2** ×8, **3** ×7 |
+| `image11` | 4 | **1** ×7, **4** ×8 |
+| `image12` | 4 | stable |
+
+Grades 0–2 never moved. Every flip was in grades 3–4 — and `image11`, a
+proliferative-DR case, was a coin toss between "Mild NPDR" and "Proliferative
+DR". The exact-match total over those 15 repeats ranged 7–9 out of 12, mean 8.0.
+
 A reviewer who uploads one image twice and gets two different diagnoses will
 stop trusting the system, correctly. The masks are now seeded from a hash of
 the preprocessed image, so the same image always gives the same answer while
@@ -225,9 +240,12 @@ its meaning. Repeated screening is now bit-identical.
 Two consequences, stated plainly:
 
 - The exact-grade score on the 12 test images is **7/12, not the 10/12** recorded
-  in `outputs/verification_set/README.md`. That 10/12 was one lucky draw from a
-  distribution that also contained 7/12; it was never reproducible. The
-  referral decision — the number that matters — is 12/12 either way.
+  in `outputs/verification_set/README.md`. That 10/12 sits above the entire 7–9
+  range measured over 15 repeats — it was a lucky draw, never a reproducible
+  result. The content-derived seed is arbitrary and happens to land at the low
+  end of that range; picking a seed that scored better would be exactly the
+  cherry-picking this change exists to remove. The referral decision — the
+  number that matters — is 12/12 regardless of seed.
 - Raising `mc_samples` does not rescue it. Measured at 8/16/32/64/128 samples,
   exact accuracy went 7, 7, 8, 7, 9 out of 12 while latency rose to 18.5 s per
   image. `image9` and `image12` are wrong at *every* sample count. These are
