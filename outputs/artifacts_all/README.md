@@ -34,11 +34,21 @@ There are two in this repository and they are not interchangeable.
 
 | | `outputs/artifacts/` | `outputs/artifacts_all/` (this one) |
 |---|---|---|
-| trained on | APTOS-2019 + IDRiD + DDR | all four, Messidor-2 pooled in |
+| grader trained on | APTOS-2019 + IDRiD (2,925 images) | all four pooled (5,941 images) |
+| DDR | held out — added, measured, [not promoted](../../RESULTS.md#71-adding-ddr-what-it-fixed-and-what-it-broke) | in training |
 | Messidor-2 | held out, blind | in training |
 | referable sensitivity | 0.986 internal / **0.707 zero-shot** | 0.915 |
 | sight-threatening sensitivity | 1.000 internal / **0.973 zero-shot** | 0.997 |
+| referable sensitivity on DDR | 0.567 | **0.851** |
 | has a zero-shot number | **yes** | no — no blind cohort remains |
+
+Both bundles share the same `segmentation.pt`, which *is* trained on IDRiD + DDR
+pixel masks; only the grader differs.
+
+That DDR row is the practical difference. The pre-pool grader never saw DDR and
+misses roughly four in ten referable DDR eyes, so if the deployment population
+does not look like APTOS or IDRiD, its zero-shot Messidor-2 number is the
+optimistic case rather than the typical one.
 
 On images blind to both models the pooled bundle is better by every measure
 (+0.227 referable sensitivity, +0.066 AUC, DeLong p = 2.6e-10). What it cannot

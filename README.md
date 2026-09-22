@@ -731,9 +731,14 @@ for inference but metrics are unavailable.
 
 ## Honest limitations
 
-- **The trained weights are fitted on APTOS-2019, IDRiD and DDR**, and
-  validated with Messidor-2 held out entirely. Every number in
-  [RESULTS.md](RESULTS.md) is measured on real fundus photographs.
+- **Two sets of grader weights ship here, and they are not interchangeable.**
+  `outputs/artifacts/` is fitted on APTOS-2019 + IDRiD, with DDR and Messidor-2
+  both held out — Messidor-2 is its zero-shot cohort and the source of the
+  97.3% figure. `outputs/artifacts_all/` is fitted on all four corpora pooled,
+  which makes it better on every head-to-head measure but leaves it with no
+  held-out cohort at all. The shared `segmentation.pt` is trained on IDRiD +
+  DDR lesion masks in both. Every number in [RESULTS.md](RESULTS.md) is
+  measured on real fundus photographs and states which bundle it belongs to.
 - This is a research prototype, not a cleared device. Nothing here has been
   through a clinical trial, a regulator, or a prospective deployment.
 - The venous-beading cue currently runs on a morphological vessel proxy and is
