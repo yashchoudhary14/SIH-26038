@@ -99,8 +99,19 @@ def main(argv=None) -> int:
     ap.add_argument("--size", type=int, default=512)
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--exclude-source", nargs="*", default=["messidor2"],
+                    help="source corpora to leave out. Messidor-2 is excluded by "
+                         "default: ADCIS gates it behind registration, so it is "
+                         "the one corpus here that should not be redistributed "
+                         "in a committed demonstration set. Pass an empty list "
+                         "to include everything.")
+    ap.add_argument("--verify-repeats", type=int, default=5,
+                    help="independent pipeline runs each candidate must "
+                         "agree across. Inference uses MC dropout, so one "
+                         "run can pass a marginal image.")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
+    excluded = set(a.exclude_source or ())
 
     g_serve, conf, y, ds = score(a.serve, a.cohort, a.split, a.size,
                                  a.workers, a.device)
@@ -109,7 +120,7 @@ def main(argv=None) -> int:
 
     cand = []
     for i, r in enumerate(ds.records):
-        if int(y[i]) < 0:
+        if int(y[i]) < 0 or r.source in excluded:
             continue
         meta = r.meta or {}
         cand.append({
@@ -127,6 +138,9 @@ def main(argv=None) -> int:
         c = Counter(r["grade"] for r in rows)
         return "".join(f"{c.get(g, 0):>6}" for g in range(5))
 
+    if excluded:
+        print(f"excluding source corpora: {', '.join(sorted(excluded))}")
+        print()
     print(f"{'pool':<44}" + "".join(f"{'g'+str(g):>6}" for g in range(5)))
     print("-" * 74)
     print(f"{'held-out from the served bundle':<44}{tally(cand)}")
@@ -255,9 +269,22 @@ def main(argv=None) -> int:
                                  interpolation=cv2.INTER_AREA)
             cv2.imwrite(str(tmp), src, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
             img = cv2.imread(str(tmp), cv2.IMREAD_COLOR)
-            res, _ = pipe.run(img, image_id="probe", explain=False)
-            if not res.gradeable or res.grade != g:
-                continue                        # re-encode moved it; drop
+
+            # Inference is stochastic: PipelineConfig.mc_samples defaults to 8,
+            # so dropout stays on and each call draws a fresh posterior sample.
+            # That is deliberate -- the epistemic variance is what drives the
+            # defer band -- but it means a single call can pass an image that
+            # is only marginally correct, and the site would then show a
+            # different verdict than the manifest records. Require the same
+            # grade, decision and urgency on every repeat, so what ships is
+            # stably correct rather than luckily correct.
+            runs = [pipe.run(img, image_id="probe", explain=False)[0]
+                    for _ in range(a.verify_repeats)]
+            res = runs[0]
+            if any(not r.gradeable or r.grade != g for r in runs):
+                continue
+            if len({(r.decision, r.urgency) for r in runs}) != 1:
+                continue
             rank = demo_rank(g, res)
             if rank is None:
                 continue
@@ -284,23 +311,47 @@ def main(argv=None) -> int:
         if len(verified) < want:
             shortfall[g] = (len(verified), want)
 
-    n_ref_ok = sum(1 for r in records
-                   if (r["true_grade"] >= 2) == (r["decision"] != "auto_report"))
+    # Three outcomes, not two. Collapsing `defer` into "referred" scores the
+    # selective-referral path as a miss, when deferring a grade-1 eye near the
+    # mild/moderate boundary -- the one place the reference standards
+    # themselves disagree -- is the behaviour the defer band exists to produce.
+    referable = [r for r in records if r["true_grade"] >= 2]
+    non_ref = [r for r in records if r["true_grade"] < 2]
     n_st = [r for r in records if r["true_grade"] >= 3]
+    n_ref_ok = sum(1 for r in referable if r["decision"] == "refer")
+    n_nonref_ok = sum(1 for r in non_ref if r["decision"] == "auto_report")
+    n_defer = sum(1 for r in records if r["decision"] == "defer_to_human")
+    # Grade 2 escalated to urgent is over-escalation in the safe direction
+    # and is permitted; grade 0 or 1 escalated is not, and is rejected at
+    # selection. Counted separately so neither is mistaken for the other.
+    n_moderate_urgent = sum(1 for r in records
+                            if r["true_grade"] == 2 and r["urgency"] == "urgent")
+    n_bad_urgent = sum(1 for r in records
+                       if r["true_grade"] < 2 and r["urgency"] == "urgent")
     summary = {
         "what_this_is": ("Curated demonstration set: images were selected "
                          "BECAUSE the model grades them correctly. It shows the "
                          "system working, it does not measure how often it does. "
                          "The measurement is outputs/validation_all/validation.json."),
         "served_bundle": str(a.serve),
+        "excluded_sources": sorted(excluded),
+        "verify_repeats": a.verify_repeats,
+        "inference_note": ("Inference uses MC dropout (mc_samples=8), so a single "
+                           "run is a posterior sample. Every image here returned "
+                           "the same grade, decision and urgency on "
+                           f"{a.verify_repeats} independent runs."),
         "cohort": str(a.cohort), "split": a.split,
         "n": len(records),
         "per_grade": {str(g): sum(1 for r in records if r["true_grade"] == g)
                       for g in range(5)},
         "exact_grade_match": f"{sum(1 for r in records if r['predicted_grade'] == r['true_grade'])}/{len(records)}",
-        "referral_decision_correct": f"{n_ref_ok}/{len(records)}",
+        "referable_referred": f"{n_ref_ok}/{len(referable)}",
+        "non_referable_auto_reported": f"{n_nonref_ok}/{len(non_ref)}",
+        "deferred_to_human": n_defer,
         "sight_threatening_referred_urgent":
             f"{sum(1 for r in n_st if r['urgency'] == 'urgent')}/{len(n_st)}",
+        "moderate_npdr_escalated_to_urgent": n_moderate_urgent,
+        "non_referable_marked_urgent": n_bad_urgent,
         "blind_to_both_bundles": sum(1 for r in records if r["blind_to_both_bundles"]),
         "cases": records,
     }
@@ -310,10 +361,14 @@ def main(argv=None) -> int:
     for g in range(5):
         n = summary["per_grade"][str(g)]
         print(f"  grade {g}: {n}/{QUOTA[g]}")
-    print(f"exact grade match      {summary['exact_grade_match']}")
-    print(f"referral decision      {summary['referral_decision_correct']}")
-    print(f"sight-threat urgent    {summary['sight_threatening_referred_urgent']}")
-    print(f"blind to both bundles  {summary['blind_to_both_bundles']}/{len(records)}")
+    print(f"exact grade match           {summary['exact_grade_match']}")
+    print(f"referable referred          {summary['referable_referred']}")
+    print(f"non-referable auto-reported {summary['non_referable_auto_reported']}")
+    print(f"deferred to human           {summary['deferred_to_human']}")
+    print(f"sight-threat urgent         {summary['sight_threatening_referred_urgent']}")
+    print(f"grade-2 escalated to urgent {summary['moderate_npdr_escalated_to_urgent']}")
+    print(f"grade 0-1 marked urgent     {summary['non_referable_marked_urgent']}")
+    print(f"blind to both bundles       {summary['blind_to_both_bundles']}/{len(records)}")
     if shortfall:
         print("\nSHORTFALL -- not enough candidates:")
         for g, (got, want) in shortfall.items():

@@ -1,7 +1,20 @@
 # Dataset setup
 
-All four corpora require you to accept their licence terms individually. None
-is redistributed with this repository.
+All four corpora require you to accept their licence terms individually. The
+corpora themselves are not redistributed here — you download each one yourself.
+
+Two small curated subsets **are** committed, for demonstration only, and they
+remain under their source licences rather than this project's:
+
+* `outputs/verification_set/images/` — 12 APTOS-2019 and IDRiD photographs, also
+  used as the test-suite fixture.
+* `dataset/` — 60 photographs from APTOS-2019, DDR and IDRiD, the showcase set.
+  **Messidor-2 is excluded**: ADCIS distributes it under registration, so it is
+  the one corpus here that should not travel in a committed set. See
+  [dataset/README.md](../dataset/README.md) for per-corpus attribution.
+
+Neither is a substitute for obtaining a corpus properly, and neither may be used
+beyond viewing the demonstration without accepting the originating licence.
 
 | dataset | role in this project | link |
 |---|---|---|
