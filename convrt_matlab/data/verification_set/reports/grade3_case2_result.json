@@ -1,0 +1,219 @@
+{
+  "image_id": "grade3_case2",
+  "gradeable": true,
+  "quality": {
+    "scores": {
+      "focus": 0.5268,
+      "illumination": 0.6929,
+      "contrast": 0.8761,
+      "fov": 0.913,
+      "macula": 0.9071,
+      "artifact": 1.0,
+      "under_exposure": 1.0,
+      "over_exposure": 1.0,
+      "noise": 0.8621
+    },
+    "verdicts": {
+      "focus": "pass",
+      "illumination": "pass",
+      "contrast": "pass",
+      "fov": "pass",
+      "macula": "pass",
+      "artifact": "pass",
+      "under_exposure": "pass",
+      "over_exposure": "pass",
+      "noise": "pass"
+    },
+    "overall": "good",
+    "gradeable": true,
+    "needs_enhancement": false,
+    "issues": [],
+    "advice": [],
+    "confidence": 0.7462,
+    "first_pass": {
+      "overall": "borderline",
+      "issues": [
+        "focus"
+      ],
+      "scores": {
+        "focus": 0.4001,
+        "illumination": 0.7385,
+        "contrast": 0.9435,
+        "fov": 0.913,
+        "macula": 0.9071,
+        "artifact": 1.0,
+        "under_exposure": 1.0,
+        "over_exposure": 1.0,
+        "noise": 1.0
+      }
+    }
+  },
+  "enhancement_applied": [
+    "grey_world",
+    "clahe_lab"
+  ],
+  "landmarks": {
+    "disc_xy": [
+      425,
+      285
+    ],
+    "disc_radius": 30.979094674378864,
+    "disc_confidence": 1.0,
+    "fovea_xy": [
+      270,
+      290
+    ],
+    "fovea_confidence": 0.7935,
+    "laterality": "OD",
+    "disc_diameter_px": 61.95818934875773
+  },
+  "grade": 3,
+  "grade_label": "Severe NPDR",
+  "class_probabilities": [
+    0.0096,
+    0.0038,
+    0.1062,
+    0.813,
+    0.0673
+  ],
+  "referable": true,
+  "referable_probability": 0.9890085027230966,
+  "confidence": 0.8130351305007935,
+  "uncertainty": {
+    "entropy": 0.6541,
+    "epistemic_variance": 0.00087
+  },
+  "decision": "refer",
+  "urgency": "urgent",
+  "dme_risk": 2,
+  "clinical_features": {
+    "counts": {
+      "microaneurysm": 55,
+      "hemorrhage": 82,
+      "hard_exudate": 157,
+      "soft_exudate": 6,
+      "neovascularization": 1
+    },
+    "per_quadrant": {
+      "microaneurysm": {
+        "superior": 16,
+        "inferior": 8,
+        "nasal": 8,
+        "temporal": 23
+      },
+      "hemorrhage": {
+        "superior": 19,
+        "inferior": 14,
+        "nasal": 10,
+        "temporal": 39
+      },
+      "hard_exudate": {
+        "superior": 65,
+        "inferior": 28,
+        "nasal": 23,
+        "temporal": 41
+      },
+      "soft_exudate": {
+        "superior": 1,
+        "inferior": 2,
+        "nasal": 0,
+        "temporal": 3
+      },
+      "neovascularization": {
+        "superior": 1,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      }
+    },
+    "quadrants_with_hemorrhage": 3,
+    "quadrants_with_beading": 0,
+    "nv_at_disc": false,
+    "nv_elsewhere": true,
+    "unassessed": [
+      "neovascularization"
+    ],
+    "lesions_within_1dd_of_fovea": 56,
+    "nearest_lesion_dd": 0.3
+  },
+  "evidence": [
+    {
+      "finding": "neovascularization",
+      "status": "not assessed",
+      "detail": "no pixel supervision for this class in the training corpus; absence of a detection is not evidence of absence of the lesion."
+    },
+    {
+      "finding": "microaneurysm",
+      "count": 55,
+      "per_quadrant": {
+        "superior": 16,
+        "inferior": 8,
+        "nasal": 8,
+        "temporal": 23
+      },
+      "area_percent": 0.246
+    },
+    {
+      "finding": "hemorrhage",
+      "count": 82,
+      "per_quadrant": {
+        "superior": 19,
+        "inferior": 14,
+        "nasal": 10,
+        "temporal": 39
+      },
+      "area_percent": 6.004
+    },
+    {
+      "finding": "hard exudate",
+      "count": 157,
+      "per_quadrant": {
+        "superior": 65,
+        "inferior": 28,
+        "nasal": 23,
+        "temporal": 41
+      },
+      "area_percent": 2.455
+    },
+    {
+      "finding": "soft exudate",
+      "count": 6,
+      "per_quadrant": {
+        "superior": 1,
+        "inferior": 2,
+        "temporal": 3
+      },
+      "area_percent": 0.506
+    },
+    {
+      "criterion": "Neovascularisation NOT ASSESSED - no pixel supervision for this class in the training corpus, so proliferative DR cannot be excluded by lesion evidence."
+    },
+    {
+      "criterion": "More than microaneurysms alone but less than severe NPDR: 55 microaneurysms, 82 haemorrhages, 157 hard-exudate focus/foci, 6 cotton-wool spots."
+    },
+    {
+      "macular_assessment": "48 hard-exudate focus/foci within 1 disc diameter of the fovea - clinically significant macular oedema likely; urgent referral."
+    }
+  ],
+  "rule_based_grade": 2,
+  "sight_threatening_probability": 0.880355954170227,
+  "rule_based_reasons": [
+    "Neovascularisation NOT ASSESSED - no pixel supervision for this class in the training corpus, so proliferative DR cannot be excluded by lesion evidence.",
+    "More than microaneurysms alone but less than severe NPDR: 55 microaneurysms, 82 haemorrhages, 157 hard-exudate focus/foci, 6 cotton-wool spots."
+  ],
+  "agreement": "within_one_grade",
+  "recapture_advice": [],
+  "timing_ms": {
+    "geometry": 116.08,
+    "landmarks": 64.56,
+    "quality": 35.01,
+    "enhancement": 25.54,
+    "quality_recheck": 31.3,
+    "segmentation": 140.93,
+    "clinical_features": 43.63,
+    "grading": 89.26,
+    "explanation": 30.07,
+    "total": 597.98
+  },
+  "model_version": "drscreen-1.0.0"
+}

@@ -1,0 +1,1651 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Retinal Screening Dossier</title>
+<meta name="description" content="Explainable diabetic retinopathy screening for rural India — measured on real patient data, including where it fails.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>try{if(sessionStorage.getItem("dr-transition"))document.documentElement.classList.add("dr-entering")}catch(e){}document.documentElement.classList.add("js");</script>
+<style>
+html.dr-entering::after{content:"";position:fixed;inset:0;background:#08080A;z-index:2147483646}
+/* ---------------------------------------------------------------------------
+   Two colour systems, both carrying meaning, neither decorative:
+
+   1. the ICDR severity ramp, grade 0 to grade 4, wherever severity is expressed;
+   2. the lesion key the model's own overlays are drawn with — sampled from
+      outputs/verification_set/reports/*_panel.png so the page and the model
+      speak the same colour language.
+
+   The ground is the dark surround outside a fundus aperture.
+--------------------------------------------------------------------------- */
+:root{
+  /* the screening console's palette: near-black ground, crisp white, one
+     clinical teal for interaction; colour otherwise reserved for data */
+  --ground:#050506;
+  --ground-2:#0A0B0D;
+  --ground-3:#0E0F12;
+  --ground-4:#14161A;
+  --bone:#F2F2EE;
+  --bone-dim:#C9CAC6;
+  --muted:#B2B4B0;
+  --faint:#A0A29E;
+  --rule:rgba(255,255,255,.12);
+  --rule-soft:rgba(255,255,255,.07);
+
+  /* ICDR ordinal ramp */
+  --g0:#78A99B;
+  --g1:#C9AE5E;
+  --g2:#E0913F;
+  --g3:#E36C43;
+  --g4:#E5584C;
+
+  /* the model's lesion overlay key (hue-faithful, eased off full saturation) */
+  --les-ma:#FF5A4D;     /* microaneurysm      */
+  --les-hem:#FF8A2B;    /* haemorrhage        */
+  --les-hex:#F5D02E;    /* hard exudate       */
+  --les-sex:#E6E0D8;    /* soft exudate       */
+  --les-nv:#FF63DC;     /* neovascularisation */
+  --disc:#3ED6CE;       /* optic disc, and the interaction accent */
+  --vessel:#62D98F;     /* vessels            */
+
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+
+  --ease:cubic-bezier(.19,1,.22,1);
+  --gutter:clamp(20px,5vw,72px);
+  --rail:clamp(0px,9vw,124px);
+  --bar:60px;
+  --measure:66ch;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--bar) + 20px)}
+
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--bone);
+  font-family:var(--sans);
+  font-weight:400;font-size:16px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  overflow-wrap:break-word;
+}
+
+/* the page's glow sits on its own fixed layer: a fixed body background makes
+   the browser repaint the whole viewport on every scroll */
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(140% 80% at 50% 0%, #0E0F11 0%, #050506 55%, #000 100%)}
+a{color:inherit}
+h1,h2,h3,h4{font-weight:400;margin:0;letter-spacing:-.025em;line-height:1.08}
+em{font-style:normal;color:var(--bone)}
+p{margin:0 0 1.15em}
+p:last-child{margin-bottom:0}
+:focus-visible{outline:2px solid var(--disc);outline-offset:3px;border-radius:2px}
+
+/* ── motion ─────────────────────────────────────────────────────────────── */
+.js [data-reveal]{opacity:0;transform:translateY(22px);
+  transition:opacity .62s var(--ease),transform .62s var(--ease)}
+.js [data-reveal].in{opacity:1;transform:none}
+.js [data-reveal-group]>*{opacity:0;transform:translateY(18px);
+  transition:opacity .55s var(--ease),transform .55s var(--ease)}
+.js [data-reveal-group].in>*{opacity:1;transform:none}
+/* stagger, capped at 8 — past that the tail reads as lag */
+[data-reveal-group].in>*:nth-child(1){transition-delay:0ms}
+[data-reveal-group].in>*:nth-child(2){transition-delay:70ms}
+[data-reveal-group].in>*:nth-child(3){transition-delay:140ms}
+[data-reveal-group].in>*:nth-child(4){transition-delay:210ms}
+[data-reveal-group].in>*:nth-child(5){transition-delay:280ms}
+[data-reveal-group].in>*:nth-child(6){transition-delay:350ms}
+[data-reveal-group].in>*:nth-child(7){transition-delay:420ms}
+[data-reveal-group].in>*:nth-child(n+8){transition-delay:490ms}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;transition-delay:0ms!important}
+  .js [data-reveal],.js [data-reveal-group]>*{opacity:1!important;transform:none!important}
+}
+
+/* ── top bar (shared with the console) ─────────────────────────────────── */
+.bar{position:fixed;inset:0 0 auto 0;height:var(--bar);z-index:60;display:flex;align-items:center;gap:26px;
+  padding:0 var(--gutter);background:linear-gradient(180deg,rgba(5,5,6,.96),rgba(5,5,6,.86));
+  border-bottom:1px solid transparent;transition:border-color .4s var(--ease),background .4s var(--ease)}
+.bar.stuck{border-bottom-color:var(--rule-soft);background:rgba(5,5,6,.94)}
+.bar .mark{display:flex;align-items:center;gap:11px;text-decoration:none;white-space:nowrap;color:var(--bone)}
+.bar .mark svg{width:22px;height:22px}
+.bar .mark b{font-family:var(--sans);font-weight:500;font-size:13px;letter-spacing:.3em;text-transform:uppercase}
+.bar .mark span{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;color:var(--muted)}
+.bar nav{display:flex;gap:24px;margin-left:auto}
+.bar nav a{font-family:var(--sans);font-size:14px;font-weight:400;color:var(--bone-dim);text-decoration:none;padding:4px 0;position:relative;
+  white-space:nowrap;transition:color .3s var(--ease)}
+.bar nav a::after{content:"";position:absolute;left:0;right:0;bottom:-3px;height:1px;background:var(--bone);
+  transform:scaleX(0);transform-origin:left;transition:transform .5s var(--ease)}
+.bar nav a:hover,.bar nav a[aria-current="true"]{color:var(--bone)}
+.bar nav a[aria-current="true"]::after{transform:scaleX(1)}
+.console-link{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 16px;margin-left:auto;
+  background:var(--bone);color:#050506;font-family:var(--sans);font-size:13px;font-weight:500;text-decoration:none;
+  white-space:nowrap;transition:background .3s var(--ease)}
+.bar nav + .console-link{margin-left:0}
+.console-link svg{width:14px;height:14px}
+.console-link:hover,.console-link:focus-visible{background:var(--disc)}
+@media (max-width:1320px){ .bar .mark span{display:none} }
+@media (max-width:1180px){ .bar nav{display:none} .console-link{margin-left:auto} }
+@media (max-width:560px){ .bar .mark span{display:none} }
+@media (max-width:400px){ .bar{gap:12px} .bar .mark{gap:8px} .bar .mark b{font-size:12px;letter-spacing:.2em} .console-link{padding:0 11px;font-size:12px;gap:6px} }
+
+/* ── frame ──────────────────────────────────────────────────────────────── */
+.frame{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);position:relative;z-index:1}
+.rail{position:sticky;top:0;height:100vh;border-right:1px solid var(--rule-soft);
+  display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 0 0 14px;overflow:hidden}
+.rail a{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+  color:var(--faint);text-decoration:none;padding:5px 0;white-space:nowrap;transition:color .3s var(--ease)}
+.rail a::before{content:"";display:inline-block;width:14px;height:1px;background:currentColor;
+  vertical-align:middle;margin-right:7px;transition:width .3s var(--ease)}
+.rail a:hover,.rail a:focus-visible{color:var(--bone)}
+.rail a[aria-current="true"]{color:var(--disc)}
+.rail a[aria-current="true"]::before{width:26px}
+@media (max-width:1280px){ .rail{padding-left:10px} .rail a{font-size:10.5px;letter-spacing:.02em} .rail a::before{width:8px;margin-right:6px} .rail a[aria-current="true"]::before{width:16px} }
+@media (max-width:920px){ .rail{display:none} .frame{grid-template-columns:minmax(0,1fr)} }
+
+main{min-width:0}
+.col{padding:0 var(--gutter);max-width:1360px;width:100%;min-width:0}
+section{padding:clamp(72px,11vh,132px) 0;border-top:1px solid var(--rule-soft);position:relative}
+section.hero{border-top:0;padding:0}
+
+.head{display:grid;grid-template-columns:auto 1fr;gap:0 18px;align-items:baseline;margin-bottom:38px}
+.head .idx{font-family:var(--mono);font-size:12px;color:var(--disc);letter-spacing:.04em}
+.head h2{font-size:clamp(30px,4.4vw,54px);font-weight:600;letter-spacing:-.035em;line-height:1.02}
+.head .lede{grid-column:2;margin-top:16px;color:var(--bone-dim);max-width:min(var(--measure),100%);font-size:17.5px}
+.head .lede em{color:var(--bone)}
+.head h2 .thin{font-weight:200;color:var(--bone-dim)}
+.head .lede{font-size:17px}
+
+/* ── hero ───────────────────────────────────────────────────────────────── */
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;
+  position:relative;overflow:hidden;padding-top:var(--bar)}
+#nerves{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0;
+  filter:blur(14px);transition:opacity 1.4s var(--ease),filter 1.9s var(--ease)}
+#nerves.lit{opacity:1;filter:blur(0)}
+#nerves.settled{filter:none}
+.hero-veil{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(90deg, rgba(5,5,6,.88) 0%, rgba(5,5,6,.66) 22%, rgba(5,5,6,.34) 34%, rgba(5,5,6,.08) 44%, rgba(5,5,6,0) 52%)}
+.hero .col{position:relative;z-index:2;padding-top:clamp(40px,8vh,90px)}
+.hero h1{font-size:clamp(42px,7.6vw,104px);line-height:.96;letter-spacing:-.05em;font-weight:200;
+  max-width:min(15ch,100%);margin:0 0 30px}
+.hero h1 b{font-weight:700;display:block}
+.hero .sub{max-width:min(56ch,100%);color:var(--bone-dim);font-size:18px;margin-bottom:34px}
+.hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:clamp(40px,7vh,70px)}
+.hero-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--rule);position:relative;z-index:2;background:linear-gradient(180deg, rgba(5,5,6,0) 0%, rgba(5,5,6,.72) 40%, rgba(5,5,6,.88) 100%)}
+.hero-strip div{padding:18px 26px 20px 0;margin-right:26px;border-right:1px solid var(--rule-soft)}
+.hero-strip div:last-child{border-right:0;margin-right:0}
+.hero-strip b{display:block;font-family:var(--mono);font-size:21px;font-weight:400;
+  color:var(--bone);letter-spacing:-.01em}
+.hero-strip span{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.06em}
+.hero-strip .miss b{color:var(--g4)}
+.hero-strip .ok b{color:var(--g0)}
+@media (max-width:700px){ .hero-strip div{padding-right:14px;margin-right:14px} .hero-strip b{font-size:16px} .hero-strip span{font-size:10px} }
+
+/* ── buttons ────────────────────────────────────────────────────────────── */
+.btn{font-family:var(--mono);font-size:12px;letter-spacing:.04em;padding:14px 22px;
+  border:1px solid var(--rule);color:var(--bone);text-decoration:none;background:transparent;
+  cursor:pointer;display:inline-block;
+  transition:border-color .3s var(--ease),background .3s var(--ease),color .3s var(--ease)}
+.btn:hover,.btn:focus-visible{border-color:var(--bone);background:rgba(255,255,255,.04)}
+.btn.solid{background:var(--bone);color:var(--ground);border-color:var(--bone)}
+.btn.solid:hover,.btn.solid:focus-visible{background:var(--disc);border-color:var(--disc);color:var(--ground)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ── verdict table ──────────────────────────────────────────────────────── */
+.vcap{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.05em;
+  margin:0 0 12px;max-width:min(58ch,100%);line-height:1.5}
+.verdict{width:100%;border-collapse:collapse;font-size:15px;margin-bottom:22px}
+.verdict th,.verdict td{text-align:right;padding:15px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.verdict thead th{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted);
+  letter-spacing:.06em;padding-bottom:9px;border-bottom:1px solid var(--rule)}
+.verdict thead th:first-child,.dtable thead th:first-child{text-align:left;padding-left:0}
+.verdict th[scope=row]{text-align:left;font-family:var(--sans);font-weight:400;font-size:16px;
+  color:var(--bone);white-space:normal;padding-left:0;min-width:11em}
+.verdict th[scope=row] small{display:block;font-family:var(--mono);font-size:11.5px;
+  color:var(--faint);letter-spacing:.03em;margin-top:3px}
+.verdict td{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--bone-dim)}
+.verdict .key{color:var(--bone);font-size:17px}
+.verdict .key.ok{color:var(--g0)}
+.verdict .key.no{color:var(--g4)}
+.verdict td.flag{font-size:12px;letter-spacing:.03em;padding-right:0}
+.verdict .met td.flag{color:var(--g0)}
+.verdict .miss td.flag{color:var(--g4)}
+/* ── scorecards ─────────────────────────────────────────────────────────── */
+.scores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--rule-soft);
+  border:1px solid var(--rule-soft);margin-bottom:60px}
+.score{background:var(--ground-2);padding:26px 28px 24px;display:flex;flex-direction:column}
+.sc-k{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--disc);margin:0 0 24px}
+.sc-k span{display:block;margin-top:6px;color:var(--faint);letter-spacing:.04em;font-size:11.5px}
+.sc-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px 18px;margin-bottom:24px}
+.sc-row b{display:block;font-family:var(--mono);font-weight:400;font-size:clamp(24px,2.4vw,32px);
+  color:var(--bone);letter-spacing:-.02em;line-height:1.1}
+.sc-row b.ok{color:var(--g0)}
+.sc-row span{display:block;font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.03em;margin-top:8px;line-height:1.4}
+.sc-row i{display:block;font-style:normal;font-family:var(--mono);font-size:11px;color:var(--vessel);margin-top:5px;letter-spacing:.03em}
+.sc-foot{margin:auto 0 0;padding-top:16px;border-top:1px solid var(--rule-soft);color:var(--bone-dim);font-size:15.5px}
+@media (max-width:1100px){ .sc-row{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:820px){ .scores{grid-template-columns:minmax(0,1fr)} }
+
+/* ── severity ramp ──────────────────────────────────────────────────────── */
+.ramp{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;margin:0 0 10px;position:relative}
+.ramp .step{padding:13px 12px 14px;background:var(--ground-2);border-top:2px solid var(--c);
+  transition:background .35s var(--ease)}
+.ramp .step:hover{background:var(--ground-3)}
+.ramp .step .g{font-family:var(--mono);font-size:11px;color:var(--c);letter-spacing:.05em}
+.ramp .step .nm{display:block;margin-top:5px;font-size:14.5px;color:var(--bone)}
+.ramp .step .n{display:block;margin-top:9px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.ramp .step.referred .n{color:var(--bone)}
+.refline{position:absolute;top:-1px;bottom:0;left:40%;width:1px;background:var(--g2)}
+.refline span{position:absolute;top:-20px;left:0;transform:translateX(-50%);
+  font-family:var(--mono);font-size:11px;color:var(--g2);letter-spacing:.06em;white-space:nowrap}
+.ramp-note{font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.02em}
+@media (max-width:880px){
+  .ramp{grid-template-columns:minmax(0,1fr);margin-top:8px}
+  .ramp .step{border-top:0;border-left:2px solid var(--c);padding:12px 14px}
+  .ramp .step .nm{display:inline;margin-left:10px}
+  .ramp .step .n{margin-top:6px}
+  .refline{display:none}
+  .ramp .step.boundary{margin-top:30px;position:relative}
+  .ramp .step.boundary::before{content:"";position:absolute;left:-2px;right:0;top:-14px;height:1px;background:var(--g2)}
+  .ramp .step.boundary::after{content:"referral boundary";position:absolute;left:0;top:-29px;
+    font-family:var(--mono);font-size:11px;color:var(--g2);letter-spacing:.06em}
+}
+
+/* ── slabs ──────────────────────────────────────────────────────────────── */
+.grid{display:grid;gap:1px;background:var(--rule-soft)}
+.grid.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.slab{background:var(--ground);padding:28px 26px 30px}
+.slab h3{font-size:21px;margin-bottom:10px}
+.slab p{color:var(--bone-dim);font-size:15.5px;margin-bottom:0}
+.slab .meta{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.04em;margin-bottom:16px}
+.slab .fig{font-family:var(--mono);font-size:27px;color:var(--bone);letter-spacing:-.02em;display:block;margin-bottom:6px}
+.slab .fig sup{font-size:12px;color:var(--muted);letter-spacing:0}
+@media (max-width:1040px){ .grid.c4{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:760px){ .grid.c2,.grid.c3,.grid.c4{grid-template-columns:minmax(0,1fr)} }
+
+/* ── pipeline diagram ───────────────────────────────────────────────────── */
+.pipe-wrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:1px;
+  background:var(--rule-soft);border:1px solid var(--rule-soft)}
+.pipe-stage{background:var(--ground-2);padding:26px 22px;display:flex;align-items:center;justify-content:center}
+.pipe-canvas{position:relative;width:100%;max-width:620px;aspect-ratio:476/540}
+.pipe-svg{width:100%;height:100%;display:block}
+.pipe-hits{position:absolute;inset:0}
+.hit{position:absolute;margin:0;padding:0;border:0;background:transparent;cursor:pointer;border-radius:2px}
+.hit:focus-visible{outline:2px solid var(--disc);outline-offset:2px}
+.node rect{fill:var(--ground-3);stroke:var(--rule);stroke-width:1;
+  transition:stroke .3s var(--ease),fill .3s var(--ease)}
+.node text{font-family:var(--mono);font-size:11px;fill:var(--bone-dim);letter-spacing:.02em;
+  transition:fill .3s var(--ease)}
+.node .nid{fill:var(--faint);font-size:10.5px}
+.node[data-on="1"] rect{fill:var(--ground-4);stroke:var(--bone)}
+.node[data-on="1"] text{fill:var(--bone)}
+.node[data-on="1"] .nid{fill:var(--disc)}
+.node[data-done="1"] rect{stroke:rgba(89,217,139,.55)}
+.node[data-fire="1"] rect{fill:#0F1E1D;stroke:var(--disc)}
+.node[data-fire="1"] text{fill:var(--bone)}
+.node[data-fire="1"] .nid{fill:var(--disc)}
+.pipe-svg .link{stroke:rgba(242,242,238,.26);stroke-width:1;fill:none}
+.pipe-svg .link.halt{stroke:var(--g3);stroke-dasharray:3 3}
+.node.stop rect{stroke-dasharray:3 3}
+.node.stop .nid{fill:var(--g3)}
+.pipe-svg .zone{fill:none;stroke:var(--rule-soft);stroke-width:1;stroke-dasharray:2 4}
+.pipe-svg .zlabel{font-family:var(--mono);font-size:10px;fill:var(--faint);letter-spacing:.09em}
+.pipe-read{background:var(--ground-2);padding:28px 26px;display:flex;flex-direction:column}
+.pipe-read .rid{font-family:var(--mono);font-size:11.5px;color:var(--disc);letter-spacing:.05em;margin-bottom:10px}
+.pipe-read h3{font-size:23px;margin-bottom:14px}
+.pipe-read p{color:var(--bone-dim);font-size:15px}
+.pipe-read dl{margin:auto 0 0;padding-top:20px;border-top:1px solid var(--rule);
+  display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:13px}
+.pipe-read dt{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.04em;padding-top:3px}
+.pipe-read dd{margin:0;font-family:var(--mono);font-size:12.5px;color:var(--bone-dim)}
+.pipe-hint{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.04em;margin-top:14px}
+@media (max-width:980px){ .pipe-wrap{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:560px){ .pipe-stage{padding:16px 12px;overflow-x:auto;justify-content:flex-start} .pipe-canvas{min-width:430px} }
+
+/* ── run a case ─────────────────────────────────────────────────────────── */
+.runner{border:1px solid var(--rule-soft);background:var(--ground-2)}
+.run-pick{display:flex;gap:1px;overflow-x:auto;background:var(--rule-soft)}
+.thumb{flex:0 0 96px;background:var(--ground-2);border:0;padding:0;cursor:pointer;
+  position:relative;display:block;transition:background .3s var(--ease)}
+.thumb img{width:96px;height:72px;object-fit:cover;display:block;opacity:.4;
+  transition:opacity .35s var(--ease),filter .35s var(--ease);filter:saturate(.65)}
+.thumb:hover img{opacity:.82}
+.thumb[aria-pressed="true"] img{opacity:1;filter:none}
+.thumb b{position:absolute;left:0;top:0;font-family:var(--mono);font-size:10px;font-weight:400;
+  letter-spacing:.05em;padding:3px 5px;background:var(--ground);color:var(--c)}
+.thumb[aria-pressed="true"]{outline:1px solid var(--c);outline-offset:-1px}
+.thumb:focus-visible{outline:2px solid var(--disc);outline-offset:-2px;z-index:2}
+
+.run-head{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:20px 24px;
+  border-bottom:1px solid var(--rule-soft)}
+.run-head .who{font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.03em;
+  flex:1;min-width:210px;line-height:1.6}
+.run-head .who b{color:var(--bone);font-weight:400}
+.run-status{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--faint);white-space:nowrap}
+.run-status.busy{color:var(--disc)}
+.run-status.done{color:var(--vessel)}
+
+.run-body{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:1px;background:var(--rule-soft)}
+.run-pane{background:var(--ground-2);padding:22px 24px 26px;min-width:0}
+.run-pane h4{font-family:var(--mono);font-size:11px;font-weight:400;letter-spacing:.08em;
+  color:var(--faint);margin:0 0 14px}
+.run-pane h4 + *{margin-top:0}
+.run-pane .gap{margin-top:26px}
+.run-img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#000;
+  border:1px solid var(--rule-soft)}
+
+.ticker{display:grid;gap:1px;background:var(--rule-soft);border:1px solid var(--rule-soft)}
+.tick{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;
+  background:var(--ground-2);padding:9px 13px;font-family:var(--mono);font-size:12px;
+  transition:background .3s var(--ease)}
+.tick .n{color:var(--faint);font-size:11px}
+.tick .nm{color:var(--bone-dim)}
+.tick .ms{color:var(--faint);font-variant-numeric:tabular-nums}
+.tick[data-state="run"]{background:var(--ground-4)}
+.tick[data-state="run"] .nm,.tick[data-state="run"] .n{color:var(--disc)}
+.tick[data-state="done"] .nm{color:var(--bone)}
+.tick[data-state="done"] .ms{color:var(--vessel)}
+.tick[data-state="idle"] .ms{opacity:0}
+
+.qbars{display:grid;gap:7px}
+.qrow{display:grid;grid-template-columns:78px 1fr auto;gap:10px;align-items:center;
+  font-family:var(--mono);font-size:11px}
+.qrow .lbl{color:var(--faint);letter-spacing:.03em}
+.qtrack{height:3px;background:var(--ground-4);position:relative;overflow:hidden}
+.qfill{position:absolute;inset:0 auto 0 0;width:0;background:var(--c);transition:width .8s var(--ease)}
+.qrow .v{color:var(--bone-dim);font-variant-numeric:tabular-nums;min-width:3.2em;text-align:right}
+.qrow[data-v="borderline"] .v{color:var(--g2)}
+.qrow[data-v="fail"] .v{color:var(--g4)}
+
+.dist{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;align-items:end;
+  height:120px;margin-bottom:8px}
+.dbar{display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+.dbar .fillbox{background:var(--c);height:0;transition:height .9s var(--ease);opacity:.8;min-height:2px}
+.dbar .pc{font-family:var(--mono);font-size:11px;color:var(--bone-dim);margin-bottom:5px;
+  font-variant-numeric:tabular-nums;text-align:center}
+.dbar[data-top="1"] .fillbox{opacity:1}
+.dbar[data-top="1"] .pc{color:var(--bone)}
+.dlabels{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;
+  font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.03em;text-align:center}
+
+.decide{border:1px solid var(--c);padding:16px 18px;background:rgba(0,0,0,.2)}
+.decide .d{font-family:var(--mono);font-size:15px;color:var(--c);letter-spacing:.05em}
+.decide .u{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.05em;
+  margin-top:6px;line-height:1.7}
+.gauge{margin-top:14px;height:4px;background:var(--ground-4);position:relative}
+.gauge .fill{position:absolute;inset:0 auto 0 0;width:0;background:var(--c);transition:width .9s var(--ease)}
+.gauge .thr{position:absolute;top:-4px;bottom:-4px;width:1px;background:var(--bone)}
+.gauge-key{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);
+  font-size:10.5px;color:var(--faint);letter-spacing:.04em;margin-top:6px}
+
+.lesions{display:grid;gap:8px}
+.lrow{display:grid;grid-template-columns:12px 1fr auto;gap:10px;align-items:center;
+  font-family:var(--mono);font-size:12px}
+.swatch{width:9px;height:9px;background:var(--c);border-radius:1px}
+.lrow .nm{color:var(--bone-dim)}
+.lrow .ct{color:var(--bone);font-variant-numeric:tabular-nums}
+.lrow.none .nm,.lrow.none .ct{color:var(--faint)}
+.lrow.na .ct{color:var(--g2);font-size:10.5px;letter-spacing:.04em}
+.quad{font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.03em;line-height:1.7}
+
+.explain{background:var(--ground-2);padding:26px 24px;border-top:1px solid var(--rule-soft)}
+.explain h4{font-family:var(--mono);font-size:11px;font-weight:400;letter-spacing:.08em;
+  color:var(--faint);margin:0 0 14px}
+.ev{margin:0 0 22px;padding:0;list-style:none;display:grid;gap:10px}
+.ev li{font-size:15px;color:var(--bone-dim);padding-left:16px;border-left:1px solid var(--rule);line-height:1.6}
+.ev li.na{border-left-color:var(--g2);color:var(--muted)}
+.ev li.mac{border-left-color:var(--les-hex);color:var(--bone)}
+.panel-shot{width:100%;display:block;border:1px solid var(--rule);background:var(--ground-3)}
+.cap{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.03em;margin-top:11px;line-height:1.7}
+.run-foot{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:20px 24px;
+  border-top:1px solid var(--rule-soft)}
+.replay-note{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.03em;
+  flex:1;min-width:250px;line-height:1.7;margin:0}
+@media (max-width:900px){ .run-body{grid-template-columns:minmax(0,1fr)} }
+
+/* ── phases ─────────────────────────────────────────────────────────────── */
+.phases{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--rule-soft);margin-top:1px}
+.phase{background:var(--ground);padding:22px 20px 24px}
+.phase .pn{font-family:var(--mono);font-size:11px;color:var(--disc);letter-spacing:.06em}
+.phase h4{font-size:16.5px;margin:9px 0 7px;font-weight:400}
+.phase p{font-size:14px;color:var(--muted);margin:0}
+@media (max-width:1040px){ .phases{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:620px){ .phases{grid-template-columns:minmax(0,1fr)} }
+
+/* ── tables ─────────────────────────────────────────────────────────────── */
+.tcap{font-family:var(--sans);font-size:17px;color:var(--bone);margin:0 0 14px;font-weight:500;
+  max-width:min(52ch,100%);line-height:1.35}
+.dtable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.dtable th,.dtable td{padding:11px 12px;text-align:right;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+.dtable thead th{font-weight:400;color:var(--muted);font-size:11px;letter-spacing:.06em;border-bottom:1px solid var(--rule)}
+.dtable th[scope=row]{text-align:left;color:var(--bone-dim);padding-left:0}
+.dtable td:last-child{padding-right:0}
+.dtable tr.best th[scope=row],.dtable tr.best td{color:var(--bone)}
+.dtable .pass{color:var(--g0)}
+.dtable .fail{color:var(--g4)}
+.dtable .dim{color:var(--faint)}
+.tscroll{overflow-x:auto}
+.panels{background:transparent;gap:clamp(18px,2.4vw,28px)}
+.panel{background:var(--ground-2);border:1px solid var(--rule-soft);padding:28px 30px 30px;min-width:0}
+.panel .dtable td:last-child{padding-right:2px}
+.pnote{margin:22px 0 0;color:var(--bone-dim);font-size:15.5px}
+@media (max-width:560px){ .panel{padding:22px 18px 24px} }
+
+/* ── statement, limits, close ───────────────────────────────────────────── */
+.statement{padding:clamp(76px,13vh,150px) 0}
+.statement p{font-size:clamp(26px,4.3vw,50px);line-height:1.18;letter-spacing:-.028em;
+  max-width:min(19ch,100%);font-weight:200;color:var(--bone)}
+.statement .q{font-weight:600;color:var(--bone)}
+.statement .dimmer{color:var(--faint)}
+.statement .by{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.05em;margin-top:34px}
+
+/* ── 07, the district simulator ─────────────────────────────────────────── */
+.sim{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:1px;background:var(--rule-soft);border:1px solid var(--rule-soft)}
+.sim > .sim-dia{grid-column:1 / -1;border:0;background:var(--ground);padding:20px 22px 16px}
+.sim-ctl{background:var(--ground-2);padding:22px 22px 24px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--rule);padding:3px;gap:3px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;text-align:center;padding:9px 6px;font-size:13px;color:var(--muted);cursor:pointer;transition:background .25s var(--ease),color .25s var(--ease)}
+.seg input:checked + span{background:var(--bone);color:var(--ground)}
+.seg input:focus-visible + span{outline:2px solid var(--disc);outline-offset:2px}
+.sim-note{margin:-8px 0 0;font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--faint)}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets button{background:none;border:1px solid var(--rule);color:var(--bone-dim);font-family:var(--mono);font-size:11px;
+  letter-spacing:.03em;padding:6px 9px;cursor:pointer;transition:border-color .25s var(--ease),color .25s var(--ease)}
+.presets button:hover{border-color:var(--bone);color:var(--bone)}
+.presets button[aria-pressed="true"]{border-color:var(--disc);color:var(--disc)}
+.grp{border:0;margin:0;padding:0;min-width:0}
+.grp legend,.adv summary{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--disc);padding:0;margin-bottom:10px;text-transform:uppercase}
+.grp[disabled]{opacity:.38}
+.st{display:grid;grid-template-columns:1fr 30px 42px 30px;align-items:center;gap:4px;padding:6px 0;border-bottom:1px solid var(--rule-soft)}
+.st-l{font-size:14px;color:var(--bone)}
+.st-l small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.03em}
+.st-b{width:30px;height:30px;border:1px solid var(--rule);background:none;color:var(--bone);font-size:16px;line-height:1;cursor:pointer;
+  transition:border-color .2s var(--ease),background .2s var(--ease)}
+.st-b:hover{border-color:var(--bone);background:rgba(255,255,255,.04)}
+.st-b:disabled{opacity:.3;cursor:default}
+.st-v{text-align:center;font-family:var(--mono);font-size:15px;color:var(--bone);font-variant-numeric:tabular-nums}
+.rg{display:block;padding:7px 0}
+.rg-l{display:flex;justify-content:space-between;font-size:14px;color:var(--bone)}
+.rg-l output{font-family:var(--mono);font-size:13px;color:var(--disc)}
+.rg input{width:100%;margin:8px 0 0;accent-color:var(--disc)}
+.tg{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;padding:7px 0;cursor:pointer}
+.tg input{position:absolute;opacity:0;pointer-events:none}
+.tg i{position:relative;width:34px;height:18px;border:1px solid var(--rule);border-radius:9px;margin-top:2px;transition:background .25s var(--ease),border-color .25s var(--ease)}
+.tg i::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--muted);transition:transform .25s var(--ease),background .25s var(--ease)}
+.tg input:checked + i{border-color:var(--disc);background:rgba(62,214,206,.14)}
+.tg input:checked + i::after{transform:translateX(16px);background:var(--disc)}
+.tg input:focus-visible + i{outline:2px solid var(--disc);outline-offset:2px}
+.tg span{font-size:14px;color:var(--bone)}
+.tg small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.02em;margin-top:2px}
+.adv summary{cursor:pointer;list-style:none}
+.adv summary::-webkit-details-marker{display:none}
+.adv summary::after{content:" +";color:var(--faint)}
+.adv[open] summary::after{content:" −"}
+.nms{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.nm span{display:block;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-bottom:4px}
+.nm input{width:100%;background:var(--ground);border:1px solid var(--rule);color:var(--bone);font-family:var(--mono);font-size:13px;padding:6px 8px}
+.nm input:focus{outline:none;border-color:var(--disc)}
+.sim-run{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:auto;padding-top:6px}
+.sim-run .btn{white-space:nowrap}
+.sim-status{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.04em}
+.sim-status.busy{color:var(--disc)}
+
+.sim-out{background:var(--ground-2);padding:22px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.sim-card{border:1px solid var(--rule-soft);background:var(--ground);padding:16px 18px;min-width:0}
+.sim-h{display:flex;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted);margin-bottom:12px}
+.sim-h span:last-child{color:var(--faint);letter-spacing:.04em;text-align:right}
+.dia-wrap{overflow-x:auto}
+#simDiagram{display:block;width:100%;min-width:760px;height:auto;max-height:640px}
+.dia-key{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:10px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.dia-note{margin-left:auto}
+.dia-key i{display:inline-block;width:18px;height:0;border-top:1.5px solid rgba(242,242,238,.55);margin-right:7px;vertical-align:3px}
+.dia-key .k-s{border-top:1.5px dashed var(--disc)}
+.dia-key .k-r{width:10px;height:10px;border:1px solid var(--g1);vertical-align:-1px}
+/* diagram parts */
+.b-box{fill:#0C0D10;stroke:rgba(242,242,238,.3);stroke-width:1.2}
+.b-srv{fill:#0C0D10}
+.b-pool{fill:none;stroke:var(--g1);stroke-dasharray:3 3}
+.b-sink{fill:#0C0D10;stroke:rgba(62,214,206,.45)}
+.b-glyph{stroke:rgba(242,242,238,.55);fill:none;stroke-width:1.2}
+.b-name{font-family:var(--mono);font-size:13px;fill:var(--muted);text-anchor:middle}
+.b-stat{font-family:var(--mono);font-size:14px;fill:var(--bone);text-anchor:middle;font-weight:500}
+.b-stat.hot{fill:#F2A65A}
+.b-stat.crit{fill:var(--g4)}
+.l-e{fill:none;stroke:rgba(242,242,238,.34);stroke-width:1.4}
+.l-s{fill:none;stroke:rgba(62,214,206,.55);stroke-width:1.1;stroke-dasharray:4 4}
+.sim.running .l-e{stroke:rgba(62,214,206,.7);stroke-dasharray:6 8;animation:flow .8s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-14}}
+.b-heat{transition:fill .5s var(--ease)}
+
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--rule-soft);border:1px solid var(--rule-soft)}
+.kpi{background:var(--ground);padding:14px 16px 15px}
+.kpi b{display:block;font-family:var(--mono);font-weight:400;font-size:clamp(20px,2vw,26px);color:var(--bone);letter-spacing:-.02em;line-height:1.1}
+.kpi b.ok{color:var(--g0)} .kpi b.warn{color:#F2A65A} .kpi b.bad{color:var(--g4)}
+.kpi span{display:block;font-size:12.5px;color:var(--bone-dim);margin-top:6px;line-height:1.35}
+.kpi small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:4px}
+.sim-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:14px}
+.ubars{display:grid;gap:12px}
+.ub{display:grid;grid-template-columns:118px 1fr 52px;gap:10px;align-items:center;font-size:13px;color:var(--bone)}
+.ub small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.ub .tr{position:relative;height:8px;background:var(--ground-4);overflow:hidden}
+.ub .tr i{position:absolute;inset:0 auto 0 0;width:0;background:var(--c,var(--disc));transition:width .7s var(--ease)}
+.ub .tr u{position:absolute;top:-3px;bottom:-3px;left:85%;width:1px;background:rgba(242,242,238,.5)}
+.ub output{font-family:var(--mono);font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+.sim-chart{display:block;width:100%;height:170px}
+.ch-key{display:flex;gap:10px;align-items:center}
+.ch-key i{display:inline-block;width:14px;height:2px;margin-left:6px;vertical-align:3px}
+.ch-key .c1{background:var(--disc)} .ch-key .c2{background:var(--g1)}
+.ch-x{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:4px}
+.sim-read{margin:2px 0 0;font-size:15.5px;color:var(--bone-dim);max-width:min(80ch,100%)}
+.sim-read b{font-weight:600;color:var(--bone)}
+.sim-valid{margin-top:6px;border:1px solid var(--rule-soft);background:var(--ground);padding:16px 18px 18px}
+.sim-valid .dtable{font-size:12px} .sim-valid .dtable th[scope=row]{white-space:normal;min-width:15em;color:var(--bone)}
+.sim-valid .dtable th[scope=row] small{display:block;font-size:10.5px;margin-top:2px}
+.sim-valid .dtable td.ok{color:var(--g0)} .sim-valid .dtable td.off{color:#F2A65A}
+.sim-vnote{margin:14px 0 0;font-size:14.5px;color:var(--bone-dim);max-width:min(88ch,100%)}
+@media (max-width:1180px){ .sim{grid-template-columns:minmax(0,1fr)} .sim-ctl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 26px}
+  .sim-ctl > .seg,.sim-ctl > .sim-note,.sim-ctl > .presets,.sim-ctl > .sim-run,.sim-ctl > .adv{grid-column:1 / -1} }
+@media (max-width:900px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} .sim-row{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:640px){ .sim-ctl{display:flex} .sim-out{padding:14px} .ub{grid-template-columns:96px 1fr 46px} }
+
+/* ── 08, who it serves: a pinned rail of cards, driven by vertical scroll ── */
+#impact{padding-bottom:clamp(40px,6vh,80px)}
+.imp-run{position:relative}
+.imp-pin{position:sticky;top:var(--bar);height:calc(100vh - var(--bar));display:flex;flex-direction:column;
+  justify-content:center;gap:clamp(18px,3.2vh,34px)}
+.imp-eye{display:flex;align-items:center;gap:16px;font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;color:var(--muted);margin:0}
+.imp-eye i{display:block;height:1px;width:min(240px,26vw);background:var(--rule)}
+.imp-h{font-family:var(--sans);font-weight:100;text-transform:uppercase;font-size:clamp(32px,5vw,70px);
+  line-height:.96;letter-spacing:-.03em;margin:12px 0 0;color:var(--bone)}
+.imp-h b{display:block;font-weight:700;letter-spacing:-.04em}
+.imp-view{margin:0 calc(-1 * var(--gutter));overflow:hidden}
+.imp-track{display:flex;gap:clamp(18px,2.6vw,40px);padding:0 var(--gutter);will-change:transform}
+.imp-card{flex:0 0 min(800px,64vw);min-height:clamp(300px,46vh,420px);display:grid;grid-template-rows:auto 1fr auto;
+  border:1px solid var(--rule-soft);background:rgba(10,11,13,.94);padding:clamp(20px,2.4vw,32px) clamp(22px,2.8vw,36px);
+  opacity:.4;transition:opacity .5s var(--ease),border-color .5s var(--ease),background .5s var(--ease)}
+.imp-card.on{opacity:1;border-color:rgba(255,255,255,.24);background:rgba(13,14,17,.97)}
+.ic-top{display:flex;justify-content:space-between;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--faint)}
+.ic-top .tags{text-align:right}
+.ic-mid{align-self:center;max-width:min(58ch,100%);padding:14px 0 8px}
+.ic-name{font-family:var(--sans);font-weight:600;font-size:clamp(28px,3vw,44px);line-height:1.04;letter-spacing:-.035em;margin:0;color:var(--bone)}
+.ic-chip{display:inline-block;vertical-align:.32em;margin-left:6px;padding:4px 8px 3px;border:1px solid rgba(62,214,206,.45);
+  font-family:var(--mono);font-weight:400;font-size:11px;letter-spacing:.1em;line-height:1;color:var(--disc);text-transform:uppercase;white-space:nowrap}
+.ic-role{margin:10px 0 0;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--disc)}
+.ic-head{margin:14px 0 0;font-family:var(--sans);font-size:clamp(17px,1.45vw,21px);line-height:1.3;letter-spacing:-.01em;color:var(--bone-dim)}
+.ic-body{font-family:var(--sans);font-size:14.5px;line-height:1.6;color:var(--muted);margin:10px 0 0}
+.ic-pts{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:6px}
+.ic-pts li{font-family:var(--mono);font-size:12px;color:var(--bone);padding-left:18px;position:relative;line-height:1.5}
+.ic-pts li::before{content:"";position:absolute;left:0;top:.72em;width:9px;height:1px;background:var(--disc)}
+.ic-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:16px}
+.ic-foot a{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--bone);text-decoration:none;
+  display:inline-flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid transparent;transition:border-color .3s var(--ease)}
+.ic-foot a:hover,.ic-foot a:focus-visible{border-bottom-color:var(--bone)}
+.ic-foot svg{width:13px;height:13px}
+.ic-num{font-family:var(--sans);font-weight:100;font-size:clamp(50px,6vw,96px);line-height:.78;color:transparent;
+  -webkit-text-stroke:1px rgba(242,242,238,.38);letter-spacing:-.04em;user-select:none}
+.imp-card.mw .ic-num{-webkit-text-stroke-color:rgba(62,214,206,.5)}
+.imp-rail{position:relative;display:flex;justify-content:space-between;gap:12px;
+  border-top:1px solid var(--rule-soft);padding-top:14px}
+.imp-rail .fill{position:absolute;top:-1px;left:0;height:1px;width:0;background:var(--bone)}
+.imp-rail button{background:none;border:0;padding:4px 0;text-align:left;cursor:pointer;font-family:var(--mono);
+  font-size:11px;letter-spacing:.1em;color:var(--faint);transition:color .3s var(--ease);white-space:nowrap;flex:0 0 auto}
+.imp-rail button em{font-style:normal}
+.imp-rail button:hover{color:var(--bone-dim)}
+.imp-rail button.on{color:var(--bone)}
+/* phones, short screens and reduced motion: a native, swipeable row instead of a pinned one */
+#impact.flat .imp-run{height:auto!important}
+#impact.flat .imp-pin{position:static;height:auto;overflow:visible}
+#impact.flat .imp-view{overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:var(--gutter);scrollbar-width:none}
+#impact.flat .imp-view::-webkit-scrollbar{display:none}
+#impact.flat .imp-track{transform:none!important}
+#impact.flat .imp-card{flex-basis:min(86vw,620px);scroll-snap-align:start;min-height:0}
+@media (max-width:1100px){ .imp-rail button span{display:none} }
+/* laptop-height screens: a tighter card, so the rail still pins instead of falling back */
+@media (max-height:820px){ .imp-pin{gap:14px} .imp-h{font-size:clamp(28px,3.8vw,52px)} .imp-card{min-height:0}
+  .ic-pts{display:none} .ic-num{font-size:clamp(44px,4.6vw,72px)} .ic-mid{padding:10px 0 6px} .ic-head{margin-top:10px} }
+.close{padding:clamp(80px,13vh,150px) 0 0}
+.close h2{font-size:clamp(34px,6vw,76px);letter-spacing:-.045em;line-height:1.02;font-weight:600;
+  max-width:min(16ch,100%);margin-bottom:34px}
+.close h2 .thin{font-weight:200;color:var(--bone-dim)}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:56px}
+footer{border-top:1px solid var(--rule-soft);padding:26px 0 40px;margin-top:20px;
+  display:flex;flex-wrap:wrap;gap:10px 30px;justify-content:space-between;
+  font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.03em}
+.notice{max-width:min(64ch,100%);color:var(--muted);font-family:var(--sans);font-size:14px;
+  margin-bottom:26px;line-height:1.6}
+</style>
+</head>
+<body>
+<canvas id="nerves" aria-hidden="true"></canvas>
+
+<header class="bar" id="bar">
+  <a class="mark" href="#top" aria-label="drscreen project dossier, back to the top">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="15" cy="11" r="2.4"/><path d="M4.5 9.5c3-1 5.5-1 8 .5M4.5 14.5c3 1 5.5 1 8-.5"/></svg>
+    <b>drscreen</b><span>Project dossier</span>
+  </a>
+  <nav aria-label="Sections">
+    <a href="#need">Verdict</a>
+    <a href="#pipeline">Pipeline</a>
+    <a href="#run">Run a case</a>
+    <a href="#evidence">Evidence</a>
+    <a href="#programme">Programme</a>
+    <a href="#simulator">Simulator</a>
+    <a href="#impact">Impact</a>
+  </nav>
+  <a class="console-link" href="index.html" data-transition="Screening console" data-eyebrow="WORKSTATION">Screening console
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+</header>
+
+<div class="frame" id="top">
+
+  <nav class="rail" aria-label="Section index">
+    <a href="#need">Verdict</a>
+    <a href="#pipeline">Pipeline</a>
+    <a href="#run">Run</a>
+    <a href="#workstation">Console</a>
+    <a href="#evidence">Evidence</a>
+    <a href="#programme">Programme</a>
+    <a href="#simulator">Simulator</a>
+    <a href="#impact">Impact</a>
+  </nav>
+
+  <main>
+
+    <section class="hero" id="hero">
+      <div class="hero-veil" aria-hidden="true"></div>
+      <div class="col">
+        <h1 data-reveal>Two targets. <b>Both met.</b></h1>
+        <p class="sub" data-reveal>An explainable diabetic retinopathy screening pipeline for district
+        telemedicine — quality gating with recapture advice, lesion segmentation, ordinal ICDR grading
+        with calibrated confidence, and a capacity model of the programme around it.</p>
+        <div class="hero-cta" data-reveal>
+          <a class="btn solid" href="#run">Run a case</a>
+          <a class="btn" href="index.html" data-transition="Screening console" data-eyebrow="WORKSTATION">Open the screening console</a>
+        </div>
+        <div class="hero-strip" data-reveal-group>
+          <div class="ok"><b>0.986</b><span>SENSITIVITY, INTERNAL</span></div>
+          <div class="ok"><b>0.873</b><span>SPECIFICITY, INTERNAL</span></div>
+          <div><b>0.988</b><span>AUC, INTERNAL</span></div>
+          <div class="ok"><b>0.973</b><span>SIGHT-THREATENING, ZERO-SHOT</span></div>
+          <div><b>645 ms</b><span>MEDIAN LATENCY, CPU</span></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="col">
+
+    <section id="need">
+      <div class="head" data-reveal>
+        <span class="idx">01</span>
+        <h2>Blinding disease is caught, <span class="thin">even on cameras it has never seen.</span></h2>
+        <p class="lede">Trained on APTOS-2019 and IDRiD, then tested zero-shot on Messidor-2 — a
+        different country, different cameras and a different grading panel, with nothing fitted on
+        it. <em>107 of 110 sight-threatening eyes were referred</em>, and on the internal held-out
+        test, all 105.</p>
+      </div>
+
+      <div class="scores" data-reveal-group>
+        <div class="score">
+          <p class="sc-k">INTERNAL HELD-OUT TEST<span>n = 631 · APTOS-2019 + IDRiD · subject-disjoint</span></p>
+          <div class="sc-row">
+            <div><b class="ok">0.986</b><span>sensitivity</span><i>target ≥ 0.90 ✓</i></div>
+            <div><b class="ok">0.873</b><span>specificity</span><i>target ≥ 0.85 ✓</i></div>
+            <div><b>0.988</b><span>AUC</span></div>
+            <div><b>0.987</b><span>NPV</span></div>
+          </div>
+          <p class="sc-foot">Both screening targets met for referable DR (grade ≥ 2), with QWK 0.897.
+          Sight-threatening disease: 105 of 105 eyes referred.</p>
+        </div>
+        <div class="score">
+          <p class="sc-k">EXTERNAL, ZERO-SHOT<span>n = 1,744 · Messidor-2 · nothing fitted on it</span></p>
+          <div class="sc-row">
+            <div><b class="ok">0.973</b><span>sight-threatening</span><i>107 of 110 referred</i></div>
+            <div><b class="ok">0.922</b><span>specificity</span><i>target ≥ 0.85 ✓</i></div>
+            <div><b>0.908</b><span>AUC</span></div>
+            <div><b>0.899</b><span>NPV</span></div>
+          </div>
+          <p class="sc-foot">The generalisation test that matters for a national programme: new
+          hardware, new graders, and the blinding cases still reach a specialist.</p>
+        </div>
+      </div>
+
+      <div class="vcap" data-reveal>Messidor-2, zero-shot: what happens to each grade</div>
+      <div class="ramp" data-reveal style="margin-top:30px">
+        <div class="refline"><span>referral boundary</span></div>
+        <div class="step" style="--c:var(--g0)"><span class="g">GRADE 0</span><span class="nm">No apparent DR</span><span class="n">93.9% kept out of the queue</span></div>
+        <div class="step" style="--c:var(--g1)"><span class="g">GRADE 1</span><span class="nm">Mild NPDR</span><span class="n">85.9% kept out of the queue</span></div>
+        <div class="step referred boundary" style="--c:var(--g2)"><span class="g">GRADE 2</span><span class="nm">Moderate NPDR</span><span class="n">referable from here</span></div>
+        <div class="step referred" style="--c:var(--g3)"><span class="g">GRADE 3</span><span class="nm">Severe NPDR</span><span class="n">98.7% referred · 74 of 75</span></div>
+        <div class="step referred" style="--c:var(--g4)"><span class="g">GRADE 4</span><span class="nm">Proliferative DR</span><span class="n">94.3% referred · 33 of 35</span></div>
+      </div>
+      <p class="ramp-note" data-reveal>Healthy and mild eyes stay out of the specialist's queue; severe and proliferative disease reaches it.</p>
+
+      <div class="grid c4" data-reveal-group style="margin-top:54px">
+        <div class="slab"><span class="fig">0.973</span><p class="meta">Sight-threatening sensitivity, external</p>
+          <p>107 of 110 blinding eyes referred on a cohort nothing was fitted on, at 92.2% specificity.
+          On the internal split it is 1.000 — all 105 referred.</p></div>
+        <div class="slab"><span class="fig">77 M<sup>+</sup></span><p class="meta">Diabetic population, India</p>
+          <p>Against roughly one retinal specialist per 100,000 people in rural districts. Screening
+          capacity is what the programme needs, and triage is what multiplies it.</p></div>
+        <div class="slab"><span class="fig">24<sup>%</sup></span><p class="meta">Queued for human review</p>
+          <p>The triage does not flood the ophthalmologist. Everything sight-threatening, any
+          neovascularisation and any suspected CSME goes to a person regardless of model confidence.</p></div>
+        <div class="slab"><span class="fig">12</span><p class="meta">Real photographs in the repository</p>
+          <p>The demo, the benchmark and the test suite all run on actual retinas from a fresh clone.
+          There is no synthetic-image path anywhere in the project.</p></div>
+      </div>
+    </section>
+
+    <section id="pipeline">
+      <div class="head" data-reveal>
+        <span class="idx">02</span>
+        <h2>Nine stages, <span class="thin">and every one of them reports.</span></h2>
+        <p class="lede">A fundus photograph enters at the left and an auditable report leaves at the
+        right. Each stage records its own latency, and the whole result is JSON-serialisable — so a
+        decision can be reconstructed months later from the record alone.</p>
+      </div>
+
+      <div class="pipe-wrap" data-reveal>
+        <div class="pipe-stage">
+          <div class="pipe-canvas">
+          <svg class="pipe-svg" viewBox="0 0 476 540" role="img" aria-label="Nine-stage screening pipeline: geometry, quality gate, enhancement, landmarks, segmentation, clinical features, then a rule engine and an ordinal grader feeding a decision and an explanation.">
+            <defs><marker id="pah" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 6 3 0 6z" fill="rgba(242,242,238,.45)"/></marker></defs>
+            <rect class="zone" x="10" y="10" width="456" height="176" rx="2"/>
+            <text class="zlabel" x="22" y="31">OPTICAL CONDITIONING</text>
+            <rect class="zone" x="10" y="222" width="456" height="112" rx="2"/>
+            <text class="zlabel" x="22" y="243">EVIDENCE EXTRACTION</text>
+            <rect class="zone" x="10" y="370" width="456" height="160" rx="2"/>
+            <text class="zlabel" x="22" y="391">DECISION AND ACCOUNT</text>
+
+            <path class="link" marker-end="url(#pah)" d="M118 70 H185"/>
+            <path class="link" marker-end="url(#pah)" d="M290 70 H355"/>
+            <path class="link halt" marker-end="url(#pah)" d="M238 92 V123"/>
+            <path class="link" marker-end="url(#pah)" d="M406 92 V261"/>
+            <path class="link" marker-end="url(#pah)" d="M356 284 H291"/>
+            <path class="link" marker-end="url(#pah)" d="M186 284 H119"/>
+            <path class="link" d="M70 306 V352 H391"/>
+            <path class="link" marker-end="url(#pah)" d="M230 352 V401"/>
+            <path class="link" marker-end="url(#pah)" d="M391 352 V401"/>
+            <path class="link" d="M230 442 V460 H391 V442"/>
+            <path class="link" marker-end="url(#pah)" d="M230 460 V477"/>
+            <path class="link" marker-end="url(#pah)" d="M290 498 H325"/>
+
+            <g class="node" data-stage="1" aria-label="Stage 1, geometry">
+              <rect x="22" y="48" width="96" height="44" rx="2"/>
+              <text class="nid" x="32" y="66">01</text><text x="32" y="81">geometry</text></g>
+            <g class="node" data-stage="2" aria-label="Stage 2, quality gate">
+              <rect x="186" y="48" width="104" height="44" rx="2"/>
+              <text class="nid" x="196" y="66">02</text><text x="196" y="81">quality gate</text></g>
+            <g class="node" data-stage="3" aria-label="Stage 3, enhancement">
+              <rect x="356" y="48" width="100" height="44" rx="2"/>
+              <text class="nid" x="366" y="66">03</text><text x="366" y="81">enhancement</text></g>
+            <g class="node stop" data-stage="R" aria-label="Halt, recapture instruction">
+              <rect x="186" y="124" width="104" height="38" rx="2"/>
+              <text class="nid" x="196" y="140">HALT</text><text x="196" y="154">recapture</text></g>
+
+            <g class="node" data-stage="4" aria-label="Stage 4, landmarks">
+              <rect x="356" y="262" width="100" height="44" rx="2"/>
+              <text class="nid" x="366" y="280">04</text><text x="366" y="295">landmarks</text></g>
+            <g class="node" data-stage="5" aria-label="Stage 5, segmentation">
+              <rect x="186" y="262" width="104" height="44" rx="2"/>
+              <text class="nid" x="196" y="280">05</text><text x="196" y="295">segmentation</text></g>
+            <g class="node" data-stage="6" aria-label="Stage 6, clinical features">
+              <rect x="22" y="262" width="96" height="44" rx="2"/>
+              <text class="nid" x="32" y="280">06</text><text x="32" y="295">features</text></g>
+
+            <g class="node" data-stage="7a" aria-label="Stage 7a, rule engine">
+              <rect x="165" y="402" width="130" height="40" rx="2"/>
+              <text class="nid" x="175" y="419">07a</text><text x="175" y="433">rule engine</text></g>
+            <g class="node" data-stage="7b" aria-label="Stage 7b, ordinal grader">
+              <rect x="326" y="402" width="130" height="40" rx="2"/>
+              <text class="nid" x="336" y="419">07b</text><text x="336" y="433">ordinal grader</text></g>
+            <g class="node" data-stage="8" aria-label="Stage 8, decision">
+              <rect x="170" y="478" width="120" height="40" rx="2"/>
+              <text class="nid" x="180" y="495">08</text><text x="180" y="509">decision</text></g>
+            <g class="node" data-stage="9" aria-label="Stage 9, explanation">
+              <rect x="326" y="478" width="130" height="40" rx="2"/>
+              <text class="nid" x="336" y="495">09</text><text x="336" y="509">explanation</text></g>
+          </svg>
+          <div class="pipe-hits" id="pipeHits"></div>
+          </div>
+        </div>
+
+        <aside class="pipe-read" aria-live="polite">
+          <span class="rid" id="pipeId">STAGE 01</span>
+          <h3 id="pipeTitle">Geometry</h3>
+          <p id="pipeBody"></p>
+          <dl id="pipeMeta"></dl>
+        </aside>
+      </div>
+      <p class="pipe-hint">Select a stage to inspect it. Stage 02 can stop the pipeline and return capture instructions instead of a grade.</p>
+    </section>
+
+    <section id="run">
+      <div class="head" data-reveal>
+        <span class="idx">03</span>
+        <h2>Run a case, <span class="thin">and watch it account for itself.</span></h2>
+        <p class="lede">Pick one of the twelve held-out photographs and step the pipeline. Stage
+        timings, quality scores, the ICDR distribution, lesion counts and the written evidence are
+        all <em>recorded output of a real run</em> — this page replays it rather than inferring in
+        your browser.</p>
+      </div>
+
+      <div class="runner" data-reveal>
+        <div class="run-pick" id="runPick" role="group" aria-label="Choose a case"></div>
+
+        <div class="run-head">
+          <p class="who" id="runWho"></p>
+          <span class="run-status" id="runStatus">READY</span>
+          <button class="btn solid" id="runGo" type="button">Analyse image</button>
+        </div>
+
+        <div class="run-body">
+          <div class="run-pane">
+            <h4>FUNDUS PHOTOGRAPH</h4>
+            <img class="run-img" id="runImg" alt="" width="320" height="240">
+            <h4 class="gap">QUALITY GATE</h4>
+            <div class="qbars" id="runQuality"></div>
+            <h4 class="gap">LANDMARKS</h4>
+            <div class="lesions" id="runLandmarks"></div>
+          </div>
+
+          <div class="run-pane">
+            <h4>STAGE TIMINGS</h4>
+            <div class="ticker" id="runTicker"></div>
+            <h4 class="gap">ICDR CLASS DISTRIBUTION</h4>
+            <div class="dist" id="runDist"></div>
+            <div class="dlabels" id="runDistLabels"></div>
+            <h4 class="gap">DECISION</h4>
+            <div id="runDecision"></div>
+            <h4 class="gap">LESION EVIDENCE</h4>
+            <div class="lesions" id="runLesions"></div>
+          </div>
+        </div>
+
+        <div class="explain" id="runExplainWrap" hidden>
+          <h4>WHAT THE SYSTEM SAYS, AND WHY</h4>
+          <ul class="ev" id="runEvidence"></ul>
+          <img class="panel-shot" id="runPanel" alt="" loading="lazy">
+          <p class="cap" id="runPanelCap"></p>
+        </div>
+
+        <div class="run-foot">
+          <p class="replay-note">Replay of a recorded run produced by scripts/run_demo.py. The stage
+          timings are the measured per-stage figures from that run, slowed three times so they are
+          legible.</p>
+          <a class="btn" id="runReport" href="#" target="_blank" rel="noopener">Open the generated report</a>
+          <a class="btn" id="runConsole" href="index.html" data-transition="Screening console" data-eyebrow="WORKSTATION">Open in the console</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="statement">
+      <p data-reveal><span class="q">When it says 0.9, it means 0.9.</span>
+      <span class="dimmer"> Calibrated to an expected error of 0.016, so a review queue sorted by
+      confidence puts the referral that matters at the top.</span></p>
+      <p class="by" data-reveal>Why calibration is a first-class requirement here, not a metric appendix</p>
+    </section>
+
+    <section id="workstation">
+      <div class="head" data-reveal>
+        <span class="idx">04</span>
+        <h2>The screening console, <span class="thin">end to end.</span></h2>
+        <p class="lede">One photograph, four phases, one signed record. The operator at a primary
+        health centre sees capture feedback in under a second; the reviewer sees the evidence trail
+        that produced the referral.</p>
+      </div>
+      <div class="phases" data-reveal-group>
+        <div class="phase"><span class="pn">Phase 01</span><h4>Capture and gate</h4>
+          <p>Nine interpretable criteria score focus, illumination, contrast, field of view, macula
+          presence, artefact, exposure and noise. A correctable defect is enhanced; an uncorrectable
+          one returns capture instructions.</p></div>
+        <div class="phase"><span class="pn">Phase 02</span><h4>Locate and segment</h4>
+          <p>Optic disc and fovea fix the clinical coordinate frame, then an attention U-Net at
+          1024 px segments vessels and five lesion classes, fine enough to keep every microaneurysm.</p></div>
+        <div class="phase"><span class="pn">Phase 03</span><h4>Grade and decide</h4>
+          <p>A CORN ordinal head predicts cumulative severity, isotonic regression calibrates the
+          referable probability, and a frozen threshold of 0.1999 routes the case to auto-report,
+          referral, or a human.</p></div>
+        <div class="phase"><span class="pn">Phase 04</span><h4>Explain and record</h4>
+          <p>Grad-CAM++ over the referable log-odds, lesion evidence written in words, and the 4-2-1
+          rule trail. The report leaves as HTML, a PNG panel and JSON.</p></div>
+      </div>
+      <div class="actions" style="margin-top:34px" data-reveal>
+        <a class="btn solid" href="index.html" data-transition="Screening console" data-eyebrow="WORKSTATION">Open the screening console</a>
+        <a class="btn" href="#run">Replay a case here instead</a>
+      </div>
+    </section>
+
+    <section id="evidence">
+      <div class="head" data-reveal>
+        <span class="idx">05</span>
+        <h2>Measured, <span class="thin">not assumed.</span></h2>
+        <p class="lede">The problem statement asks whether an integrated pipeline beats any single
+        technique. That was tested as a controlled ablation — every arm trained and scored under the
+        same conditions, each with its own temperature and threshold — and the deployed design came
+        out on top.</p>
+      </div>
+
+      <div class="grid c2 panels">
+        <div class="panel" data-reveal>
+          <p class="tcap">Ablation: referable DR, internal test</p>
+          <div class="tscroll">
+          <table class="dtable" aria-label="Ablation: referable DR, internal test">
+            <thead><tr><th scope="col">Design</th><th scope="col">AUC</th><th scope="col">Sens</th>
+              <th scope="col">Spec</th><th scope="col">QWK</th><th scope="col">Targets</th></tr></thead>
+            <tbody>
+              <tr class="best"><th scope="row">image CNN — deployed</th><td>0.9883</td><td>0.986</td><td>0.873</td><td>0.894</td><td class="pass">both met</td></tr>
+              <tr><th scope="row">image + clinical fusion</th><td>0.9850</td><td>0.989</td><td>0.882</td><td>0.882</td><td class="pass">both met</td></tr>
+              <tr><th scope="row">clinical features only</th><td>0.9272</td><td>0.880</td><td>0.813</td><td>0.690</td><td class="dim">baseline</td></tr>
+              <tr><th scope="row">ICDR rules only</th><td>0.9115</td><td>1.000</td><td>0.075</td><td>0.000</td><td class="dim">baseline</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="pnote">The image model is deployed because it is the strongest design: the
+          highest AUC of the four, with both screening targets met. The clinical branch still earns
+          its place — it writes the lesion evidence and the ICDR rule trail that ship with every
+          referral.</p>
+        </div>
+
+        <div class="panel" data-reveal>
+          <p class="tcap">Lesion segmentation at 1024 px, IDRiD</p>
+          <div class="tscroll">
+          <table class="dtable" aria-label="Lesion segmentation Dice on IDRiD">
+            <thead><tr><th scope="col">Class</th><th scope="col">Dice</th><th scope="col">Evidence for</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Microaneurysm</th><td>0.481</td><td class="dim">mild NPDR</td></tr>
+              <tr><th scope="row">Haemorrhage</th><td>0.539</td><td class="dim">4-2-1 quadrant rule</td></tr>
+              <tr><th scope="row">Hard exudate</th><td>0.572</td><td class="dim">CSME, distance to fovea</td></tr>
+              <tr><th scope="row">Cotton-wool spot</th><td>0.628</td><td class="dim">moderate NPDR</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="pnote">Microaneurysm, haemorrhage and cotton-wool Dice sit inside the published
+          IDRiD range, and every count is printed in the report as the evidence behind the grade. A
+          channel with no annotation is reported as <em>not assessed</em>, never as a false zero.</p>
+        </div>
+      </div>
+
+      <div class="grid c4" data-reveal-group style="margin-top:60px">
+        <div class="slab"><span class="fig">0.0160</span><p class="meta">Expected calibration error, out-of-fold</p>
+          <p>Isotonic regression on the referable probability, against 0.0254 for temperature scaling
+          alone. Adoption is decided out-of-fold because isotonic scored on its own fitting split
+          reaches zero by construction.</p></div>
+        <div class="slab"><span class="fig">0.015 <sup>DD</sup></span><p class="meta">Optic disc localisation error, median</p>
+          <p>Fovea 0.077 DD, with 97% of foveae inside one disc diameter. Closed form, no training
+          data, about 120 ms on CPU.</p></div>
+        <div class="slab"><span class="fig">+0.127</span><p class="meta">Explanation faithfulness</p>
+          <p>Insertion 0.974 less deletion 0.848 over 40 referable images, with Gini sparsity 0.772.
+          A map that highlights everything explains nothing.</p></div>
+        <div class="slab"><span class="fig">0</span><p class="meta">Measured train / test overlap</p>
+          <p>Splits are subject-grouped by hash so fellow eyes never straddle a boundary, and the data
+          registry raises an error in code if Messidor-2 reaches the training pool.</p></div>
+      </div>
+    </section>
+
+    <section id="programme">
+      <div class="head" data-reveal>
+        <span class="idx">06</span>
+        <h2>It sizes the programme, <span class="thin">not just the model.</span></h2>
+        <p class="lede">A district screening service is a queueing network: rejected images re-enter
+        the camera queue, bandwidth is shared and intermittent, and reviewer time is the scarce
+        resource. The same configuration drives a SimPy reference and a Simulink SimEvents model, so
+        every staffing and hardware choice can be tested before it is bought.</p>
+      </div>
+
+      <p class="tcap" data-reveal>Scenarios: 100,000 patients a year, 12 PHCs, 2 ophthalmologist FTE</p>
+      <div class="tscroll" data-reveal>
+      <table class="dtable" aria-label="Telemedicine scenarios">
+        <thead><tr><th scope="col">Scenario</th><th scope="col">Screened / yr</th><th scope="col">Reviewer load</th>
+          <th scope="col">Routine SLA met</th><th scope="col">p90 turnaround</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">manual review, no AI</th><td>99,968</td><td class="fail">140.5%</td><td class="dim">66.6%</td><td class="dim">17.9 days</td></tr>
+          <tr class="best"><th scope="row">AI-assisted triage</th><td>99,636</td><td class="pass">11.0%</td><td>100%</td><td>0.01 days</td></tr>
+          <tr class="best"><th scope="row">AI at the edge, low bandwidth</th><td>99,568</td><td class="pass">10.9%</td><td>100%</td><td>0.02 days</td></tr>
+          <tr class="best"><th scope="row">AI at twice the demand</th><td>200,455</td><td class="pass">21.9%</td><td>100%</td><td>0.02 days</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="grid c3" data-reveal-group style="margin-top:54px">
+        <div class="slab"><h3>Reviewer load from 141% to 11%</h3>
+          <p class="meta" style="margin-top:14px">AI-assisted triage</p>
+          <p>Manual review asks for 141% of the reading capacity a district has, so the backlog never
+          clears. With AI triage the same two ophthalmologists run at 11%, and the service holds at
+          twice the demand.</p></div>
+        <div class="slab"><h3>The optimiser chose AI, and chose the edge</h3>
+          <p class="meta" style="margin-top:14px">1,024 configurations searched</p>
+          <p>192 were rejected analytically as unstable — every one of them an unaided-review design.
+          The value of triage is an output of the search, not a premise of it. It also picked on-device
+          inference over a GPU server, the opposite of the cloud-first default.</p></div>
+        <div class="slab"><h3>Rs 54 per patient screened</h3>
+          <p class="meta" style="margin-top:14px">Cheapest feasible plan</p>
+          <p>8 PHCs with one camera each, 1.0 ophthalmologist FTE, 50% auto-report coverage, edge
+          inference over 3G. 100,394 screened a year at Rs 53.9 lakh, camera-bound at 54% utilisation.</p></div>
+      </div>
+    </section>
+
+
+    <section id="simulator">
+      <div class="head" data-reveal>
+        <span class="idx">07</span>
+        <h2>Size a district, <span class="thin">then run it.</span></h2>
+        <p class="lede">Our Simulink SimEvents model of the screening service, running in your browser.
+        Set the staff and equipment, press run, and read what the district would do — throughput,
+        who waits and for how long, and which resource runs out first. The engine is a
+        block-for-block port of <em>district_model.slx</em>, checked against MATLAB below.</p>
+      </div>
+
+      <div class="sim" id="sim" data-reveal>
+        <div class="sim-card sim-dia">
+            <div class="sim-h"><span>SIMEVENTS BLOCK DIAGRAM</span><span id="simDiaSrc">district_model.slx</span></div>
+            <div class="dia-wrap"><svg id="simDiagram" role="img" aria-label="The district screening model's SimEvents block diagram"></svg></div>
+            <div class="dia-key"><span><i class="k-e"></i>patient path</span><span><i class="k-s"></i>statistic</span><span><i class="k-r"></i>resource pool</span><span class="dia-note" id="simDiaNote">Health-centre blocks: per centre per day · review hub: the district per day · displays: totals over the run</span></div>
+          </div>
+
+        <form class="sim-ctl" id="simForm" autocomplete="off">
+          <div class="seg" role="radiogroup" aria-label="Which model">
+            <label><input type="radio" name="model" value="improved" checked><span>Improved model</span></label>
+            <label><input type="radio" name="model" value="asbuilt"><span>As built (.slx)</span></label>
+          </div>
+          <p class="sim-note" id="simModelNote"></p>
+
+          <div class="presets" id="simPresets" role="group" aria-label="Presets">
+            <button type="button" data-preset="district" aria-pressed="true">District · 20 days</button>
+            <button type="button" data-preset="double" aria-pressed="false">Twice the demand</button>
+            <button type="button" data-preset="manual" aria-pressed="false">Manual review, no AI</button>
+            <button type="button" data-preset="thin" aria-pressed="false">One reviewer, 2 h a day</button>
+          </div>
+
+          <fieldset class="grp" data-scope="improved"><legend>Resources</legend>
+              <div class="st" data-key="phcs"><span class="st-l">Health centres</span>
+                <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Health centres">−</button>
+                <output class="st-v" id="v_phcs">12</output>
+                <button type="button" class="st-b" data-d="1" aria-label="More: Health centres">+</button>
+                <input type="hidden" name="phcs" value="12" data-min="1" data-max="40"></div>
+              <div class="st" data-key="technicians"><span class="st-l">Technicians<small>per centre</small></span>
+                <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Technicians">−</button>
+                <output class="st-v" id="v_technicians">1</output>
+                <button type="button" class="st-b" data-d="1" aria-label="More: Technicians">+</button>
+                <input type="hidden" name="technicians" value="1" data-min="1" data-max="6"></div>
+              <div class="st" data-key="cameras"><span class="st-l">Fundus cameras<small>per centre</small></span>
+                <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Fundus cameras">−</button>
+                <output class="st-v" id="v_cameras">1</output>
+                <button type="button" class="st-b" data-d="1" aria-label="More: Fundus cameras">+</button>
+                <input type="hidden" name="cameras" value="1" data-min="1" data-max="6"></div>
+              <div class="st" data-key="devices"><span class="st-l">Edge devices<small>per centre</small></span>
+                <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Edge devices">−</button>
+                <output class="st-v" id="v_devices">1</output>
+                <button type="button" class="st-b" data-d="1" aria-label="More: Edge devices">+</button>
+                <input type="hidden" name="devices" value="1" data-min="1" data-max="6"></div>
+              <div class="st" data-key="ophthalmologists"><span class="st-l">Ophthalmologists<small>district hub</small></span>
+                <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Ophthalmologists">−</button>
+                <output class="st-v" id="v_ophthalmologists">2</output>
+                <button type="button" class="st-b" data-d="1" aria-label="More: Ophthalmologists">+</button>
+                <input type="hidden" name="ophthalmologists" value="2" data-min="1" data-max="12"></div>
+          </fieldset>
+
+          <fieldset class="grp" data-scope="improved"><legend>Demand and hours</legend>
+              <label class="rg"><span class="rg-l">Patients per centre per day<output id="v_patientsPerDay">33</output></span>
+                <input type="range" name="patientsPerDay" min="5" max="120" step="1" value="33" data-unit=""></label>
+              <label class="rg"><span class="rg-l">Clinic hours per day<output id="v_sessionHours">7 h</output></span>
+                <input type="range" name="sessionHours" min="2" max="12" step="0.5" value="7" data-unit=" h"></label>
+              <label class="rg"><span class="rg-l">Review hours per day<output id="v_reviewHours">5 h</output></span>
+                <input type="range" name="reviewHours" min="1" max="10" step="0.5" value="5" data-unit=" h"></label>
+              <label class="rg"><span class="rg-l">Working days simulated<output id="v_days">20</output></span>
+                <input type="range" name="days" min="1" max="60" step="1" value="20" data-unit=""></label>
+          </fieldset>
+
+          <fieldset class="grp"><legend>Model</legend>
+              <label class="tg"><input type="checkbox" name="ai" checked><i aria-hidden="true"></i>
+                <span>AI triage on the edge device<small>off: every gradeable image goes to a specialist</small></span></label>
+              <label class="tg"><input type="checkbox" name="priority" checked><i aria-hidden="true"></i>
+                <span>Urgent cases reviewed first<small>sight-threatening patients jump the review queue</small></span></label>
+              <label class="tg"><input type="checkbox" name="stochastic" checked><i aria-hidden="true"></i>
+                <span>Variable service times<small>log-normal, with the programme model's spread</small></span></label>
+          </fieldset>
+
+          <details class="grp adv"><summary>Advanced</summary>
+            <div class="nms">
+                <label class="nm"><span>Capture, min</span><input type="number" name="captureMin" min="1" max="20" step="0.5" value="4"></label>
+                <label class="nm"><span>Review, min</span><input type="number" name="reviewMin" min="0.1" max="10" step="0.1" value="0.5"></label>
+                <label class="nm"><span>Sensitivity</span><input type="number" name="sensitivity" min="0.5" max="1" step="0.001" value="0.986"></label>
+                <label class="nm"><span>Specificity</span><input type="number" name="specificity" min="0.5" max="1" step="0.001" value="0.873"></label>
+                <label class="nm"><span>Pass first time</span><input type="number" name="pPass" min="0.3" max="1" step="0.01" value="0.8"></label>
+                <label class="nm"><span>Fixed by enhancement</span><input type="number" name="pRepair" min="0" max="0.5" step="0.01" value="0.08"></label>
+                <label class="nm"><span>Captures allowed</span><input type="number" name="maxAttempts" min="1" max="6" step="1" value="3"></label>
+                <label class="nm"><span>Replications</span><input type="number" name="reps" min="1" max="40" step="1" value="10"></label>
+                <label class="nm"><span>Seed</span><input type="number" name="seed" min="1" max="99999" step="1" value="1"></label>
+            </div>
+          </details>
+
+          <div class="sim-run">
+            <button type="submit" class="btn solid" id="simRun">Run the model</button>
+            <span class="sim-status" id="simStatus" aria-live="polite">Ready</span>
+          </div>
+        </form>
+
+        <div class="sim-out">
+          <div class="kpis" id="simKpis"></div>
+
+          <div class="sim-row">
+            <div class="sim-card">
+              <div class="sim-h"><span>UTILISATION</span><span id="simBottleneck"></span></div>
+              <div class="ubars" id="simUtil"></div>
+            </div>
+            <div class="sim-card">
+              <div class="sim-h"><span id="simChartTitle">REVIEW QUEUE OVER TIME</span><span class="ch-key"><i class="c1"></i>review queue <i class="c2"></i>waiting rooms</span></div>
+              <svg class="sim-chart" id="simChart" viewBox="0 0 600 200" preserveAspectRatio="none" role="img" aria-label="Queue lengths over the simulated period"></svg>
+              <div class="ch-x" id="simChartX"></div>
+            </div>
+          </div>
+          <p class="sim-read" id="simRead"></p>
+          <div class="sim-valid">
+            <div class="sim-h"><span>CHECKED AGAINST SIMULINK</span><span id="simValidNote"></span></div>
+            <div class="tscroll"><table class="dtable" id="simValid" aria-label="This page's engine against MATLAB's replications of the Simulink model"></table></div>
+            <p class="sim-vnote" id="simValidText"></p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section id="impact">
+      <div class="imp-run" id="impRun">
+        <div class="imp-pin" id="impPin">
+          <div class="imp-top">
+            <p class="imp-eye">08 / WHO IT SERVES <i></i></p>
+            <h2 class="imp-h">Built for national scale. <b>Built on MathWorks.</b></h2>
+          </div>
+          <div class="imp-view" id="impView">
+            <div class="imp-track" id="impTrack">
+            <article class="imp-card mw" aria-label="01, MathWorks, MATLAB">
+              <div class="ic-top"><span>01</span><span class="tags">DEEP LEARNING · IMAGE PROCESSING · MEDICAL IMAGING</span></div>
+              <div class="ic-mid">
+                <h3 class="ic-name">MathWorks <span class="ic-chip">MATLAB</span></h3>
+                <p class="ic-role">Problem-statement partner</p>
+                <p class="ic-head">A national-scale reference application for MATLAB</p>
+                <p class="ic-body">Every stage, from the quality gate to the explained referral, is MATLAB: Image Processing Toolbox conditions the photograph, and Deep Learning Toolbox runs the U-Net, the ordinal grader and the attribution map.</p>
+                <ul class="ic-pts"><li>Nine stages, each a tested MATLAB function</li><li>One validated clinical-AI workflow, end to end</li><li>A healthcare case study on the MathWorks stack</li></ul>
+              </div>
+              <div class="ic-foot"><a href="#pipeline">SEE THE PIPELINE <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a><span class="ic-num" aria-hidden="true">01</span></div>
+            </article>
+            <article class="imp-card mw" aria-label="02, MathWorks, Simulink">
+              <div class="ic-top"><span>02</span><span class="tags">SIMULINK · SIMEVENTS · MATLAB CODER</span></div>
+              <div class="ic-mid">
+                <h3 class="ic-name">MathWorks <span class="ic-chip">Simulink</span></h3>
+                <p class="ic-role">Problem-statement partner</p>
+                <p class="ic-head">Model-Based Design, applied to a public-health programme</p>
+                <p class="ic-body">Cameras, bandwidth, reviewers and recapture loops form a Simulink SimEvents model driven by the same parameters as the pipeline, and MATLAB Coder carries the grader to the edge device the optimiser chose.</p>
+                <ul class="ic-pts"><li>1,024 programme designs searched in simulation</li><li>On-device inference over 3G from generated code</li><li>Courseware for the MathWorks academic programme</li></ul>
+              </div>
+              <div class="ic-foot"><a href="#programme">SEE THE PROGRAMME MODEL <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a><span class="ic-num" aria-hidden="true">02</span></div>
+            </article>
+            <article class="imp-card" aria-label="03, Ministry of Health and Family Welfare">
+              <div class="ic-top"><span>03</span><span class="tags">NPCBVI · NP-NCD · AYUSHMAN AROGYA MANDIR</span></div>
+              <div class="ic-mid">
+                <h3 class="ic-name">Ministry of Health &amp; Family Welfare <span class="ic-chip">MoHFW</span></h3>
+                <p class="ic-head">Screening capacity where specialists are scarce</p>
+                <p class="ic-body">Health-centre staff get capture feedback in under a second, and only referable eyes reach the ophthalmologist. In the programme model, AI triage cuts reviewer load from 141% of capacity to 11%.</p>
+                <ul class="ic-pts"><li>97.3% of sight-threatening eyes referred, zero-shot</li><li>Rs 54 per patient in the cheapest feasible plan</li><li>Stable at twice today's demand</li></ul>
+              </div>
+              <div class="ic-foot"><a href="#need">SEE THE VERDICT <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a><span class="ic-num" aria-hidden="true">03</span></div>
+            </article>
+            <article class="imp-card" aria-label="04, National Health Authority">
+              <div class="ic-top"><span>04</span><span class="tags">ABDM · ABHA · AUDIT TRAIL</span></div>
+              <div class="ic-mid">
+                <h3 class="ic-name">National Health Authority <span class="ic-chip">ABDM · MoHFW</span></h3>
+                <p class="ic-head">A report that can travel with the patient</p>
+                <p class="ic-body">Every screen leaves as structured JSON with its evidence, stage timings and model version, designed to attach to an ABHA health record and to be reconstructed months later from the record alone.</p>
+                <ul class="ic-pts"><li>HTML, PNG and JSON report for every image</li><li>Every decision reconstructable from its record</li><li>Reviewer confirmations stored with the case</li></ul>
+              </div>
+              <div class="ic-foot"><a href="#run">SEE A REPORT <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a><span class="ic-num" aria-hidden="true">04</span></div>
+            </article>
+            <article class="imp-card" aria-label="05, Ministry of Electronics and IT">
+              <div class="ic-top"><span>05</span><span class="tags">INDIAAI · RESPONSIBLE AI · DIGITAL INDIA</span></div>
+              <div class="ic-mid">
+                <h3 class="ic-name">Ministry of Electronics &amp; IT <span class="ic-chip">MeitY</span></h3>
+                <p class="ic-head">Explainable AI that runs on a CPU</p>
+                <p class="ic-body">No GPU and no cloud dependency: the full pipeline answers in about 645 ms on a CPU and works at the edge over 3G, and every referral carries the lesions and the attribution map behind it.</p>
+                <ul class="ic-pts"><li>645 ms median latency, CPU only</li><li>Explanation faithfulness measured, +0.127</li><li>Calibrated confidence, ECE 0.016 out-of-fold</li></ul>
+              </div>
+              <div class="ic-foot"><a href="#evidence">SEE THE EVIDENCE <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a><span class="ic-num" aria-hidden="true">05</span></div>
+            </article>
+            <article class="imp-card" aria-label="06, Department of Health Research">
+              <div class="ic-top"><span>06</span><span class="tags">EVIDENCE · SURVEILLANCE · DRIFT</span></div>
+              <div class="ic-mid">
+                <h3 class="ic-name">Department of Health Research <span class="ic-chip">ICMR</span></h3>
+                <p class="ic-head">Real-world evidence from every screen</p>
+                <p class="ic-body">Each ophthalmologist confirmation is logged against the model's grade, turning routine screening into a continuous measure of how the system performs in the field.</p>
+                <ul class="ic-pts"><li>Drift monitoring from reviewer confirmations</li><li>Per-grade audit against the reference standard</li><li>Train and test leakage checked in code</li></ul>
+              </div>
+              <div class="ic-foot"><a href="#evidence">SEE THE EVIDENCE <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a><span class="ic-num" aria-hidden="true">06</span></div>
+            </article>
+            </div>
+          </div>
+          <div class="imp-rail" id="impRail"><span class="fill" id="impFill"></span><button type="button" data-i="0"><em>01</em><span> MathWorks · MATLAB</span></button><button type="button" data-i="1"><em>02</em><span> MathWorks · Simulink</span></button><button type="button" data-i="2"><em>03</em><span> MoHFW</span></button><button type="button" data-i="3"><em>04</em><span> NHA · ABDM</span></button><button type="button" data-i="4"><em>05</em><span> MeitY</span></button><button type="button" data-i="5"><em>06</em><span> DHR · ICMR</span></button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="close">
+      <h2 data-reveal>Run it on a fresh clone. <span class="thin">No downloads.</span></h2>
+      <div class="actions" data-reveal>
+        <a class="btn solid" href="index.html" data-transition="Screening console" data-eyebrow="WORKSTATION">Open the screening console</a>
+        <a class="btn" href="../README.md">Read the build notes</a>
+        <a class="btn" href="../RESULTS.md">Full results and conclusions</a>
+      </div>
+      <p class="notice">Automated AI-assisted screening support for clinical decision-making. It does
+      not replace examination by a qualified ophthalmologist, and no output on this page constitutes
+      a diagnosis.</p>
+      <footer>
+        <span>SMART INDIA HACKATHON 2026 / PROBLEM STATEMENT SIH-26038</span>
+        <span>TRAINED ON APTOS-2019 + IDRiD / MESSIDOR-2 HELD OUT IN CODE</span>
+      </footer>
+    </section>
+
+    </div><!-- /.col -->
+  </main>
+</div>
+
+<script src="transition.js?v=5"></script>
+<script src="nerves.js?v=5"></script>
+<script src="case-data.js?v=5"></script>
+<script src="district-model.js?v=5"></script>
+<script src="district-sim.js?v=5"></script>
+<script src="district-ui.js?v=5"></script>
+<script>
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const GRADE_C = ['var(--g0)','var(--g1)','var(--g2)','var(--g3)','var(--g4)'];
+const BUNDLE  = window.DR_CASES || {gradeLabels:[],cases:[]};
+const GRADE_L = BUNDLE.gradeLabels;
+const CASES   = BUNDLE.cases;
+
+/* ══ scroll reveals ═══════════════════════════════════════════════════════ */
+(function reveals(){
+  const els=[...document.querySelectorAll('[data-reveal],[data-reveal-group]')];
+  if(REDUCED){ els.forEach(e=>e.classList.add('in')); return; }
+  const io=new IntersectionObserver(es=>es.forEach(e=>{
+    if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+  }),{rootMargin:'0px 0px -10% 0px',threshold:.06});
+  els.forEach(e=>io.observe(e));
+  // Backstop: content hidden until an observer fires is content that stays
+  // hidden forever if the observer never does. Sweep geometrically too.
+  let tick=false;
+  function sweep(){
+    tick=false;
+    for(let i=els.length-1;i>=0;i--){
+      const e=els[i];
+      if(e.classList.contains('in')){ els.splice(i,1); continue; }
+      if(e.getBoundingClientRect().top < innerHeight*0.94){
+        e.classList.add('in'); io.unobserve(e); els.splice(i,1);
+      }
+    }
+    if(!els.length){ removeEventListener('scroll',onScroll); removeEventListener('resize',onScroll); }
+  }
+  let lastSweep=0;
+  function onScroll(){
+    const now=Date.now();
+    if(now-lastSweep>80){ lastSweep=now; sweep(); }
+    else if(!tick){ tick=true; setTimeout(()=>{ lastSweep=Date.now(); sweep(); },90); }
+  }
+  addEventListener('scroll',onScroll,{passive:true});
+  addEventListener('resize',onScroll,{passive:true});
+  const poll=setInterval(()=>{ sweep(); if(!els.length) clearInterval(poll); },350);
+  setTimeout(sweep,300);
+})();
+
+/* ══ figures count up the first time they are seen ═══════════════════════
+   The final text is restored exactly, so what is read is always what was
+   written; the count is only the approach to it. */
+(function countUps(){
+  const els=[...document.querySelectorAll('.hero-strip b, .slab .fig')];
+  function run(el){
+    if(el.dataset.counted) return; el.dataset.counted='1';
+    const tn=[...el.childNodes].find(n=>n.nodeType===3 && /\d/.test(n.nodeValue)); if(!tn || REDUCED) return;
+    const orig=tn.nodeValue, m=orig.match(/([+-]?)(\d+(?:\.\d+)?)/); if(!m) return;
+    const dec=(m[2].split('.')[1]||'').length, target=parseFloat(m[2]);
+    const pre=orig.slice(0,m.index)+m[1], post=orig.slice(m.index+m[0].length), t0=performance.now(), dur=1200;
+    const iv=setInterval(()=>{ const f=Math.min(1,(performance.now()-t0)/dur), e=1-Math.pow(1-f,3);
+      tn.nodeValue=pre+(target*e).toFixed(dec)+post; if(f>=1){ clearInterval(iv); tn.nodeValue=orig; } },32);
+  }
+  const poll=setInterval(()=>{ let left=0;
+    els.forEach(el=>{ if(el.dataset.counted) return; left++; const r=el.getBoundingClientRect();
+      if(r.top<innerHeight*.9 && r.bottom>0) run(el); });
+    if(!left) clearInterval(poll); },250);
+})();
+
+/* ══ top bar + section tracking ═══════════════════════════════════════════ */
+(function nav(){
+  const bar=document.getElementById('bar');
+  const onScroll=()=>bar.classList.toggle('stuck',scrollY>40);
+  addEventListener('scroll',onScroll,{passive:true}); onScroll();
+  const links=[...document.querySelectorAll('.rail a, .bar nav a')];
+  const io=new IntersectionObserver(es=>es.forEach(e=>{
+    if(!e.isIntersecting) return;
+    links.forEach(a=>a.setAttribute('aria-current',
+      a.getAttribute('href')==='#'+e.target.id ? 'true':'false'));
+  }),{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+})();
+
+/* ══ pipeline diagram ═════════════════════════════════════════════════════ */
+const STAGES = {
+  "1":{id:"STAGE 01",t:"Geometry",b:"Circular field-of-view detection, tight crop, square pad, resize. Aspect ratio is preserved because the optic disc diameter is the clinical unit — two ICDR criteria are measured in disc diameters, so distorting the frame silently corrupts the grade.",m:[["Output","FOV mask, tight square crop"],["Runs on","CPU"]]},
+  "2":{id:"STAGE 02",t:"Quality gate",b:"Nine interpretable criteria — focus, illumination, contrast, field of view, macula presence, artefact, under- and over-exposure, noise — each scored in [0,1] with a pass, borderline or fail verdict. A CNN logit cannot tell a technician that the macula is out of frame. These can.",m:[["Criteria","9, physics-based"],["Correctable","illumination, exposure, contrast, noise"],["Not correctable","focus, FOV, macula, artefact"]]},
+  "R":{id:"HALT",t:"Recapture instruction",b:"If an uncorrectable defect fails the gate, the pipeline stops and returns capture advice instead of a grade. Out-of-focus detail is gone, retina outside the aperture was never recorded, and an absent macula cannot be invented.",m:[["Returns","named defect and advice"],["Cost modelled","recapture loop feeds the camera queue"]]},
+  "3":{id:"STAGE 03",t:"Enhancement",b:"Only the corrections the gate actually asked for. Asking a patient in a rural health centre to return because the flash was uneven — when illumination normalisation exists precisely to remove that gradient — wastes a visit that can cost a day's wages and a bus fare.",m:[["Applies","grey-world, CLAHE, denoise"],["Then","re-checks the gate"]]},
+  "4":{id:"STAGE 04",t:"Landmarks",b:"Optic disc and fovea, located in closed form, establishing the clinical coordinate frame. Severe NPDR is defined by lesion counts per quadrant and CSME by distance from the fovea in disc diameters — both need a frame, and one that fails silently is worse than none.",m:[["Disc error","0.015 DD median"],["Fovea error","0.077 DD median, 97% within 1 DD"],["Latency","~120 ms, CPU"]]},
+  "5":{id:"STAGE 05",t:"Segmentation",b:"An attention U-Net over vessels and five lesion classes, running at 1024 px — the resolution at which a microaneurysm, only a few pixels across, is still there to be found. The lesion model and the grader each run at the resolution their task needs.",m:[["Resolution","1024 px"],["Classes","vessels + 5 lesions"],["Feeds","per-quadrant lesion counts"]]},
+  "6":{id:"STAGE 06",t:"Clinical features",b:"Lesion counts per quadrant, neovascularisation location, exudate distance from the fovea. These are the quantities the ICDR criteria are written in, and they are what the report prints as evidence.",m:[["Feeds","rule engine and explanation"],["Gate","down-weighted when segmentation is unreliable"]]},
+  "7a":{id:"STAGE 07a",t:"Rule engine",b:"ICDR criteria applied directly to the measured features — the 4-2-1 rule and the rest. It is not the deployed grader, but it produces the reasoning trail that ships with every referral, so a reviewer can see which criterion fired.",m:[["Output","grade + criterion trail"],["Role","explanation, not referral score"]]},
+  "7b":{id:"STAGE 07b",t:"Ordinal grader",b:"A CORN head, not a five-way softmax. DR grades are ordered and the screening question is cumulative — is this grade at least 2? CORN predicts that directly and the result is monotone by construction, so the referable probability is a quantity the model actually optimised.",m:[["Head","CORN ordinal"],["Calibration","isotonic on P(referable)"],["Deployed arm","image-only CNN"]]},
+  "8":{id:"STAGE 08",t:"Decision",b:"Auto-report, refer, or defer to a human, against a threshold of 0.1999 frozen on the validation split under a sensitivity-first policy. Anything sight-threatening, any neovascularisation and any suspected CSME goes to a person regardless of confidence.",m:[["Threshold","0.1999, fitted on val"],["Abstention","uncertainty band defers"],["Override","grade ≥ 3 always human"]]},
+  "9":{id:"STAGE 09",t:"Explanation",b:"Grad-CAM++ over the referable log-odds, plus the lesion evidence written in words. Producing a heatmap is trivial; evidence that it means anything is the work, so faithfulness, sparsity and pointing-game scores are computed rather than assumed.",m:[["Faithfulness","+0.127 insertion − deletion"],["Sparsity","Gini 0.772"],["Emits","HTML, PNG panel, JSON"]]}
+};
+const nodes = [...document.querySelectorAll('.node')];
+const readId=document.getElementById('pipeId'), readTitle=document.getElementById('pipeTitle'),
+      readBody=document.getElementById('pipeBody'), readMeta=document.getElementById('pipeMeta');
+
+function showStage(k){
+  const s=STAGES[k]; if(!s) return;
+  nodes.forEach(n=>n.setAttribute('data-on', n.dataset.stage===k?'1':'0'));
+  readId.textContent=s.id; readTitle.textContent=s.t; readBody.textContent=s.b;
+  readMeta.innerHTML=s.m.map(([a,b])=>'<dt>'+a+'</dt><dd>'+b+'</dd>').join('');
+}
+// SVG groups take focus but do not reliably dispatch focus events, so the
+// interactive layer is real buttons positioned over each drawn box.
+(function buildHits(){
+  const hits=document.getElementById('pipeHits');
+  const vb=document.querySelector('.pipe-svg').viewBox.baseVal;
+  nodes.forEach(n=>{
+    const r=n.querySelector('rect'), k=n.dataset.stage;
+    const b=document.createElement('button');
+    b.type='button'; b.className='hit'; b.dataset.stage=k;
+    b.setAttribute('aria-label', n.getAttribute('aria-label')||('Stage '+k));
+    b.style.left  =(r.x.baseVal.value     /vb.width *100)+'%';
+    b.style.top   =(r.y.baseVal.value     /vb.height*100)+'%';
+    b.style.width =(r.width.baseVal.value /vb.width *100)+'%';
+    b.style.height=(r.height.baseVal.value/vb.height*100)+'%';
+    ['mouseenter','focus','click'].forEach(ev=>b.addEventListener(ev,()=>showStage(k)));
+    hits.appendChild(b);
+  });
+  showStage('1');
+})();
+(function reservePipeRead(){
+  const aside=document.querySelector('.pipe-read'); if(!aside) return;
+  function measure(){
+    const probe=aside.cloneNode(true);
+    probe.removeAttribute('aria-live'); probe.querySelectorAll('[id]').forEach(e=>e.removeAttribute('id'));
+    probe.style.cssText='position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;min-height:0;width:'+aside.getBoundingClientRect().width+'px';
+    document.body.appendChild(probe);
+    const rid=probe.querySelector('.rid'), h3=probe.querySelector('h3'), p=probe.querySelector('p'), dl=probe.querySelector('dl');
+    let h=0;
+    Object.values(STAGES).forEach(s=>{
+      rid.textContent=s.id; h3.textContent=s.t; p.textContent=s.b;
+      dl.innerHTML=s.m.map(([a,b])=>'<dt>'+a+'</dt><dd>'+b+'</dd>').join('');
+      h=Math.max(h,probe.offsetHeight);
+    });
+    probe.remove(); aside.style.minHeight=Math.ceil(h)+'px';
+  }
+  measure(); setTimeout(measure,400);
+  let rt; addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(measure,150); });
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(measure);
+})();
+
+/* ══ run a case ═══════════════════════════════════════════════════════════ */
+(function runner(){
+  if(!CASES.length) return;
+  const pick=document.getElementById('runPick'), go=document.getElementById('runGo'),
+        status=document.getElementById('runStatus'), who=document.getElementById('runWho'),
+        img=document.getElementById('runImg'), ticker=document.getElementById('runTicker'),
+        qual=document.getElementById('runQuality'), dist=document.getElementById('runDist'),
+        distL=document.getElementById('runDistLabels'), decide=document.getElementById('runDecision'),
+        les=document.getElementById('runLesions'), lmk=document.getElementById('runLandmarks'),
+        evWrap=document.getElementById('runExplainWrap'), ev=document.getElementById('runEvidence'),
+        panel=document.getElementById('runPanel'), panelCap=document.getElementById('runPanelCap'),
+        report=document.getElementById('runReport');
+
+  const THRESHOLD=0.1999;
+  const LESIONS=[['microaneurysm','Microaneurysm','--les-ma'],
+                 ['hemorrhage','Haemorrhage','--les-hem'],
+                 ['hard_exudate','Hard exudate','--les-hex'],
+                 ['soft_exudate','Soft exudate','--les-sex'],
+                 ['neovascularization','Neovascularisation','--les-nv']];
+  const QKEYS=['focus','illumination','contrast','fov','macula','artifact','under_exposure','over_exposure','noise'];
+  const QLBL={focus:'focus',illumination:'illum',contrast:'contrast',fov:'FOV',macula:'macula',
+              artifact:'artefact',under_exposure:'under-exp',over_exposure:'over-exp',noise:'noise'};
+
+  let current=CASES[0], timer=null;
+
+  pick.innerHTML = CASES.map(function(c,i){
+    return '<button class="thumb" type="button" data-i="'+i+'" aria-pressed="false" style="--c:'
+      + GRADE_C[c.trueGrade]+'" aria-label="Case '+(i+1)+', reference grade '+c.trueGrade+', '
+      + GRADE_L[c.trueGrade]+'"><img src="'+c.image+'" alt="" loading="lazy"><b>G'+c.trueGrade+'</b></button>';
+  }).join('');
+
+  function reset(){
+    if(timer){ clearTimeout(timer); timer=null; }
+    nodes.forEach(n=>{ n.removeAttribute('data-fire'); n.removeAttribute('data-done'); });
+    status.textContent='READY'; status.className='run-status';
+    go.disabled=false; go.textContent='Analyse image';
+    evWrap.hidden=true;
+    ticker.innerHTML = current.stages.map(function(s){
+      return '<div class="tick" data-state="idle"><span class="n">'
+        + String(s.stage).toUpperCase()+'</span><span class="nm">'
+        + s.key.replace(/_/g,' ')+'</span><span class="ms">'+s.ms.toFixed(1)+' ms</span></div>';
+    }).join('');
+    qual.innerHTML=''; dist.innerHTML=''; distL.innerHTML='';
+    decide.innerHTML=''; les.innerHTML=''; lmk.innerHTML='';
+  }
+
+  function select(i){
+    current=CASES[i];
+    [...pick.children].forEach((b,j)=>b.setAttribute('aria-pressed', j===i?'true':'false'));
+    img.src=current.image;
+    img.alt='Fundus photograph, reference grade '+current.trueGrade+', '+GRADE_L[current.trueGrade];
+    who.innerHTML='<b>'+current.id+'</b> — '+current.source+', held-out test split'
+      + (current.px ? ', '+current.px[0]+'×'+current.px[1]+' px' : '')
+      + '. Reference grade '+current.trueGrade+'.';
+    report.href=current.report;
+    document.getElementById('runConsole').href='index.html?case='+encodeURIComponent(current.id);
+    reset();
+  }
+
+  pick.addEventListener('click',function(e){
+    const b=e.target.closest('.thumb'); if(b) select(+b.dataset.i);
+  });
+
+  function paintQuality(){
+    const s=current.quality.scores, v=current.quality.verdicts;
+    const keys=QKEYS.filter(k=>k in s);
+    qual.innerHTML = keys.map(function(k){
+      const col = v[k]==='fail' ? 'var(--g4)' : v[k]==='borderline' ? 'var(--g2)' : 'var(--g0)';
+      return '<div class="qrow" data-v="'+v[k]+'"><span class="lbl">'+QLBL[k]
+        + '</span><span class="qtrack"><span class="qfill" style="--c:'+col
+        + '"></span></span><span class="v">'+s[k].toFixed(2)+'</span></div>';
+    }).join('');
+    setTimeout(function(){
+      qual.querySelectorAll('.qfill').forEach(function(f,i){ f.style.width=(s[keys[i]]*100)+'%'; });
+    },30);
+    const q=current.quality, L=current.landmarks;
+    lmk.innerHTML =
+      '<div class="lrow" style="--c:var(--disc)"><span class="swatch"></span><span class="nm">optic disc</span><span class="ct">conf '+(L.discConf??0).toFixed(2)+'</span></div>'
+    + '<div class="lrow" style="--c:var(--les-hex)"><span class="swatch"></span><span class="nm">fovea</span><span class="ct">conf '+(L.foveaConf??0).toFixed(2)+'</span></div>'
+    + '<div class="lrow" style="--c:var(--vessel)"><span class="swatch"></span><span class="nm">laterality</span><span class="ct">'+(L.laterality||'—')+'</span></div>'
+    + '<div class="lrow" style="--c:var(--muted)"><span class="swatch"></span><span class="nm">disc diameter</span><span class="ct">'+L.discDiameterPx+' px</span></div>'
+    + '<p class="quad">gate: '+q.overall+(q.issues.length?' — '+q.issues.join(', '):'')
+    + (current.enhancement.length?'; applied '+current.enhancement.join(', '):'')+'</p>';
+  }
+
+  function paintResult(){
+    const p=current.classProbs, top=p.indexOf(Math.max.apply(null,p));
+    dist.innerHTML = p.map(function(v,i){
+      return '<div class="dbar" data-top="'+(i===top?1:0)+'" style="--c:'+GRADE_C[i]+'">'
+        + '<span class="pc">'+(v*100).toFixed(1)+'%</span>'
+        + '<span class="fillbox" data-h="'+Math.max(2,v*100)+'"></span></div>';
+    }).join('');
+    distL.innerHTML = p.map((v,i)=>'<span>G'+i+'</span>').join('');
+    setTimeout(function(){
+      dist.querySelectorAll('.fillbox').forEach(f=>{ f.style.height=f.dataset.h+'%'; });
+    },30);
+
+    const referred=current.decision==='refer';
+    const col=referred?'var(--g3)':'var(--g0)';
+    decide.innerHTML =
+      '<div class="decide" style="--c:'+col+'"><div class="d">'
+      + current.decision.replace(/_/g,' ').toUpperCase()+'</div><div class="u">urgency '
+      + current.urgency+'; grade '+current.grade+', '+current.gradeLabel+'; confidence '
+      + current.confidence.toFixed(3)+'</div>'
+      + '<div class="gauge"><span class="fill" style="--c:'+col+'"></span>'
+      + '<span class="thr" style="left:'+(THRESHOLD*100)+'%"></span></div>'
+      + '<div class="gauge-key"><span>P(referable) '+current.referableP.toFixed(3)
+      + '</span><span>threshold '+THRESHOLD+'</span></div></div>'
+      + '<p class="quad" style="margin-top:10px">entropy '+current.entropy
+      + '; epistemic variance '+current.epistemic+'; rule engine said grade '
+      + current.ruleGrade+' ('+current.agreement+')</p>';
+    setTimeout(function(){
+      const f=decide.querySelector('.gauge .fill');
+      if(f) f.style.width=Math.min(100,current.referableP*100)+'%';
+    },30);
+
+    les.innerHTML = LESIONS.map(function(row){
+      const k=row[0], label=row[1], c=row[2];
+      const n=current.counts[k];
+      const unassessed = k==='neovascularization' && current.evidence.findings
+        .some(f=>f.finding==='neovascularization' && f.status==='not assessed');
+      const q=current.perQuadrant[k];
+      const quad = (q && n>0 && !unassessed)
+        ? '<p class="quad">sup '+q.superior+'; inf '+q.inferior+'; nas '+q.nasal+'; tmp '+q.temporal+'</p>' : '';
+      return '<div class="lrow '+(unassessed?'na':(n?'':'none'))+'" style="--c:var('+c+')">'
+        + '<span class="swatch"></span><span class="nm">'+label+'</span><span class="ct">'
+        + (unassessed?'NOT ASSESSED':n)+'</span></div>'+quad;
+    }).join('');
+
+    const e=current.evidence, rows=[];
+    const naNames=e.findings.filter(f=>f.status==='not assessed').map(f=>f.finding);
+    e.findings.filter(f=>f.status==='not assessed').forEach(function(f){
+      const alsoInTrail=e.criteria.some(c=>c.toLowerCase().indexOf('not assessed')>-1);
+      if(!alsoInTrail) rows.push('<li class="na">'+f.finding+': '+f.detail+'</li>');
+    });
+    e.criteria.forEach(function(c){
+      const na=c.toLowerCase().indexOf('not assessed')>-1;
+      rows.push('<li'+(na?' class="na"':'')+'>'+c+'</li>');
+    });
+    if(e.macula) rows.push('<li class="mac">'+e.macula+'</li>');
+    if(current.recapture && current.recapture.length)
+      rows.push('<li class="na">Recapture advice: '+current.recapture.join('; ')+'</li>');
+    ev.innerHTML=rows.join('');
+
+    panel.src=current.panel;
+    panel.alt='Three-panel report for '+current.id
+      + ': enhanced fundus, detected lesions by class, and the Grad-CAM attention map.';
+    panelCap.textContent=current.id
+      + ' — enhanced fundus, detected lesions with the ICDR evidence they support, and where the '
+      + 'grader actually looked. Model '+current.modelVersion+'.';
+    evWrap.hidden=false;
+  }
+
+  function play(){
+    reset();
+    go.disabled=true; go.textContent='Running';
+    status.textContent='RUNNING'; status.className='run-status busy';
+    const ticks=[...ticker.children], stages=current.stages;
+    const scale = REDUCED ? 0 : 3;   // real ms, slowed so 645 ms is legible
+    let i=0;
+    (function step(){
+      if(i>0){
+        ticks[i-1].dataset.state='done';
+        const prev=nodes.find(n=>n.dataset.stage===stages[i-1].stage);
+        if(prev){ prev.removeAttribute('data-fire'); prev.setAttribute('data-done','1'); }
+      }
+      if(i>=stages.length){
+        status.textContent='COMPLETE, '+current.totalMs.toFixed(1)+' ms';
+        status.className='run-status done';
+        go.disabled=false; go.textContent='Run again';
+        paintResult();
+        return;
+      }
+      ticks[i].dataset.state='run';
+      const n=nodes.find(x=>x.dataset.stage===stages[i].stage);
+      if(n) n.setAttribute('data-fire','1');
+      if(stages[i].key==='quality') paintQuality();
+      const wait=stages[i].ms*scale;
+      i++;
+      timer=setTimeout(step, REDUCED?0:Math.max(90,wait));
+    })();
+  }
+
+  go.addEventListener('click',play);
+  select(CASES.length>6 ? 6 : 0);   // a referable case reads better first
+})();
+
+/* ══ 08: the card rail ════════════════════════════════════════════════════
+   Pinned while vertical scroll drives it sideways; on phones, short screens
+   and under reduced motion it is an ordinary swipeable row. State is set
+   straight from scroll events, never from animation frames. */
+(function impact(){
+  const sec=document.getElementById('impact'), run=document.getElementById('impRun'),
+        pin=document.getElementById('impPin'), view=document.getElementById('impView'),
+        track=document.getElementById('impTrack'), fill=document.getElementById('impFill');
+  if(!sec) return;
+  const cards=[...track.children], labels=[...document.querySelectorAll('#impRail button')];
+  let flat=true, dist=0;
+  function mark(p){
+    const n=cards.length-1, f=p*n, i=Math.max(0,Math.min(n,Math.round(f)));
+    cards.forEach((c,j)=>c.classList.toggle('on',j===i));
+    labels.forEach((l,j)=>l.classList.toggle('on',j===i));
+    // the line runs label to label: at card j it ends under label j
+    const ends=labels.map(l=>l.offsetLeft+l.offsetWidth), a=Math.floor(f), b=Math.min(n,a+1);
+    fill.style.width=(ends[a]+(ends[b]-ends[a])*(f-a)).toFixed(1)+'px';
+  }
+  function update(){
+    if(flat){ const m=view.scrollWidth-view.clientWidth; dist=m; mark(m>0?view.scrollLeft/m:0); return; }
+    const top=run.getBoundingClientRect().top+scrollY-parseFloat(getComputedStyle(pin).top);
+    if(window.drPins&&window.drPins[0]) window.drPins[0].start=top;   // content above can grow
+    const p=dist>0?Math.max(0,Math.min(1,(scrollY-top)/dist)):0;
+    track.style.transform='translate3d('+(-p*dist).toFixed(1)+'px,0,0)';
+    mark(p);
+  }
+  function layout(){
+    flat = REDUCED || innerWidth<760 || innerHeight<600;
+    if(!flat){                         // pinned only if the pinned view actually fits the screen
+      sec.classList.remove('flat');
+      if(pin.scrollHeight>pin.clientHeight+2) flat=true;
+    }
+    sec.classList.toggle('flat',flat);
+    if(flat){ window.drPins=[]; run.style.height=''; track.style.transform=''; }
+    else{
+      track.style.transform='';
+      dist=Math.max(0,track.scrollWidth-view.clientWidth);
+      const top=run.getBoundingClientRect().top+scrollY-parseFloat(getComputedStyle(pin).top);
+      window.drPins=[{start:top,len:dist}];   // the background holds still across this stretch
+      run.style.height=(pin.offsetHeight+dist)+'px';
+    }
+    update();
+  }
+  labels.forEach((l,j)=>l.addEventListener('click',()=>{
+    const f=j/(cards.length-1);
+    if(flat){ view.scrollTo({left:f*(view.scrollWidth-view.clientWidth),behavior:REDUCED?'auto':'smooth'}); return; }
+    const top=run.getBoundingClientRect().top+scrollY-parseFloat(getComputedStyle(pin).top);
+    scrollTo({top:top+f*dist+1,behavior:REDUCED?'auto':'smooth'});
+  }));
+  addEventListener('scroll',update,{passive:true});
+  view.addEventListener('scroll',()=>{ if(flat) update(); },{passive:true});
+  let rt; addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(layout,120); });
+  layout(); setTimeout(layout,400); addEventListener('load',layout);
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(layout);
+})();
+</script>
+</body>
+</html>

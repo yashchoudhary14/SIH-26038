@@ -112,8 +112,19 @@ Then the demo and the console:
 
 ```bash
 python scripts/run_demo.py --demo
-python -m uvicorn drscreen.api:app --port 8000     # open http://localhost:8000
 ```
+
+The website runs on the **MATLAB backend** (see
+[`convrt_matlab/README.md`](convrt_matlab/README.md)); it serves this
+repository's `web/` folder and the same API:
+
+```matlab
+cd convrt_matlab
+launch_web                                        % open http://localhost:8000
+```
+
+The Python backend (`python -m uvicorn drscreen.api:app --port 8000`) serves
+the same page and returns the same JSON, if you need it instead.
 
 ### The verification set (12 real photographs)
 
@@ -123,7 +134,7 @@ on, never used to fit a threshold. They ship in the repository, so the console
 runs on real retinas with no dataset download:
 
 ```bash
-python -m uvicorn drscreen.api:app --port 8000     # click any thumbnail
+matlab -batch "cd convrt_matlab; launch_web"       # then click any thumbnail
 python scripts/build_verification_set.py           # rebuild from data/raw
 ```
 

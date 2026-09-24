@@ -1,0 +1,237 @@
+{
+  "arch": "tf_efficientnet_b0",
+  "stem": {
+    "kernel": 3,
+    "stride": 2,
+    "act": "silu"
+  },
+  "blocks": [
+    {
+      "name": "b00",
+      "kernel": 3,
+      "stride": 1,
+      "skip": false,
+      "type": "ds",
+      "acts": [
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b01",
+      "kernel": 3,
+      "stride": 2,
+      "skip": false,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b02",
+      "kernel": 3,
+      "stride": 1,
+      "skip": true,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b03",
+      "kernel": 5,
+      "stride": 2,
+      "skip": false,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b04",
+      "kernel": 5,
+      "stride": 1,
+      "skip": true,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b05",
+      "kernel": 3,
+      "stride": 2,
+      "skip": false,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b06",
+      "kernel": 3,
+      "stride": 1,
+      "skip": true,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b07",
+      "kernel": 3,
+      "stride": 1,
+      "skip": true,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b08",
+      "kernel": 5,
+      "stride": 1,
+      "skip": false,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b09",
+      "kernel": 5,
+      "stride": 1,
+      "skip": true,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b10",
+      "kernel": 5,
+      "stride": 1,
+      "skip": true,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b11",
+      "kernel": 5,
+      "stride": 2,
+      "skip": false,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b12",
+      "kernel": 5,
+      "stride": 1,
+      "skip": true,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b13",
+      "kernel": 5,
+      "stride": 1,
+      "skip": true,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b14",
+      "kernel": 5,
+      "stride": 1,
+      "skip": true,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    },
+    {
+      "name": "b15",
+      "kernel": 3,
+      "stride": 1,
+      "skip": false,
+      "type": "ir",
+      "acts": [
+        "silu",
+        "silu",
+        "identity"
+      ]
+    }
+  ],
+  "head_conv": {
+    "act": "silu",
+    "channels": 1280
+  },
+  "mlp": {
+    "layernorm_eps": 1e-05,
+    "feature_dropout": 0.3,
+    "hidden_dropout": 0.3,
+    "hidden": 256,
+    "outputs": 4
+  },
+  "num_classes": 5,
+  "normalization": {
+    "mean": [
+      0.48500001430511475,
+      0.4560000002384186,
+      0.4059999883174896
+    ],
+    "std": [
+      0.2290000021457672,
+      0.2240000069141388,
+      0.22499999403953552
+    ]
+  },
+  "checkpoint": {
+    "epoch": 21,
+    "auc": 0.9747775134373072,
+    "qwk": 0.8939952212636724,
+    "sens_sight_threatening": 0.7464788732394366,
+    "select_on": "qwk",
+    "use_clinical": false,
+    "backbone": "tf_efficientnet_b0",
+    "use_image": true,
+    "arm": "cnn",
+    "size": 512
+  }
+}
