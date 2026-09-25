@@ -26,22 +26,39 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from .constants import ICDR_GRADES
 from .data import samples
 from .explain.report import build_review_panel, render_html
 from .pipeline import DRScreeningPipeline, PipelineConfig
+from .preprocess.quality import DEFAULT_THRESHOLDS as QUALITY_THRESHOLDS
 
 app = FastAPI(title="DR Screening", version="1.0.0",
               description="Explainable diabetic retinopathy screening for rural India")
+
+# The console and the project page are static files. Served from anywhere other
+# than this process (a plain file server, a second port), every request to the
+# API is cross-origin, and without this the browser refuses the upload before
+# the server ever sees it. Only loopback origins are admitted: this is a local
+# demonstration service, not a public endpoint.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 _PIPELINE: DRScreeningPipeline | None = None
 _ARTIFACTS_DIR = Path("outputs/artifacts")
 _CASES_DIR = Path("outputs/verification_set")
 _AUDIT_LOG = Path("outputs/audit/reviews.jsonl")
-_WEB_DIR = Path(__file__).resolve().parents[2] / "web"
+_ROOT = Path(__file__).resolve().parents[2]
+_WEB_DIR = _ROOT / "web"
+_VSET_DIR = _ROOT / "outputs" / "verification_set"
 
 
 def get_pipeline() -> DRScreeningPipeline:
@@ -76,14 +93,20 @@ def health() -> dict:
         "temperature": p.cfg.temperature,
         "model_version": p.cfg.model_version,
         "artifacts_dir": str(_ARTIFACTS_DIR),
+        # landmark coordinates in every result are in this square frame
+        "image_size": p.cfg.size,
+        # (fail_below, borderline_below) per criterion, so the console can draw
+        # the gate's real cut-points rather than a guess
+        "quality_thresholds": {k: list(v) for k, v in QUALITY_THRESHOLDS.items()},
     }
 
 
 @app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    f = _WEB_DIR / "index.html"
-    if f.exists():
-        return f.read_text(encoding="utf-8")
+def index():
+    # Redirect rather than inline the page: the console loads scripts and
+    # images by relative path, which only resolve from /web/.
+    if (_WEB_DIR / "index.html").exists():
+        return RedirectResponse("/web/index.html")
     return "<h1>DR Screening</h1><p>Console not found. POST an image to /screen.</p>"
 
 
@@ -303,3 +326,41 @@ def audit(limit: int = 500) -> dict:
             "under_30s_fraction": float(np.mean([t <= 30 for t in times])) if times else None,
         },
     }
+
+
+# --------------------------------------------------------------------------
+# Static pages
+# --------------------------------------------------------------------------
+# One process serves everything: the console and the project page under /web,
+# and the committed verification set they reference by relative path. Mounted
+# last so they can never shadow an API route.
+@app.get("/README.md", include_in_schema=False)
+@app.get("/RESULTS.md", include_in_schema=False)
+def project_notes(request: Request) -> Response:
+    # The project page links to these two documents by relative path; serve
+    # exactly them (as plain text, so a browser displays rather than
+    # downloads), and nothing else from the repository root.
+    f = _ROOT / request.url.path.lstrip("/")
+    if not f.is_file():
+        raise HTTPException(404, "not found")
+    return Response(f.read_text(encoding="utf-8"), media_type="text/plain; charset=utf-8")
+
+
+class _Revalidated(StaticFiles):
+    """Static files a browser must revalidate before reusing.
+
+    With only Last-Modified and an ETag, browsers cache heuristically and can
+    keep running a stale script for minutes after it changes. ``no-cache``
+    still lets them use their copy; it only makes them ask first, which costs
+    a 304 when nothing changed."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+if _WEB_DIR.is_dir():
+    app.mount("/web", _Revalidated(directory=_WEB_DIR, html=True), name="web")
+if _VSET_DIR.is_dir():
+    app.mount("/outputs/verification_set", StaticFiles(directory=_VSET_DIR), name="vset")
