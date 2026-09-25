@@ -374,7 +374,7 @@
     ctx.globalCompositeOperation = "lighter";
     ctx.lineCap = "round"; ctx.lineJoin = "round";
     const sy = scrolled(), e = REDUCED ? 99 : t - T0 - IGN;
-    const heroFade = Math.max(0, 1 - sy / (VH * 0.9));      // the hero may be a little brighter
+    const heroFade = VH ? Math.max(0, 1 - sy / (VH * 0.9)) : 1;   // the hero may be a little brighter (VH is 0 in a hidden tab)
     const appear = REDUCED ? 1 : smooth(-IGN + 0.1, 1.2, e); // stars and haze arrive with the focus
     const bt = beat(e);
 

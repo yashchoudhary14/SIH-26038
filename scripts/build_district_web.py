@@ -4,10 +4,13 @@ The dossier's simulator draws the SimEvents block diagram and compares its
 own engine with MATLAB. Both come from here, so the page cannot drift from
 the model file:
 
-* the diagram — every block's position and type, and every connection routed
-  exactly as Simulink routes it — read from the .slx package;
+* the diagram — every block's position and type, every connection routed
+  exactly as Simulink routes it, and the stage panels and branch labels —
+  read from `simulink/district_model.slx` (built by
+  build_district_model.m), and from its recapture variant
+  `simulink/figures/district_model_recapture.slx` when present;
 * the reference results — MATLAB replications written by
-  `Simulink Model/run_district_model.m` into `Simulink Model/validation/`.
+  `simulink/run_district_model.m` into `simulink/validation/`.
 
     python scripts/build_district_web.py
 """
@@ -21,15 +24,12 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = ROOT / "Simulink Model"
+MODEL_DIR = ROOT / "simulink"
 OUT = ROOT / "web" / "district-model.js"
 
-
-def _model_path(*names: str) -> Path | None:
-    for name in names:
-        if (MODEL_DIR / name).is_file():
-            return MODEL_DIR / name
-    return None
+# blocks with no entity output: every output port they have is a statistic
+NO_ENTITY_OUT = {"EntityTerminator", "EntityResourcePool", "Scope", "Display"}
+PORT = 5                  # how far a port stands off its block
 
 
 def _nums(text: str) -> list[float]:
@@ -50,10 +50,14 @@ def read_diagram(slx: Path) -> dict:
         p = {e.get("Name"): (e.text or "") for e in b.findall("P")}
         l, t, r, bt = _nums(p.get("Position", "0,0,0,0"))
         pc = b.find("PortCounts")
+        n_out = int(pc.get("out", 0)) if pc is not None else 0
+        # which outputs carry entities ("m") and which are statistics ("n")
+        modes = [m.strip() for m in p.get("OutputPortMessageModes", "").split(",") if m.strip()]
+        if not modes:
+            modes = ["n" if b.get("BlockType") in NO_ENTITY_OUT else "m"] * n_out
         blk = {"sid": b.get("SID"), "name": b.get("Name"), "type": b.get("BlockType"),
                "x": l, "y": t, "w": r - l, "h": bt - t,
-               "in": int(pc.get("in", 0)) if pc is not None else 0,
-               "out": int(pc.get("out", 0)) if pc is not None else 0}
+               "in": int(pc.get("in", 0)) if pc is not None else 0, "out": n_out, "modes": modes}
         if b.get("BlockType") == "EntityResourcePool":
             blk["resource"] = p.get("ResourceName", "")
             blk["amount"] = p.get("ResourceAmount", "1")
@@ -61,13 +65,20 @@ def read_diagram(slx: Path) -> dict:
         by_sid[blk["sid"]] = blk
 
     def port(ref: str) -> tuple[float, float]:
-        # "SID#out:2" -> the port's position, spaced as Simulink spaces them
+        # "SID#out:2" -> the port's position, where Simulink puts it: entity
+        # ports spaced down the block's side, statistic ports on its top, each
+        # standing PORT pixels off the block (line points are relative to it)
         sid, rest = ref.split("#")
         side, k = rest.split(":")
         b, k = by_sid[sid], int(k)
-        n = b["out"] if side == "out" else b["in"]
-        y = b["y"] + b["h"] * (2 * k - 1) / (2 * max(n, 1))
-        return (b["x"] + b["w"], y) if side == "out" else (b["x"], y)
+        if side == "in":
+            return (b["x"] - PORT, b["y"] + b["h"] * (2 * k - 1) / (2 * max(b["in"], 1)))
+        modes = b["modes"]
+        if k - 1 < len(modes) and modes[k - 1] == "n":
+            return (b["x"] + b["w"] / 2, b["y"] - PORT)
+        n = sum(1 for m in modes if m == "m")
+        j = sum(1 for m in modes[:k] if m == "m")
+        return (b["x"] + b["w"] + PORT, b["y"] + b["h"] * (2 * j - 1) / (2 * max(n, 1)))
 
     sinks = {"Display", "Scope"}
     lines = []
@@ -85,7 +96,7 @@ def read_diagram(slx: Path) -> dict:
             dst = by_sid[dst_ref.split("#")[0]]
             kind = "signal" if dst["type"] in sinks else kind
         line = {"pts": [[round(a, 1), round(b, 1)] for a, b in pts], "kind": kind}
-        if src_ref and dst_ref:       # which block feeds which, for the page's own layout
+        if src_ref and dst_ref:       # which block feeds which
             line["src"] = by_sid[src_ref.split("#")[0]]["name"]
             line["srcPort"] = int(src_ref.split(":")[1])
             line["dst"] = by_sid[dst_ref.split("#")[0]]["name"]
@@ -98,21 +109,34 @@ def read_diagram(slx: Path) -> dict:
         if not src:
             continue
         start = port(src)
-        kind = "entity"
         branches = ln.findall("Branch")
         if not branches:
-            route(start, p.get("Points"), p.get("Dst"), kind, src)
+            route(start, p.get("Points"), p.get("Dst"), "entity", src)
             continue
-        trunk_end = route(start, p.get("Points"), None, kind)
+        trunk_end = route(start, p.get("Points"), None, "entity")
         for br in branches:
             q = {e.get("Name"): (e.text or "") for e in br.findall("P")}
-            route(trunk_end, q.get("Points"), q.get("Dst"), kind, src)
+            route(trunk_end, q.get("Points"), q.get("Dst"), "entity", src)
 
-    xs = [b["x"] for b in blocks] + [b["x"] + b["w"] for b in blocks]
-    ys = [b["y"] for b in blocks] + [b["y"] + b["h"] for b in blocks]
+    # the stage panels and the branch labels
+    areas, notes = [], []
+    for a in root.findall("Annotation"):
+        p = {e.get("Name"): (e.text or "") for e in a.findall("P")}
+        pos = _nums(p.get("Position", ""))
+        if len(pos) != 4:
+            continue
+        item = {"text": p.get("Name", ""), "x": pos[0], "y": pos[1], "w": pos[2] - pos[0], "h": pos[3] - pos[1]}
+        if p.get("AnnotationType") == "area_annotation":
+            areas.append(item)
+        elif p.get("Interpreter") != "tex":            # (the page sets the arrival formula itself)
+            notes.append(item)
+
+    xs = [b["x"] for b in blocks] + [b["x"] + b["w"] for b in blocks] + [a["x"] + a["w"] for a in areas]
+    ys = [b["y"] for b in blocks] + [b["y"] + b["h"] for b in blocks] + [a["y"] + a["h"] for a in areas]
+    xs += [a["x"] for a in areas]; ys += [a["y"] for a in areas]
     for ln in lines:
         xs += [p[0] for p in ln["pts"]]; ys += [p[1] for p in ln["pts"]]
-    return {"source": slx.name, "blocks": blocks, "lines": lines,
+    return {"source": slx.name, "blocks": blocks, "lines": lines, "areas": areas, "notes": notes,
             "bounds": [min(xs), min(ys), max(xs), max(ys)]}
 
 
@@ -124,24 +148,26 @@ def read_references() -> dict:
         keep = {k: {"mean": v["mean"], "sd": v["sd"]} for k, v in d.items()
                 if isinstance(v, dict) and "mean" in v}
         refs[f.stem] = {"model": d.get("model"), "reps": d.get("reps"), "stop_min": d.get("stop_min"),
-                        "seed_all": d.get("seed_all"), "p": d.get("p"), "stats": keep}
+                        "p": d.get("p"), "stats": keep}
     return refs
 
 
 def main() -> None:
-    # the model as shipped and the improved one: the page shows whichever is selected
-    v1 = _model_path("district_model.slx", "district_model.slx.zip")
-    v2 = _model_path("district_model_v2.slx")
-    if not v1:
-        sys.exit("no district model found in 'Simulink Model/'")
-    data = {"diagrams": {"asbuilt": read_diagram(v1), "improved": read_diagram(v2 or v1)}}
-    data["references"] = read_references()
+    slx = MODEL_DIR / "district_model.slx"
+    if not slx.is_file():
+        sys.exit("no district_model.slx in 'simulink/' (run build_district_model in MATLAB)")
+    data = {"diagram": read_diagram(slx), "references": read_references()}
+    # the recapture variant (include_gate = 1), built by export_district_model_figure.m
+    gate = MODEL_DIR / "figures" / "district_model_recapture.slx"
+    if gate.is_file():
+        data["diagramGate"] = read_diagram(gate)
     OUT.write_text("/* generated by scripts/build_district_web.py from the Simulink model; do not edit */\n"
                    "window.DISTRICT_MODEL = " + json.dumps(data, separators=(",", ":")) + ";\n",
                    encoding="utf-8")
-    d = data["diagrams"]
-    print(f"wrote {OUT.relative_to(ROOT)}: diagrams from {d['asbuilt']['source']} and {d['improved']['source']} "
-          f"({len(d['improved']['blocks'])} blocks), {len(data['references'])} reference runs")
+    d = data["diagram"]
+    print(f"wrote {OUT.relative_to(ROOT)}: {d['source']} ({len(d['blocks'])} blocks, {len(d['lines'])} lines, "
+          f"{len(d['areas'])} panels){' and its recapture variant' if 'diagramGate' in data else ''}, "
+          f"{len(data['references'])} reference runs")
 
 
 if __name__ == "__main__":

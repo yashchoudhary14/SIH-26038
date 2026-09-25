@@ -466,6 +466,9 @@ section.hero{border-top:0;padding:0}
 .grp{border:0;margin:0;padding:0;min-width:0}
 .grp legend,.adv summary{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--disc);padding:0;margin-bottom:10px;text-transform:uppercase}
 .grp[disabled]{opacity:.38}
+.sim-ctl [hidden]{display:none!important}
+.q-bad{margin:2px 0 4px;font-family:var(--mono);font-size:11px;color:var(--faint)}
+.arr-exp.warn{color:#F2A65A}
 .st{display:grid;grid-template-columns:1fr 30px 42px 30px;align-items:center;gap:4px;padding:6px 0;border-bottom:1px solid var(--rule-soft)}
 .st-l{font-size:14px;color:var(--bone)}
 .st-l small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.03em}
@@ -483,11 +486,15 @@ section.hero{border-top:0;padding:0}
 .rg-t small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.02em;margin-top:2px}
 .rg-t sub{font-size:10px}
 .rg-l output{white-space:nowrap}
-.arr-f{margin:0 0 10px;font-family:var(--mono);font-size:12px;line-height:1.75;color:var(--bone)}
-.arr-f span{display:block;white-space:nowrap}
-.arr-f .ind{padding-left:3.2em}
-.arr-f .note{white-space:normal;color:var(--faint);font-size:11px;margin-top:2px}
-.arr-f sub,.arr-f sup{font-size:8.5px}
+.arr-math{margin:0 0 10px;padding:12px 14px 10px;border:1px solid var(--rule-soft);background:var(--ground);color:var(--bone)}
+.arr-math .ml{line-height:1.2}
+.arr-math math{math-style:normal;font-size:16px}
+.arr-math .l2{margin:4px 0 0 2.1em}
+.arr-math .l3{margin:12px 0 0}
+.arr-math .l3 math{font-size:14.5px;color:var(--bone-dim)}
+.arr-cap{margin:10px 0 0;font-family:var(--mono);font-size:10.5px;line-height:1.65;color:var(--faint)}
+.arr-cap em{font-style:normal;color:var(--disc)}
+.arr-cap sub{font-size:8.5px}
 .arr-curve{border:1px solid var(--rule-soft);background:var(--ground);padding:8px 10px 6px}
 #simArrCurve{display:block;width:100%;height:62px}
 .arr-x{display:flex;justify-content:space-between;margin:4px 0 0;font-family:var(--mono);font-size:10px;color:var(--faint)}
@@ -518,8 +525,9 @@ section.hero{border-top:0;padding:0}
 .sim-card{border:1px solid var(--rule-soft);background:var(--ground);padding:16px 18px;min-width:0}
 .sim-h{display:flex;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted);margin-bottom:12px}
 .sim-h span:last-child{color:var(--faint);letter-spacing:.04em;text-align:right}
-.dia-wrap{overflow-x:auto}
-#simDiagram{display:block;width:100%;min-width:820px;height:auto}
+.dia-wrap{overflow-x:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
+.dia-wrap::-webkit-scrollbar{height:8px}.dia-wrap::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22);border-radius:4px}.dia-wrap::-webkit-scrollbar-track{background:transparent}
+#simDiagram{display:block;width:100%;min-width:1000px;height:auto}
 .dia-key{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:10px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
 .dia-note{margin-left:auto}
 .dia-key i{display:inline-block;width:18px;height:0;border-top:1.5px solid rgba(242,242,238,.55);margin-right:7px;vertical-align:3px}
@@ -531,16 +539,20 @@ section.hero{border-top:0;padding:0}
 .b-pool{fill:none;stroke:var(--g1);stroke-dasharray:3 3}
 .b-sink{fill:#0C0D10;stroke:rgba(62,214,206,.45)}
 .b-glyph{stroke:rgba(242,242,238,.55);fill:none;stroke-width:1.2}
-.b-name{font-family:var(--sans);font-size:12.5px;fill:var(--bone-dim);text-anchor:middle}
-.b-stat{font-family:var(--mono);font-size:13.5px;fill:var(--bone);text-anchor:middle;font-weight:500}
-.b-lane{font-family:var(--mono);font-size:11px;letter-spacing:.12em;fill:var(--disc)}
-.b-loop{font-family:var(--mono);font-size:10.5px;fill:var(--faint);text-anchor:middle}
-.b-chip{font-family:var(--sans);font-size:13px;fill:var(--bone-dim)}
-.b-chip-v{font-family:var(--mono);font-size:13.5px;fill:var(--g1);text-anchor:end}
+.b-name{font-family:var(--sans);font-size:15.5px;fill:var(--bone-dim);text-anchor:middle}
+.b-stat{font-family:var(--mono);font-size:16px;fill:var(--bone);text-anchor:middle;font-weight:500}
+.b-lane{font-family:var(--mono);font-size:14px;letter-spacing:.12em;fill:var(--disc)}
+.b-loop{font-family:var(--sans);font-size:12.5px;fill:var(--muted);font-style:italic}
+.b-pstat{font-family:var(--mono);font-size:14px;fill:var(--bone);text-anchor:end}
+.b-chip{font-family:var(--sans);font-size:16px;fill:var(--bone)}
+.b-pbar{fill:rgba(255,255,255,.08)}
+.b-pfill{fill:var(--disc);transition:width .6s var(--ease)}
+.b-pfill.hot{fill:#F2A65A}.b-pfill.crit{fill:var(--g4)}
+.b-chip-v{font-family:var(--mono);font-size:15px;fill:var(--g1);text-anchor:end}
 .b:hover .b-box{stroke:rgba(242,242,238,.7)}
 .b-stat.hot{fill:#F2A65A}
 .b-stat.crit{fill:var(--g4)}
-.l-e{fill:none;stroke:rgba(242,242,238,.34);stroke-width:1.4}
+.l-e{fill:none;stroke:rgba(242,242,238,.36);stroke-width:1.6;stroke-linejoin:round}
 .l-s{fill:none;stroke:rgba(62,214,206,.55);stroke-width:1.1;stroke-dasharray:4 4}
 .sim.running .l-e{stroke:rgba(62,214,206,.7);stroke-dasharray:6 8;animation:flow .8s linear infinite}
 @keyframes flow{to{stroke-dashoffset:-14}}
@@ -561,20 +573,42 @@ section.hero{border-top:0;padding:0}
 .ub .tr u{position:absolute;top:-3px;bottom:-3px;left:85%;width:1px;background:rgba(242,242,238,.5)}
 .ub output{font-family:var(--mono);font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
 .sim-chart{display:block;width:100%;height:170px}
-.ch-key{display:flex;gap:10px;align-items:center}
+.ch-key{display:flex;gap:10px;align-items:center;white-space:nowrap}
+.sim-h:has(.ch-key){flex-wrap:wrap;row-gap:6px}
 .ch-key i{display:inline-block;width:14px;height:2px;margin-left:6px;vertical-align:3px}
 .ch-key .c1{background:var(--disc)} .ch-key .c2{background:var(--g1)}
 .ch-x{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:4px}
 .sim-read{margin:2px 0 0;font-size:15.5px;color:var(--bone-dim);max-width:min(80ch,100%)}
 .sim-read b{font-weight:600;color:var(--bone)}
-.sim-valid{margin-top:6px;border:1px solid var(--rule-soft);background:var(--ground);padding:16px 18px 18px}
-.sim-valid .dtable{font-size:12px} .sim-valid .dtable th[scope=row]{white-space:normal;color:var(--bone)}
-.sim-valid .dtable tr.cfg th{text-align:left;padding:16px 0 6px;font-family:var(--sans);font-size:13.5px;font-weight:500;color:var(--bone);border-bottom:0}
-.sim-valid .dtable tr.cfg small{display:inline;font-family:var(--mono);font-size:10.5px;color:var(--faint);font-weight:400;margin-left:8px}
-.sim-valid .dtable td.src{text-align:left;padding-left:0;color:var(--faint)}
-.sim-valid .dtable th[scope=row] small{display:block;font-size:10.5px;margin-top:2px}
-.sim-valid .dtable td.ok{color:var(--g0)} .sim-valid .dtable td.off{color:#F2A65A}
-.sim-vnote{margin:14px 0 0;font-size:14.5px;color:var(--bone-dim);max-width:min(88ch,100%)}
+.sim-plan{margin-top:6px;border:1px solid var(--rule-soft);background:var(--ground);padding:16px 18px 18px}
+.sim-plan.busy .plan-cards{opacity:.55}
+.plan-lede{margin:0 0 12px;font-size:13.5px;line-height:1.55;color:var(--bone-dim)}
+.plan-tg{display:flex;flex-wrap:wrap;gap:10px 22px;margin:0 0 14px}
+.plan-tg label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--bone)}
+.plan-tg input{width:64px;background:var(--ground-2,#0C0D10);border:1px solid var(--rule);color:var(--bone);font-family:var(--mono);font-size:13px;padding:5px 7px}
+.plan-tg input:focus{outline:none;border-color:var(--disc)}
+.plan-tg em{font-style:normal;font-family:var(--mono);font-size:12px;color:var(--faint)}
+.plan-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--rule-soft);border:1px solid var(--rule-soft);transition:opacity .3s var(--ease)}
+.plan-card{background:#08090B;padding:12px 14px 12px;min-width:0}
+.plan-card h4{margin:0;font-family:var(--mono);font-size:11px;font-weight:400;letter-spacing:.12em;color:var(--muted)}
+.plan-card .pc-m{margin:2px 0 8px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.plan-card svg{display:block;width:100%;height:auto}
+.plan-card .pc-r{margin:8px 0 0;font-size:13.5px;color:var(--bone)}
+.plan-card .pc-r b{font-family:var(--mono);font-weight:400;font-size:20px;color:var(--disc);margin-right:6px}
+.plan-card .pc-r b.short{color:#F2A65A}
+.plan-card .pc-r small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:2px}
+.plan-alloc{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:14px}
+.plan-alloc .dtable{font-size:12.5px}
+.plan-alloc .dtable th[scope=row]{color:var(--bone)}
+.plan-alloc .dtable td.spare{color:var(--g0)} .plan-alloc .dtable td.short{color:#F2A65A}
+.plan-sum{margin:0;font-size:14px;line-height:1.6;color:var(--bone-dim)}
+.plan-sum b{color:var(--bone);font-weight:500}
+.plan-sum .dim{color:var(--faint);font-size:12.5px}
+.plan-alloc .dtable th small{display:block;font-family:var(--mono);font-size:10px;color:var(--faint)}
+.plan-rush{margin-top:16px;padding-top:14px;border-top:1px solid var(--rule-soft)}
+.plan-note{margin:8px 0 0;font-size:13px;line-height:1.55;color:var(--bone-dim)}
+.ch-key .c3{background:var(--g1)} .ch-key .c2.dash{background:none;border-top:2px dashed var(--muted);height:0}
+@media (max-width:760px){.plan-cards{grid-template-columns:1fr}.plan-alloc{grid-template-columns:1fr}}
 @media (max-width:1180px){ .sim{grid-template-columns:minmax(0,1fr)} .sim-ctl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 26px}
   .sim-ctl > .seg,.sim-ctl > .sim-note,.sim-ctl > .presets,.sim-ctl > .sim-run,.sim-ctl > .adv{grid-column:1 / -1} }
 @media (max-width:900px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} .sim-row{grid-template-columns:minmax(0,1fr)} }
@@ -1063,24 +1097,26 @@ footer{border-top:1px solid var(--rule-soft);padding:26px 0 40px;margin-top:20px
         <span class="idx">07</span>
         <h2>Size a district, <span class="thin">then run it.</span></h2>
         <p class="lede">Our Simulink SimEvents model of the screening service, running in your browser.
-        Set the staff and equipment, press run, and read what the district would do — throughput,
-        who waits and for how long, and which resource runs out first. The engine is a
-        block-for-block port of <em>district_model.slx</em>, checked against MATLAB below.</p>
+        Patients arrive in groups, are photographed, and the AI on the edge device sorts each image
+        into good, borderline or bad, restores the borderline ones and grades the rest. Set the
+        staff and equipment, press run, and read what a session — or a whole district — would do.
+        The engine is a block-for-block port of <em>district_model.slx</em>, and agrees with MATLAB's
+        own runs of the model on every figure checked. The planner at the end works out how few staff
+        and devices a centre needs, and what could be sent elsewhere.</p>
       </div>
 
       <div class="sim" id="sim" data-reveal>
         <div class="sim-card sim-dia">
             <div class="sim-h"><span>SIMEVENTS BLOCK DIAGRAM</span><span id="simDiaSrc">district_model.slx</span></div>
             <div class="dia-wrap"><svg id="simDiagram" role="img" aria-label="The district screening model's SimEvents block diagram"></svg></div>
-            <div class="dia-key"><span><i class="k-e"></i>patient path</span><span><i class="k-r"></i>resource pool</span><span>hover a block for its SimEvents name</span><span class="dia-note" id="simDiaNote">Health-centre blocks: per centre per day · review hub: the district per day · displays: totals over the run</span></div>
+            <div class="dia-key"><span><i class="k-e"></i>patient path</span><span><i class="k-r"></i>resource pool: units · busy</span><span>hover a block for its SimEvents name</span><span class="dia-note" id="simDiaNote">Health-centre blocks: per centre per day · review hub: the district per day · displays: totals over the run</span></div>
           </div>
 
         <form class="sim-ctl" id="simForm" autocomplete="off">
           <div class="seg" role="radiogroup" aria-label="Which model">
-            <label><input type="radio" name="model" value="improved" checked><span>Improved model</span></label>
-            <label><input type="radio" name="model" value="asbuilt"><span>As built (.slx)</span></label>
+            <label><input type="radio" name="model" value="asbuilt" checked><span>Simulink model</span></label>
+            <label><input type="radio" name="model" value="improved"><span>A whole district</span></label>
           </div>
-          <p class="sim-note" id="simModelNote"></p>
 
           <div class="presets" id="simPresets" role="group" aria-label="Presets">
             <button type="button" data-preset="district" aria-pressed="true">District · 20 days</button>
@@ -1089,63 +1125,80 @@ footer{border-top:1px solid var(--rule-soft);padding:26px 0 40px;margin-top:20px
             <button type="button" data-preset="thin" aria-pressed="false">One reviewer, 2 h a day</button>
           </div>
 
-          <fieldset class="grp" data-scope="improved"><legend>Resources</legend>
-              <div class="st" data-key="phcs"><span class="st-l">Health centres</span>
+          <fieldset class="grp"><legend>Resources</legend>
+              <div class="st" data-key="phcs" data-scope="improved"><span class="st-l">Health centres</span>
                 <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Health centres">−</button>
                 <output class="st-v" id="v_phcs">12</output>
                 <button type="button" class="st-b" data-d="1" aria-label="More: Health centres">+</button>
                 <input type="hidden" name="phcs" value="12" data-min="1" data-max="40"></div>
               <div class="st" data-key="technicians"><span class="st-l">Technicians<small>per centre</small></span>
                 <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Technicians">−</button>
-                <output class="st-v" id="v_technicians">1</output>
+                <output class="st-v" id="v_technicians">5</output>
                 <button type="button" class="st-b" data-d="1" aria-label="More: Technicians">+</button>
-                <input type="hidden" name="technicians" value="1" data-min="1" data-max="6"></div>
+                <input type="hidden" name="technicians" value="5" data-min="1" data-max="10"></div>
               <div class="st" data-key="cameras"><span class="st-l">Fundus cameras<small>per centre</small></span>
                 <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Fundus cameras">−</button>
-                <output class="st-v" id="v_cameras">1</output>
+                <output class="st-v" id="v_cameras">5</output>
                 <button type="button" class="st-b" data-d="1" aria-label="More: Fundus cameras">+</button>
-                <input type="hidden" name="cameras" value="1" data-min="1" data-max="6"></div>
+                <input type="hidden" name="cameras" value="5" data-min="1" data-max="10"></div>
               <div class="st" data-key="devices"><span class="st-l">Edge devices<small>per centre</small></span>
                 <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Edge devices">−</button>
-                <output class="st-v" id="v_devices">1</output>
+                <output class="st-v" id="v_devices">5</output>
                 <button type="button" class="st-b" data-d="1" aria-label="More: Edge devices">+</button>
-                <input type="hidden" name="devices" value="1" data-min="1" data-max="6"></div>
+                <input type="hidden" name="devices" value="5" data-min="1" data-max="10"></div>
               <div class="st" data-key="ophthalmologists"><span class="st-l">Ophthalmologists<small>district hub</small></span>
                 <button type="button" class="st-b" data-d="-1" aria-label="Fewer: Ophthalmologists">−</button>
-                <output class="st-v" id="v_ophthalmologists">2</output>
+                <output class="st-v" id="v_ophthalmologists">5</output>
                 <button type="button" class="st-b" data-d="1" aria-label="More: Ophthalmologists">+</button>
-                <input type="hidden" name="ophthalmologists" value="2" data-min="1" data-max="12"></div>
+                <input type="hidden" name="ophthalmologists" value="5" data-min="1" data-max="12"></div>
           </fieldset>
 
           <fieldset class="grp arr"><legend>Arrivals</legend>
-              <p class="arr-f"><span>λ(t) = λ<sub>peak</sub> · e<sup>−(t − t<sub>peak</sub>)²/2σ²</sup></span><span class="ind">· (N − A(t)) / N</span><span class="note">each arrival brings 1 + Poisson(μ) patients</span></p>
+              <div class="arr-math">
+                <div class="ml l1"><math><mi>λ</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mo>=</mo><msub><mi>λ</mi><mtext>peak</mtext></msub><mo>·</mo><mi>exp</mi><mrow><mo>(</mo><mo>−</mo><mfrac><msup><mrow><mo>(</mo><mi>t</mi><mo>−</mo><msub><mi>t</mi><mtext>peak</mtext></msub><mo>)</mo></mrow><mn>2</mn></msup><mrow><mn>2</mn><msup><mi>σ</mi><mn>2</mn></msup></mrow></mfrac><mo>)</mo></mrow></math></div>
+                <div class="ml l2"><math><mo>·</mo><mfrac><mrow><mi>N</mi><mo>−</mo><mi>A</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow><mi>N</mi></mfrac></math></div>
+                <div class="ml l3"><math><mi>G</mi><mo>=</mo><mn>1</mn><mo>+</mo><mtext>Poisson</mtext><mo stretchy="false">(</mo><mi>μ</mi><mo stretchy="false">)</mo></math></div>
+                <p class="arr-cap">Group arrivals at rate λ(t), each bringing G patients. A(t) is the number arrived so far, N the catchment. λ<sub>peak</sub> is set so a patient arrives every <em id="simArrGap">3</em> min on average.</p>
+              </div>
               <div class="arr-curve"><svg id="simArrCurve" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"></svg>
                 <p class="arr-x"><span>opening</span><span id="simArrPeak"></span><span id="simArrEnd">closing</span></p></div>
               <p class="arr-exp" id="simArrExp"></p>
-              <label class="rg"><span class="rg-l"><span class="rg-t">Peak rate λ<sub>peak</sub><small>arrival events per hour</small></span><output id="v_lambdaPeakH">11 /h</output></span>
-                <input type="range" name="lambdaPeakH" min="1" max="40" step="0.5" value="11" data-unit=" /h"></label>
-              <label class="rg"><span class="rg-l"><span class="rg-t">Peak time t<sub>peak</sub><small>after opening</small></span><output id="v_tPeakH">2.5 h</output></span>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Mean gap between patients<small>mean_interarrival: sets λ<sub>peak</sub></small></span><output id="v_meanGap"></output></span>
+                <input type="range" name="meanGap" min="0.5" max="30" step="0.1" value="3" data-unit=" min"></label>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Peak time t<sub>peak</sub><small>after opening</small></span><output id="v_tPeakH"></output></span>
                 <input type="range" name="tPeakH" min="0" max="10" step="0.25" value="2.5" data-unit=" h"></label>
-              <label class="rg"><span class="rg-l"><span class="rg-t">Spread σ</span><output id="v_sigmaH">1.5 h</output></span>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Spread σ</span><output id="v_sigmaH"></output></span>
                 <input type="range" name="sigmaH" min="0.25" max="5" step="0.25" value="1.5" data-unit=" h"></label>
-              <label class="rg"><span class="rg-l"><span class="rg-t">Catchment N<small>patients who may come in a day</small></span><output id="v_N">46</output></span>
-                <input type="range" name="N" min="5" max="200" step="1" value="46" data-unit=""></label>
-              <label class="rg"><span class="rg-l"><span class="rg-t">Companions μ<small>mean extra patients per arrival</small></span><output id="v_mu">0.5</output></span>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Catchment N<small>patients who may come in a session</small></span><output id="v_N"></output></span>
+                <input type="range" name="N" min="5" max="400" step="1" value="200" data-unit=""></label>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Companions μ<small>mean extra patients per arrival</small></span><output id="v_mu"></output></span>
                 <input type="range" name="mu" min="0" max="3" step="0.1" value="0.5" data-unit=""></label>
+              <label class="rg"><span class="rg-l"><span class="rg-t" id="simSessLabel">Session length</span><output id="v_sessionHours"></output></span>
+                <input type="range" name="sessionHours" min="1" max="12" step="0.5" value="6" data-unit=" h"></label>
+          </fieldset>
+
+          <fieldset class="grp"><legend>Image quality and AI</legend>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Good images<small>graded as they are</small></span><output id="v_pGood"></output></span>
+                <input type="range" name="pGood" min="0" max="1" step="0.01" value="0.7" data-pct="0"></label>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Borderline images<small>restored first</small></span><output id="v_pBorder"></output></span>
+                <input type="range" name="pBorder" min="0" max="1" step="0.01" value="0.15" data-pct="0"></label>
+              <p class="q-bad" id="simBad"></p>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Restoration succeeds<small>borderline images made gradeable</small></span><output id="v_pRestore"></output></span>
+                <input type="range" name="pRestore" min="0" max="1" step="0.001" value="0.873" data-pct="1"></label>
+              <label class="tg"><input type="checkbox" name="includeGate"><i aria-hidden="true"></i>
+                <span>Recapture bad images<small>include_gate: back to the waiting hall, up to the captures allowed · off: to a doctor ungraded</small></span></label>
           </fieldset>
 
           <fieldset class="grp" data-scope="improved"><legend>Hours</legend>
-              <label class="rg"><span class="rg-l"><span class="rg-t">Clinic hours per day</span><output id="v_sessionHours">7 h</output></span>
-                <input type="range" name="sessionHours" min="2" max="12" step="0.5" value="7" data-unit=" h"></label>
-              <label class="rg"><span class="rg-l"><span class="rg-t">Review hours per day</span><output id="v_reviewHours">5 h</output></span>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Review hours per day</span><output id="v_reviewHours"></output></span>
                 <input type="range" name="reviewHours" min="1" max="10" step="0.5" value="5" data-unit=" h"></label>
-              <label class="rg"><span class="rg-l"><span class="rg-t">Working days simulated</span><output id="v_days">20</output></span>
+              <label class="rg"><span class="rg-l"><span class="rg-t">Working days simulated</span><output id="v_days"></output></span>
                 <input type="range" name="days" min="1" max="60" step="1" value="20" data-unit=""></label>
           </fieldset>
 
-          <fieldset class="grp"><legend>Model</legend>
+          <fieldset class="grp" data-scope="improved"><legend>District options</legend>
               <label class="tg"><input type="checkbox" name="ai" checked><i aria-hidden="true"></i>
-                <span>AI triage on the edge device<small>off: every gradeable image goes to a specialist</small></span></label>
+                <span>AI on the edge device<small>off: every captured image goes to a specialist</small></span></label>
               <label class="tg"><input type="checkbox" name="priority" checked><i aria-hidden="true"></i>
                 <span>Urgent cases reviewed first<small>sight-threatening patients jump the review queue</small></span></label>
               <label class="tg"><input type="checkbox" name="stochastic" checked><i aria-hidden="true"></i>
@@ -1154,14 +1207,17 @@ footer{border-top:1px solid var(--rule-soft);padding:26px 0 40px;margin-top:20px
 
           <details class="grp adv"><summary>Advanced</summary>
             <div class="nms">
-                <label class="nm"><span>Capture, min</span><input type="number" name="captureMin" min="1" max="20" step="0.5" value="4"></label>
-                <label class="nm"><span>Review, min</span><input type="number" name="reviewMin" min="0.1" max="10" step="0.1" value="0.5"></label>
+                <label class="nm"><span>Capture, min</span><input type="number" name="captureMin" min="0.5" max="30" step="0.5" value="5"></label>
+                <label class="nm"><span>Quality check, min</span><input type="number" name="qualityMin" min="0" max="5" step="0.01" value="0.01"></label>
+                <label class="nm"><span>Restoration, min</span><input type="number" name="restoreMin" min="0" max="5" step="0.01" value="0.02"></label>
+                <label class="nm"><span>Grading, min</span><input type="number" name="gradeMin" min="0" max="5" step="0.01" value="0.25"></label>
+                <label class="nm"><span>Upload, min</span><input type="number" name="uploadMin" min="0" max="10" step="0.01" value="0.67"></label>
+                <label class="nm"><span>Doctor's read, min</span><input type="number" name="reviewMin" min="0.1" max="20" step="0.1" value="0.5"></label>
                 <label class="nm"><span>Sensitivity</span><input type="number" name="sensitivity" min="0.5" max="1" step="0.001" value="0.986"></label>
                 <label class="nm"><span>Specificity</span><input type="number" name="specificity" min="0.5" max="1" step="0.001" value="0.873"></label>
-                <label class="nm"><span>Pass first time</span><input type="number" name="pPass" min="0.3" max="1" step="0.01" value="0.8"></label>
-                <label class="nm"><span>Fixed by enhancement</span><input type="number" name="pRepair" min="0" max="0.5" step="0.01" value="0.08"></label>
+                <label class="nm"><span>Referable DR</span><input type="number" name="prevalence" min="0" max="1" step="0.01" value="0.08"></label>
                 <label class="nm"><span>Captures allowed</span><input type="number" name="maxAttempts" min="1" max="6" step="1" value="3"></label>
-                <label class="nm"><span>Replications</span><input type="number" name="reps" min="1" max="40" step="1" value="10"></label>
+                <label class="nm"><span>Replications</span><input type="number" name="reps" min="1" max="40" step="1" value="20"></label>
                 <label class="nm"><span>Seed</span><input type="number" name="seed" min="1" max="99999" step="1" value="1"></label>
             </div>
           </details>
@@ -1187,10 +1243,24 @@ footer{border-top:1px solid var(--rule-soft);padding:26px 0 40px;margin-top:20px
             </div>
           </div>
           <p class="sim-read" id="simRead"></p>
-          <div class="sim-valid">
-            <div class="sim-h"><span>CHECKED AGAINST SIMULINK</span><span id="simValidNote"></span></div>
-            <div class="tscroll"><table class="dtable" id="simValid" aria-label="This page's engine against MATLAB's replications of the Simulink model"></table></div>
-            <p class="sim-vnote" id="simValidText"></p>
+          <div class="sim-plan" id="simPlan">
+            <div class="sim-h"><span>RESOURCE PLANNER</span><span id="simPlanNote"></span></div>
+            <p class="plan-lede">The smallest team that meets your targets, found by running the model at every size. Whatever is left over can serve another health centre.</p>
+            <div class="plan-tg">
+              <label><span>Average wait before capture, at most</span><input type="number" id="tgWait" min="1" max="600" step="1" value="15"><em>min</em></label>
+              <label><span>90% of referrals read within</span><input type="number" id="tgRead" min="0.25" max="336" step="0.25" value="1"><em>h</em></label>
+            </div>
+            <div class="plan-cards" id="simPlanCards"></div>
+            <div class="plan-alloc">
+              <table class="dtable" id="simPlanTable" aria-label="Resources you have, the smallest numbers that meet the targets, and what is spare"></table>
+              <p class="plan-sum" id="simPlanSum"></p>
+            </div>
+            <div class="plan-rush">
+              <div class="sim-h"><span>ARRIVALS AGAINST CAPTURE CAPACITY</span><span class="ch-key"><i class="c1"></i>arriving /h <i class="c3"></i>capacity needed <i class="c2 dash"></i>capacity now</span></div>
+              <svg class="sim-chart" id="simRush" viewBox="0 0 600 180" preserveAspectRatio="none" role="img" aria-label="Patients arriving per hour through the session against the capture capacity"></svg>
+              <div class="ch-x" id="simRushX"></div>
+              <p class="plan-note" id="simRushNote"></p>
+            </div>
           </div>
         </div>
       </div>
@@ -1296,11 +1366,11 @@ footer{border-top:1px solid var(--rule-soft);padding:26px 0 40px;margin-top:20px
 </div>
 
 <script src="transition.js?v=5"></script>
-<script src="nerves.js?v=5"></script>
+<script src="nerves.js?v=6"></script>
 <script src="case-data.js?v=5"></script>
-<script src="district-model.js?v=5"></script>
-<script src="district-sim.js?v=5"></script>
-<script src="district-ui.js?v=5"></script>
+<script src="district-model.js?v=8"></script>
+<script src="district-sim.js?v=8"></script>
+<script src="district-ui.js?v=8"></script>
 <script>
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const GRADE_C = ['var(--g0)','var(--g1)','var(--g2)','var(--g3)','var(--g4)'];
