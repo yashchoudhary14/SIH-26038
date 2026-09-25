@@ -180,24 +180,6 @@ Retraining needs the public corpora; see [docs/REPRODUCING.md](docs/REPRODUCING.
 
 ---
 
-## Honest limitations
-
-- **Two model bundles ship, and they are not interchangeable.** The MATLAB
-  edition and the website serve `pooled` by default (all four corpora,
-  `outputs/artifacts_all/`), which is better on every head-to-head measure but
-  has no zero-shot cohort left. `prepool` (APTOS-2019 + IDRiD,
-  `outputs/artifacts/`) is the model behind the 97.3% zero-shot figure, and the
-  Python API's default. Every number in RESULTS.md states which bundle it
-  belongs to.
-- **Neovascularisation is not assessed.** No public corpus annotates it at pixel
-  level, so the report says "not assessed" rather than "absent", and a full
-  examination is still advised.
-- **Moderate NPDR is the weak grade** (57% recall on the pooled test). It sits at
-  the mild/moderate boundary, where the reference standards themselves disagree.
-- **This is a research prototype, not a cleared device.** Nothing here has been
-  through a clinical trial, a regulator or a prospective deployment. The cost
-  figures in the programme model are order-of-magnitude inputs.
-
 ## Data and licences
 
 The corpora are not redistributed; each requires accepting its own licence (see
