@@ -1,8 +1,10 @@
 # Results and Conclusions
 
 Problem statement: MATLAB-based retinal image analysis pipeline for automated
-diabetic retinopathy screening (SIH-26038). Implemented in Python with a
-generated Simulink/SimEvents bridge — see [§8](#8-simulink).
+diabetic retinopathy screening (SIH-26038). Trained and validated in Python
+(`src/drscreen/`); deployed in MATLAB (`matlab/`), whose parity tests reproduce
+the Python pipeline's decisions on every committed photograph; the district
+programme is modelled in Simulink / SimEvents (`simulink/`, [§8](#8-simulink)).
 
 Every number below is read from `outputs/validation/validation.json`, produced
 by `scripts/validate.py`. Nothing is hand-entered. Reproduce with the commands
@@ -11,6 +13,14 @@ in [§9](#9-reproducing-this).
 ---
 
 ## 1. The headline
+
+> **Which model these numbers belong to.** §1–§6 describe the *pre-pool* model
+> (APTOS-2019 + IDRiD), the one that can be tested zero-shot on Messidor-2. The
+> model the MATLAB edition and the website serve by default is the *pooled*
+> model (all four corpora): referable sensitivity **0.915**, specificity
+> **0.887**, AUC 0.964, sight-threatening sensitivity **0.997** (298/299) on
+> the held-out test split, n = 1,852 — measured in
+> [§7.5](#75-pooling-messidor-2-into-training--the-biggest-single-gain-and-what-it-cost).
 
 | | sensitivity | specificity | AUC | QWK | targets |
 |---|---|---|---|---|---|
@@ -1057,9 +1067,11 @@ materialised; recorded in `data/cohort_all/resplit.json`.
 
 #### Deployment status
 
-**Not deployed.** `outputs/artifacts/` still holds the pre-pool CNN arm and is
-byte-identical to what [§1](#1-the-headline) describes. The pooled model lives in
-`outputs/artifacts_all/` alongside it, and the decision of which to ship turns on
+**Served by default in MATLAB.** The MATLAB edition and the website serve the
+pooled model (`matlab/models/pooled/`, exported from `outputs/artifacts_all/`);
+`'prepool'` selects the other bundle. `outputs/artifacts/` still holds the
+pre-pool CNN arm, byte-identical to what [§1](#1-the-headline) describes, and
+remains the Python API's default. The decision of which to ship turns on
 whether an auditable zero-shot number or a better in-distribution one is worth
 more for this deployment — which is a programme decision, not a metric.
 
@@ -1068,19 +1080,39 @@ more for this deployment — which is a programme decision, not a metric.
 
 ## 8. Simulink
 
-The problem statement names Simulink. The executable telemedicine model is
+### The district model (`simulink/`)
+
+`simulink/district_model.slx` is a SimEvents model of one health centre's
+screening session and the doctor review it feeds: capture at the centre, AI
+quality check, restoration and grading on the edge device, clearance on the
+spot or upload to the district hub, and the ophthalmologist's read. Every
+variable lives in `district_model_params.m`, and every random stream is seeded
+per run, so replications are independent (the model as first shared repeated
+the same draws on every run).
+
+With the variables as set (5 technicians, cameras, edge devices and
+ophthalmologists; a patient every 3 minutes; 360-minute session), MATLAB's 100
+replications average **119.3 patients, 79.3 cleared on the spot and 39.9
+reviewed by a doctor**, with technicians 35.9% busy and doctors 1.3%. The
+browser engine in the project dossier (`web/district-sim.js`) is a
+block-for-block port; on three configurations it agrees with MATLAB on all 24
+figures within three standard errors. Details, and the resource planner built
+on it: [`simulink/README.md`](simulink/README.md).
+
+### The generated bridge and the SimPy optimiser
+
+The executable programme-scale model is
 SimPy (`src/drscreen/sim/telemedicine.py`); `scripts/run_simulation.py
---export-matlab matlab/` generates the SimEvents realisation from the same
+--export-matlab outputs/simulink_bridge/` generates the SimEvents realisation from the same
 `SimConfig`, so the two cannot drift.
 
 | file | status |
 |---|---|
 | `dr_screening_params.m` | ✅ **verified under GNU Octave** — lognormal mean/CV → μ/σ round-trips exactly; Markov stationary uptime reproduces declared availability |
-| `build_dr_screening_model.m` | ⚠️ **never executed** — needs a MATLAB + SimEvents licence |
-| `validate_against_simpy.m` | ⚠️ never executed |
+| `build_dr_screening_model.m` | ⚠️ not part of the validated runs; `simulink/district_model.slx` above is the model that was executed and validated |
+| `validate_against_simpy.m` | ⚠️ not part of the validated runs |
 
-SimEvents is proprietary with no Octave equivalent, so nothing touching
-`add_block`/`set_param` can be tested without a licence. Because SimEvents
+The generated files are in `matlab/simulation/`. Because SimEvents
 dialog parameter names drift between releases and `set_param` is atomic over
 its name/value pairs, the build script applies every property individually and
 prints a fix-list rather than throwing. Expect a handful of names to need
