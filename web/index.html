@@ -798,14 +798,14 @@ async function connect() {
     if (!HEALTH.grader_loaded) missing.push("severity grader");
     const el = $("#degraded");
     if (missing.length) { el.classList.remove("hidden");
-      el.innerHTML = `<b>Degraded mode: ${esc(missing.join(" and "))} not loaded.</b> Screening still runs on the rule-based grader. Restore the exported weights in <code>convrt_matlab/models/</code> and restart the server.`;
+      el.innerHTML = `<b>Degraded mode: ${esc(missing.join(" and "))} not loaded.</b> Screening still runs on the rule-based grader. Restore the exported weights in <code>matlab/models/</code> and restart the server.`;
     } else el.classList.add("hidden");
   } else {
     API = null; ONLINE = false; HEALTH = null;
     $("#status").innerHTML = '<span><span class="dot off"></span>Backend offline</span><span class="opt">Recorded runs only</span>';
     $("#conn").className = "conn bad";
     $("#conn").innerHTML = `The screening backend is not running, so uploads cannot be graded. Start it in MATLAB with
-      <code>cd convrt_matlab; launch_web</code> (or run <code>DRScreenWeb.exe</code>) <button class="btn sm" type="button" id="retry">Retry</button><br>
+      <code>cd matlab; launch_web</code> (or run <code>DRScreenWeb.exe</code>) <button class="btn sm" type="button" id="retry">Retry</button><br>
       The held-out cases still work: they replay the run recorded for each photograph.`;
     $("#retry").addEventListener("click", connect);
   }
@@ -1164,7 +1164,7 @@ async function screen(job) {
     clearInterval(tick); packet.classList.remove("wait"); nodeEl.capture.dataset.state = "halt"; setNarr("RUN FAILED", "bad");
     const net = /fetch|network|load failed/i.test(err.message);
     $("#flowMsg").classList.remove("hidden");
-    $("#flowMsg").innerHTML = net ? `The backend could not be reached. Start it in MATLAB with <code>cd convrt_matlab; launch_web</code> (or run <code>DRScreenWeb.exe</code>) and retry.` : `The run did not complete — ${esc(err.message)}`;
+    $("#flowMsg").innerHTML = net ? `The backend could not be reached. Start it in MATLAB with <code>cd matlab; launch_web</code> (or run <code>DRScreenWeb.exe</code>) and retry.` : `The run did not complete — ${esc(err.message)}`;
     busy = false; syncButtons(); if (net) connect(); return;
   }
   clearInterval(tick);

@@ -8,10 +8,10 @@ remain under their source licences rather than this project's:
 
 * `outputs/verification_set/images/` — 12 APTOS-2019 and IDRiD photographs, also
   used as the test-suite fixture.
-* `dataset/` — 60 photographs from APTOS-2019, DDR and IDRiD, the showcase set.
+* `matlab/data/showcase/` — 60 photographs from APTOS-2019, DDR and IDRiD, the showcase set.
   **Messidor-2 is excluded**: ADCIS distributes it under registration, so it is
   the one corpus here that should not travel in a committed set. See
-  [dataset/README.md](../dataset/README.md) for per-corpus attribution.
+  [matlab/data/showcase/README.md](../matlab/data/showcase/README.md) for per-corpus attribution.
 
 Neither is a substitute for obtaining a corpus properly, and neither may be used
 beyond viewing the demonstration without accepting the originating licence.

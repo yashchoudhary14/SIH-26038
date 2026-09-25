@@ -130,7 +130,7 @@ def main():
     total += run([PY, "scripts/run_demo.py", "--demo", "--size", size],
                  "6/6  End-to-end demo reports")
     total += run([PY, "scripts/run_simulation.py", "--scenarios",
-                  "--export-matlab", "matlab/"],
+                  "--export-matlab", "outputs/simulink_bridge/"],
                  "6/6  Telemedicine simulation + Simulink export")
 
     print("\n" + "=" * 78)
@@ -143,7 +143,7 @@ Artefacts
   outputs/reports/*.html             per-case clinical reports
   outputs/simulation/                scenarios, optimisation
   outputs/artifacts/                 deployable model bundle
-  matlab/                            Simulink/SimEvents bridge
+  outputs/simulink_bridge/           Simulink/SimEvents bridge (generated)
 
 Next
   python -m uvicorn drscreen.api:app --port 8000     # review console

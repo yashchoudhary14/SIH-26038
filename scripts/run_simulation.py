@@ -3,7 +3,7 @@
     python scripts/run_simulation.py --scenarios          # compare deployments
     python scripts/run_simulation.py --optimise           # cheapest feasible plan
     python scripts/run_simulation.py --sensitivity ophthalmologists 1 2 3 4
-    python scripts/run_simulation.py --export-matlab matlab/
+    python scripts/run_simulation.py --export-matlab outputs/simulink_bridge/
 """
 from __future__ import annotations
 

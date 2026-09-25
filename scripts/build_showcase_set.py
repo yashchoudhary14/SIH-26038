@@ -1,4 +1,4 @@
-"""Build the 60-image showcase set under dataset/.
+"""Build the 60-image showcase set under matlab/data/showcase/.
 
 What this is, stated plainly so nobody mistakes it for a measurement: a
 **curated demonstration set**. Images are chosen *because* the model grades them
@@ -15,7 +15,7 @@ Two constraints make the demonstration honest anyway:
    bundles the site ends up serving. Every image records which of those two
    tiers it came from.
 2. **The saved file is what was measured.** Selection scores the cohort tensor,
-   but the file written to ``dataset/`` is a re-encoded JPEG downscaled from the
+   but the file written to ``matlab/data/showcase/`` is a re-encoded JPEG downscaled from the
    original photograph, so the pipeline is re-run on that exact file and any
    image whose verdict moves under the re-encode is dropped and replaced.
 
@@ -95,7 +95,7 @@ def main(argv=None) -> int:
                     help="bundle the showcase will serve; selection targets it")
     ap.add_argument("--other", type=Path, default=Path("outputs/artifacts"),
                     help="the other bundle, used only to prefer images blind to both")
-    ap.add_argument("--out", type=Path, default=Path("dataset"))
+    ap.add_argument("--out", type=Path, default=Path("matlab/data/showcase"))
     ap.add_argument("--size", type=int, default=512)
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--device", default="auto")

@@ -212,7 +212,7 @@ fprintf('Built %s.slx\n', modelName);
 fprintf(['NOTE: the recapture feedback path (QualityGate port 2 back to\n' ...
          'CameraQueue) and the link-state Markov chain are added in the\n' ...
          'shipped .slx; this script builds the forward topology. See\n' ...
-         'matlab/README.md.\n']);
+         'README.md.\n']);
 end
 """
 
@@ -268,7 +268,7 @@ configuration.
 ## Regenerating
 
 ```
-python scripts/run_simulation.py --export-matlab matlab/
+python scripts/run_simulation.py --export-matlab outputs/simulink_bridge/
 ```
 
 Any change to `SimConfig` flows into `dr_screening_params.m`, so the two
