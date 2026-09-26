@@ -1,0 +1,16 @@
+Loaded segmentation (epoch 160, dice 0.5550)
+Segmenting at 1024px, extracting features at 512px
+  fitted lesion thresholds (match live inference): {'microaneurysm': 0.6, 'hemorrhage': 0.9, 'hard_exudate': 0.95, 'soft_exudate': 0.95}
+  504/6047  (182s, 2.8/s)
+  1000/6047  (284s, 3.5/s)
+  1504/6047  (386s, 3.9/s)
+  2000/6047  (484s, 4.1/s)
+  2504/6047  (582s, 4.3/s)
+  3000/6047  (678s, 4.4/s)
+  3504/6047  (768s, 4.6/s)
+  4000/6047  (862s, 4.6/s)
+  4504/6047  (956s, 4.7/s)
+  5000/6047  (1044s, 4.8/s)
+  5504/6047  (1130s, 4.9/s)
+  6000/6047  (1216s, 4.9/s)
+Cached 6047 feature vectors to data\cohort_real_v2\features in 1224s

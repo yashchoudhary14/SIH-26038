@@ -1,0 +1,340 @@
+arm=clinical  train 2925  val 622
+grade distribution (train): [1369, 264, 825, 207, 260]
+parameters: 11.39 M
+clinical feature vector: 39 dims
+expected batch composition by grade: 0:32.9%  1:14.4%  2:25.5%  3:12.8%  4:14.3%
+  ep1 step 0/182 loss 0.6856
+  ep1 step 20/182 loss 0.6733
+  ep1 step 40/182 loss 0.6518
+  ep1 step 60/182 loss 0.6323
+  ep1 step 80/182 loss 0.6207
+  ep1 step 100/182 loss 0.6100
+  ep1 step 120/182 loss 0.6059
+  ep1 step 140/182 loss 0.6075
+  ep1 step 160/182 loss 0.6033
+  ep1 step 180/182 loss 0.6040
+[grader] epoch 1/30 loss 0.6039 AUC(ref) 0.4695 QWK 0.0000 acc 0.1222 sens(g>=3) 0.0000
+  ep2 step 0/182 loss 0.5795
+  ep2 step 20/182 loss 0.5774
+  ep2 step 40/182 loss 0.5759
+  ep2 step 60/182 loss 0.5724
+  ep2 step 80/182 loss 0.5559
+  ep2 step 100/182 loss 0.5434
+  ep2 step 120/182 loss 0.5344
+  ep2 step 140/182 loss 0.5221
+  ep2 step 160/182 loss 0.5147
+  ep2 step 180/182 loss 0.5068
+[grader] epoch 2/30 loss 0.5061 AUC(ref) 0.9078 QWK 0.0000 acc 0.1222 sens(g>=3) 0.0000
+  ep3 step 0/182 loss 0.4644
+  ep3 step 20/182 loss 0.4667
+  ep3 step 40/182 loss 0.4641
+  ep3 step 60/182 loss 0.4682
+  ep3 step 80/182 loss 0.4629
+  ep3 step 100/182 loss 0.4626
+  ep3 step 120/182 loss 0.4634
+  ep3 step 140/182 loss 0.4600
+  ep3 step 160/182 loss 0.4573
+  ep3 step 180/182 loss 0.4574
+[grader] epoch 3/30 loss 0.4574 AUC(ref) 0.9125 QWK 0.0647 acc 0.1254 sens(g>=3) 0.0000
+  ep4 step 0/182 loss 0.3777
+  ep4 step 20/182 loss 0.4446
+  ep4 step 40/182 loss 0.4359
+  ep4 step 60/182 loss 0.4432
+  ep4 step 80/182 loss 0.4409
+  ep4 step 100/182 loss 0.4468
+  ep4 step 120/182 loss 0.4503
+  ep4 step 140/182 loss 0.4470
+  ep4 step 160/182 loss 0.4446
+  ep4 step 180/182 loss 0.4465
+[grader] epoch 4/30 loss 0.4467 AUC(ref) 0.9136 QWK 0.3255 acc 0.2170 sens(g>=3) 0.0141
+  ep5 step 0/182 loss 0.4334
+  ep5 step 20/182 loss 0.4282
+  ep5 step 40/182 loss 0.4202
+  ep5 step 60/182 loss 0.4333
+  ep5 step 80/182 loss 0.4344
+  ep5 step 100/182 loss 0.4404
+  ep5 step 120/182 loss 0.4416
+  ep5 step 140/182 loss 0.4422
+  ep5 step 160/182 loss 0.4424
+  ep5 step 180/182 loss 0.4395
+[grader] epoch 5/30 loss 0.4392 AUC(ref) 0.9143 QWK 0.4340 acc 0.2749 sens(g>=3) 0.0986
+  ep6 step 0/182 loss 0.6059
+  ep6 step 20/182 loss 0.4639
+  ep6 step 40/182 loss 0.4423
+  ep6 step 60/182 loss 0.4510
+  ep6 step 80/182 loss 0.4499
+  ep6 step 100/182 loss 0.4516
+  ep6 step 120/182 loss 0.4534
+  ep6 step 140/182 loss 0.4514
+  ep6 step 160/182 loss 0.4493
+  ep6 step 180/182 loss 0.4484
+[grader] epoch 6/30 loss 0.4481 AUC(ref) 0.9146 QWK 0.5030 acc 0.3183 sens(g>=3) 0.3099
+  ep7 step 0/182 loss 0.4376
+  ep7 step 20/182 loss 0.4359
+  ep7 step 40/182 loss 0.4384
+  ep7 step 60/182 loss 0.4385
+  ep7 step 80/182 loss 0.4409
+  ep7 step 100/182 loss 0.4381
+  ep7 step 120/182 loss 0.4328
+  ep7 step 140/182 loss 0.4324
+  ep7 step 160/182 loss 0.4344
+  ep7 step 180/182 loss 0.4361
+[grader] epoch 7/30 loss 0.4362 AUC(ref) 0.9151 QWK 0.5616 acc 0.3762 sens(g>=3) 0.4225
+  ep8 step 0/182 loss 0.4593
+  ep8 step 20/182 loss 0.4543
+  ep8 step 40/182 loss 0.4414
+  ep8 step 60/182 loss 0.4402
+  ep8 step 80/182 loss 0.4454
+  ep8 step 100/182 loss 0.4437
+  ep8 step 120/182 loss 0.4425
+  ep8 step 140/182 loss 0.4430
+  ep8 step 160/182 loss 0.4422
+  ep8 step 180/182 loss 0.4407
+[grader] epoch 8/30 loss 0.4407 AUC(ref) 0.9153 QWK 0.6113 acc 0.4196 sens(g>=3) 0.5070
+  ep9 step 0/182 loss 0.5601
+  ep9 step 20/182 loss 0.4197
+  ep9 step 40/182 loss 0.4245
+  ep9 step 60/182 loss 0.4306
+  ep9 step 80/182 loss 0.4316
+  ep9 step 100/182 loss 0.4293
+  ep9 step 120/182 loss 0.4274
+  ep9 step 140/182 loss 0.4279
+  ep9 step 160/182 loss 0.4268
+  ep9 step 180/182 loss 0.4226
+[grader] epoch 9/30 loss 0.4226 AUC(ref) 0.9155 QWK 0.6370 acc 0.4759 sens(g>=3) 0.5634
+  ep10 step 0/182 loss 0.5056
+  ep10 step 20/182 loss 0.4572
+  ep10 step 40/182 loss 0.4493
+  ep10 step 60/182 loss 0.4397
+  ep10 step 80/182 loss 0.4347
+  ep10 step 100/182 loss 0.4302
+  ep10 step 120/182 loss 0.4309
+  ep10 step 140/182 loss 0.4266
+  ep10 step 160/182 loss 0.4240
+  ep10 step 180/182 loss 0.4243
+[grader] epoch 10/30 loss 0.4251 AUC(ref) 0.9154 QWK 0.6575 acc 0.5145 sens(g>=3) 0.6056
+  ep11 step 0/182 loss 0.4083
+  ep11 step 20/182 loss 0.4152
+  ep11 step 40/182 loss 0.4202
+  ep11 step 60/182 loss 0.4199
+  ep11 step 80/182 loss 0.4157
+  ep11 step 100/182 loss 0.4190
+  ep11 step 120/182 loss 0.4211
+  ep11 step 140/182 loss 0.4213
+  ep11 step 160/182 loss 0.4239
+  ep11 step 180/182 loss 0.4229
+[grader] epoch 11/30 loss 0.4231 AUC(ref) 0.9154 QWK 0.6800 acc 0.5402 sens(g>=3) 0.7042
+  ep12 step 0/182 loss 0.4092
+  ep12 step 20/182 loss 0.4284
+  ep12 step 40/182 loss 0.4212
+  ep12 step 60/182 loss 0.4240
+  ep12 step 80/182 loss 0.4244
+  ep12 step 100/182 loss 0.4211
+  ep12 step 120/182 loss 0.4239
+  ep12 step 140/182 loss 0.4235
+  ep12 step 160/182 loss 0.4255
+  ep12 step 180/182 loss 0.4241
+[grader] epoch 12/30 loss 0.4243 AUC(ref) 0.9154 QWK 0.6833 acc 0.5434 sens(g>=3) 0.7324
+  ep13 step 0/182 loss 0.4487
+  ep13 step 20/182 loss 0.4267
+  ep13 step 40/182 loss 0.4210
+  ep13 step 60/182 loss 0.4206
+  ep13 step 80/182 loss 0.4155
+  ep13 step 100/182 loss 0.4174
+  ep13 step 120/182 loss 0.4201
+  ep13 step 140/182 loss 0.4191
+  ep13 step 160/182 loss 0.4172
+  ep13 step 180/182 loss 0.4156
+[grader] epoch 13/30 loss 0.4153 AUC(ref) 0.9155 QWK 0.6836 acc 0.5386 sens(g>=3) 0.7324
+  ep14 step 0/182 loss 0.4233
+  ep14 step 20/182 loss 0.4059
+  ep14 step 40/182 loss 0.4094
+  ep14 step 60/182 loss 0.4085
+  ep14 step 80/182 loss 0.4102
+  ep14 step 100/182 loss 0.4175
+  ep14 step 120/182 loss 0.4258
+  ep14 step 140/182 loss 0.4274
+  ep14 step 160/182 loss 0.4273
+  ep14 step 180/182 loss 0.4232
+[grader] epoch 14/30 loss 0.4233 AUC(ref) 0.9156 QWK 0.6919 acc 0.5547 sens(g>=3) 0.7465
+  ep15 step 0/182 loss 0.2937
+  ep15 step 20/182 loss 0.4021
+  ep15 step 40/182 loss 0.4077
+  ep15 step 60/182 loss 0.4110
+  ep15 step 80/182 loss 0.4146
+  ep15 step 100/182 loss 0.4225
+  ep15 step 120/182 loss 0.4233
+  ep15 step 140/182 loss 0.4276
+  ep15 step 160/182 loss 0.4273
+  ep15 step 180/182 loss 0.4265
+[grader] epoch 15/30 loss 0.4260 AUC(ref) 0.9157 QWK 0.6898 acc 0.5595 sens(g>=3) 0.7606
+  ep16 step 0/182 loss 0.3847
+  ep16 step 20/182 loss 0.4256
+  ep16 step 40/182 loss 0.4198
+  ep16 step 60/182 loss 0.4257
+  ep16 step 80/182 loss 0.4268
+  ep16 step 100/182 loss 0.4301
+  ep16 step 120/182 loss 0.4271
+  ep16 step 140/182 loss 0.4300
+  ep16 step 160/182 loss 0.4265
+  ep16 step 180/182 loss 0.4266
+[grader] epoch 16/30 loss 0.4263 AUC(ref) 0.9160 QWK 0.6956 acc 0.5627 sens(g>=3) 0.7746
+  ep17 step 0/182 loss 0.4378
+  ep17 step 20/182 loss 0.4226
+  ep17 step 40/182 loss 0.4183
+  ep17 step 60/182 loss 0.4143
+  ep17 step 80/182 loss 0.4147
+  ep17 step 100/182 loss 0.4181
+  ep17 step 120/182 loss 0.4181
+  ep17 step 140/182 loss 0.4195
+  ep17 step 160/182 loss 0.4177
+  ep17 step 180/182 loss 0.4179
+[grader] epoch 17/30 loss 0.4176 AUC(ref) 0.9161 QWK 0.6912 acc 0.5595 sens(g>=3) 0.7746
+  ep18 step 0/182 loss 0.3600
+  ep18 step 20/182 loss 0.4392
+  ep18 step 40/182 loss 0.4209
+  ep18 step 60/182 loss 0.4193
+  ep18 step 80/182 loss 0.4153
+  ep18 step 100/182 loss 0.4121
+  ep18 step 120/182 loss 0.4122
+  ep18 step 140/182 loss 0.4097
+  ep18 step 160/182 loss 0.4092
+  ep18 step 180/182 loss 0.4074
+[grader] epoch 18/30 loss 0.4073 AUC(ref) 0.9164 QWK 0.6972 acc 0.5579 sens(g>=3) 0.8169
+  ep19 step 0/182 loss 0.3021
+  ep19 step 20/182 loss 0.4051
+  ep19 step 40/182 loss 0.3957
+  ep19 step 60/182 loss 0.3937
+  ep19 step 80/182 loss 0.4002
+  ep19 step 100/182 loss 0.4011
+  ep19 step 120/182 loss 0.4067
+  ep19 step 140/182 loss 0.4077
+  ep19 step 160/182 loss 0.4080
+  ep19 step 180/182 loss 0.4081
+[grader] epoch 19/30 loss 0.4076 AUC(ref) 0.9164 QWK 0.6964 acc 0.5595 sens(g>=3) 0.8169
+  ep20 step 0/182 loss 0.3390
+  ep20 step 20/182 loss 0.4187
+  ep20 step 40/182 loss 0.4099
+  ep20 step 60/182 loss 0.4066
+  ep20 step 80/182 loss 0.4117
+  ep20 step 100/182 loss 0.4118
+  ep20 step 120/182 loss 0.4137
+  ep20 step 140/182 loss 0.4129
+  ep20 step 160/182 loss 0.4130
+  ep20 step 180/182 loss 0.4128
+[grader] epoch 20/30 loss 0.4126 AUC(ref) 0.9165 QWK 0.6995 acc 0.5627 sens(g>=3) 0.8310
+  ep21 step 0/182 loss 0.2832
+  ep21 step 20/182 loss 0.4268
+  ep21 step 40/182 loss 0.4168
+  ep21 step 60/182 loss 0.4073
+  ep21 step 80/182 loss 0.4112
+  ep21 step 100/182 loss 0.4109
+  ep21 step 120/182 loss 0.4136
+  ep21 step 140/182 loss 0.4111
+  ep21 step 160/182 loss 0.4108
+  ep21 step 180/182 loss 0.4134
+[grader] epoch 21/30 loss 0.4138 AUC(ref) 0.9168 QWK 0.7020 acc 0.5675 sens(g>=3) 0.8310
+  ep22 step 0/182 loss 0.3514
+  ep22 step 20/182 loss 0.4188
+  ep22 step 40/182 loss 0.4029
+  ep22 step 60/182 loss 0.4043
+  ep22 step 80/182 loss 0.4058
+  ep22 step 100/182 loss 0.4022
+  ep22 step 120/182 loss 0.3986
+  ep22 step 140/182 loss 0.3994
+  ep22 step 160/182 loss 0.3988
+  ep22 step 180/182 loss 0.4012
+[grader] epoch 22/30 loss 0.4014 AUC(ref) 0.9167 QWK 0.6973 acc 0.5675 sens(g>=3) 0.8310
+  ep23 step 0/182 loss 0.3953
+  ep23 step 20/182 loss 0.4063
+  ep23 step 40/182 loss 0.4074
+  ep23 step 60/182 loss 0.4038
+  ep23 step 80/182 loss 0.4089
+  ep23 step 100/182 loss 0.4073
+  ep23 step 120/182 loss 0.4090
+  ep23 step 140/182 loss 0.4106
+  ep23 step 160/182 loss 0.4064
+  ep23 step 180/182 loss 0.4063
+[grader] epoch 23/30 loss 0.4062 AUC(ref) 0.9172 QWK 0.6986 acc 0.5707 sens(g>=3) 0.8310
+  ep24 step 0/182 loss 0.3984
+  ep24 step 20/182 loss 0.3772
+  ep24 step 40/182 loss 0.3890
+  ep24 step 60/182 loss 0.3922
+  ep24 step 80/182 loss 0.3986
+  ep24 step 100/182 loss 0.4009
+  ep24 step 120/182 loss 0.3978
+  ep24 step 140/182 loss 0.3979
+  ep24 step 160/182 loss 0.3973
+  ep24 step 180/182 loss 0.4014
+[grader] epoch 24/30 loss 0.4009 AUC(ref) 0.9175 QWK 0.7004 acc 0.5707 sens(g>=3) 0.8451
+  ep25 step 0/182 loss 0.4290
+  ep25 step 20/182 loss 0.3943
+  ep25 step 40/182 loss 0.4009
+  ep25 step 60/182 loss 0.3923
+  ep25 step 80/182 loss 0.4034
+  ep25 step 100/182 loss 0.4051
+  ep25 step 120/182 loss 0.4091
+  ep25 step 140/182 loss 0.4088
+  ep25 step 160/182 loss 0.4053
+  ep25 step 180/182 loss 0.4030
+[grader] epoch 25/30 loss 0.4029 AUC(ref) 0.9178 QWK 0.6982 acc 0.5740 sens(g>=3) 0.8451
+  ep26 step 0/182 loss 0.3319
+  ep26 step 20/182 loss 0.4045
+  ep26 step 40/182 loss 0.4058
+  ep26 step 60/182 loss 0.4084
+  ep26 step 80/182 loss 0.4038
+  ep26 step 100/182 loss 0.4019
+  ep26 step 120/182 loss 0.3996
+  ep26 step 140/182 loss 0.4022
+  ep26 step 160/182 loss 0.4126
+  ep26 step 180/182 loss 0.4154
+[grader] epoch 26/30 loss 0.4155 AUC(ref) 0.9176 QWK 0.6982 acc 0.5740 sens(g>=3) 0.8451
+  ep27 step 0/182 loss 0.4139
+  ep27 step 20/182 loss 0.3988
+  ep27 step 40/182 loss 0.4030
+  ep27 step 60/182 loss 0.3970
+  ep27 step 80/182 loss 0.4038
+  ep27 step 100/182 loss 0.4029
+  ep27 step 120/182 loss 0.3994
+  ep27 step 140/182 loss 0.3976
+  ep27 step 160/182 loss 0.3989
+  ep27 step 180/182 loss 0.3989
+[grader] epoch 27/30 loss 0.3988 AUC(ref) 0.9176 QWK 0.7030 acc 0.5788 sens(g>=3) 0.8592
+  ep28 step 0/182 loss 0.3640
+  ep28 step 20/182 loss 0.3937
+  ep28 step 40/182 loss 0.3989
+  ep28 step 60/182 loss 0.3988
+  ep28 step 80/182 loss 0.3988
+  ep28 step 100/182 loss 0.4054
+  ep28 step 120/182 loss 0.4052
+  ep28 step 140/182 loss 0.4050
+  ep28 step 160/182 loss 0.4022
+  ep28 step 180/182 loss 0.4016
+[grader] epoch 28/30 loss 0.4013 AUC(ref) 0.9176 QWK 0.7012 acc 0.5772 sens(g>=3) 0.8592
+  ep29 step 0/182 loss 0.3880
+  ep29 step 20/182 loss 0.4155
+  ep29 step 40/182 loss 0.4015
+  ep29 step 60/182 loss 0.4037
+  ep29 step 80/182 loss 0.4046
+  ep29 step 100/182 loss 0.4018
+  ep29 step 120/182 loss 0.4000
+  ep29 step 140/182 loss 0.4002
+  ep29 step 160/182 loss 0.3996
+  ep29 step 180/182 loss 0.4007
+[grader] epoch 29/30 loss 0.4009 AUC(ref) 0.9179 QWK 0.7013 acc 0.5772 sens(g>=3) 0.8592
+  ep30 step 0/182 loss 0.3596
+  ep30 step 20/182 loss 0.3943
+  ep30 step 40/182 loss 0.3901
+  ep30 step 60/182 loss 0.3969
+  ep30 step 80/182 loss 0.3944
+  ep30 step 100/182 loss 0.3905
+  ep30 step 120/182 loss 0.3936
+  ep30 step 140/182 loss 0.3937
+  ep30 step 160/182 loss 0.3924
+  ep30 step 180/182 loss 0.3960
+[grader] epoch 30/30 loss 0.3963 AUC(ref) 0.9179 QWK 0.6992 acc 0.5772 sens(g>=3) 0.8592
+
+Best qwk 0.7030 at epoch 27 (14.0 min)
+  at that epoch: AUC(ref) 0.9176  QWK 0.7030  sens(g>=3) 0.8592
+  per-grade recall: 0:0.69  1:0.57  2:0.45  3:0.84  4:0.00
+Checkpoint: outputs\grader_clinical_v2\best.pt

@@ -1,0 +1,102 @@
+Discovered:
+  aptos2019                3662 images   grades {0: 1805, 1: 370, 2: 999, 3: 193, 4: 295}
+  ddr                     13673 images   grades {0: 6266, 1: 630, 2: 4477, 3: 236, 4: 913}
+  idrid_grading             516 images   grades {0: 168, 1: 25, 2: 168, 3: 93, 4: 62}
+  idrid_segmentation         81 images   grades (none)
+  drive                      40 images   grades (none)
+  messidor2                1748 images   grades {0: 1017, 1: 270, 2: 347, 3: 75, 4: 35}
+  dropped 1151 ungradable images from the grading pool
+
+Training pool before curation:
+  grade        aptos2019            ddr  idrid_grading          total
+  -------------------------------------------------------------------
+  0                 1256           4397            113           5766
+  1                  244            443             20            707
+  2                  700           3079            125           3904
+  3                  135            169             72            376
+  4                  220            639             40            899
+
+Training pool after curation (11652 -> 5578):
+  grade        aptos2019            ddr  idrid_grading          total
+  -------------------------------------------------------------------
+  0                  843            842            113           1798
+  1                  244            443             20            707
+  2                  700            973            125           1798
+  3                  135            169             72            376
+  4                  220            639             40            899
+
+Grading split : train 5578  val 2497  test 2551  external/messidor2 1748
+Lesion  split : train 64  val 17   (IDRiD segmentation)
+Vessel  split : train 32  val 8   (DRIVE)
+Messidor-2 is held out; it is never used for training or threshold selection.
+
+Processing 12495 images with 14 worker(s)...
+  200/12495  (40s, 5.0/s)
+  400/12495  (68s, 5.9/s)
+  600/12495  (88s, 6.8/s)
+  800/12495  (110s, 7.2/s)
+  1000/12495  (127s, 7.9/s)
+  1200/12495  (148s, 8.1/s)
+  1400/12495  (171s, 8.2/s)
+  1600/12495  (190s, 8.4/s)
+  1800/12495  (210s, 8.6/s)
+  2000/12495  (236s, 8.5/s)
+  2200/12495  (262s, 8.4/s)
+  2400/12495  (289s, 8.3/s)
+  2600/12495  (324s, 8.0/s)
+  2800/12495  (358s, 7.8/s)
+  3000/12495  (386s, 7.8/s)
+  3200/12495  (413s, 7.7/s)
+Corrupt JPEG data: 36 extraneous bytes before marker 0xd9
+  3400/12495  (436s, 7.8/s)
+Corrupt JPEG data: 34 extraneous bytes before marker 0xd9
+  3600/12495  (464s, 7.8/s)
+  3800/12495  (487s, 7.8/s)
+  4000/12495  (514s, 7.8/s)
+  4200/12495  (536s, 7.8/s)
+  4400/12495  (561s, 7.8/s)
+  4600/12495  (588s, 7.8/s)
+  4800/12495  (625s, 7.7/s)
+  5000/12495  (647s, 7.7/s)
+  5200/12495  (675s, 7.7/s)
+Corrupt JPEG data: 40 extraneous bytes before marker 0xd9
+  5400/12495  (705s, 7.7/s)
+  5600/12495  (728s, 7.7/s)
+  5800/12495  (749s, 7.7/s)
+  6000/12495  (768s, 7.8/s)
+  6200/12495  (792s, 7.8/s)
+  6400/12495  (826s, 7.7/s)
+  6600/12495  (847s, 7.8/s)
+  6800/12495  (873s, 7.8/s)
+  7000/12495  (900s, 7.8/s)
+  7200/12495  (926s, 7.8/s)
+  7400/12495  (951s, 7.8/s)
+  7600/12495  (979s, 7.8/s)
+  7800/12495  (1001s, 7.8/s)
+  8000/12495  (1022s, 7.8/s)
+  8200/12495  (1052s, 7.8/s)
+  8400/12495  (1071s, 7.8/s)
+  8600/12495  (1088s, 7.9/s)
+  8800/12495  (1119s, 7.9/s)
+Corrupt JPEG data: 36 extraneous bytes before marker 0xd9
+  9000/12495  (1147s, 7.8/s)
+  9200/12495  (1172s, 7.9/s)
+  9400/12495  (1194s, 7.9/s)
+Corrupt JPEG data: 37 extraneous bytes before marker 0xd9
+  9600/12495  (1222s, 7.9/s)
+  9800/12495  (1249s, 7.8/s)
+Corrupt JPEG data: 40 extraneous bytes before marker 0xd9
+  10000/12495  (1273s, 7.9/s)
+  10200/12495  (1302s, 7.8/s)
+  10400/12495  (1326s, 7.8/s)
+  10600/12495  (1359s, 7.8/s)
+  10800/12495  (1379s, 7.8/s)
+  11000/12495  (1392s, 7.9/s)
+  11200/12495  (1404s, 8.0/s)
+  11400/12495  (1412s, 8.1/s)
+  11600/12495  (1425s, 8.1/s)
+  11800/12495  (1442s, 8.2/s)
+  12000/12495  (1458s, 8.2/s)
+  12200/12495  (1476s, 8.3/s)
+  12400/12495  (1507s, 8.2/s)
+Wrote 12495 cases to data\cohort_real_ddr in 1522s

@@ -1,0 +1,20 @@
+Preprocessing 200 images...
+Sweeping vessel weight on IDRiD localization / train (200 images per point)
+
+  weight  disc <=1DD  disc med  fovea <=1DD  fovea med
+------------------------------------------------------
+    0.00       97.0%     0.096        94.0%      0.176
+    0.10       98.5%     0.096        94.0%      0.176
+    0.20       98.0%     0.096        94.0%      0.176
+    0.30       98.0%     0.097        94.0%      0.176
+    0.40       98.0%     0.097        94.0%      0.176
+    0.50       97.0%     0.097        94.0%      0.176
+    0.60       96.0%     0.097        94.0%      0.176
+    0.70       96.0%     0.097        94.0%      0.176  <- shipped
+    0.80       95.5%     0.097        93.5%      0.176
+    0.90       95.0%     0.097        94.0%      0.176
+    1.00       93.5%     0.098        94.0%      0.176
+
+Best on real data: weight 0.10 -> disc <=1 DD 98.5%, median 0.096 DD
+Shipped (0.70):    disc <=1 DD 96.0%, median 0.097 DD
+Difference: +2.5 percentage points within 1 DD

@@ -1,0 +1,192 @@
+{
+  "image_id": "grade2_026dcd9af143",
+  "gradeable": true,
+  "quality": {
+    "scores": {
+      "focus": 0.7446,
+      "illumination": 0.9889,
+      "contrast": 0.9143,
+      "fov": 0.9226,
+      "macula": 1.0,
+      "artifact": 1.0,
+      "under_exposure": 1.0,
+      "over_exposure": 1.0,
+      "noise": 1.0
+    },
+    "verdicts": {
+      "focus": "pass",
+      "illumination": "pass",
+      "contrast": "pass",
+      "fov": "pass",
+      "macula": "pass",
+      "artifact": "pass",
+      "under_exposure": "pass",
+      "over_exposure": "pass",
+      "noise": "pass"
+    },
+    "overall": "good",
+    "gradeable": true,
+    "needs_enhancement": false,
+    "issues": [],
+    "advice": [],
+    "confidence": 0.9158,
+    "first_pass": {
+      "overall": "borderline",
+      "issues": [
+        "under_exposure"
+      ],
+      "scores": {
+        "focus": 0.8893,
+        "illumination": 0.6234,
+        "contrast": 0.8165,
+        "fov": 0.9226,
+        "macula": 1.0,
+        "artifact": 1.0,
+        "under_exposure": 0.4,
+        "over_exposure": 1.0,
+        "noise": 1.0
+      }
+    }
+  },
+  "enhancement_applied": [
+    "grey_world",
+    "illumination_normalize",
+    "auto_exposure"
+  ],
+  "landmarks": {
+    "disc_xy": [
+      111,
+      237
+    ],
+    "disc_radius": 26.068977866467897,
+    "disc_confidence": 1.0,
+    "fovea_xy": [
+      248,
+      269
+    ],
+    "fovea_confidence": 1.0,
+    "laterality": "OS",
+    "disc_diameter_px": 52.137955732935794
+  },
+  "grade": 0,
+  "grade_label": "No apparent DR",
+  "class_probabilities": [
+    0.3776,
+    0.3431,
+    0.2103,
+    0.0291,
+    0.0398
+  ],
+  "referable": false,
+  "referable_probability": 0.23809523809523808,
+  "confidence": 0.37764787673950195,
+  "uncertainty": {
+    "entropy": 1.294,
+    "epistemic_variance": 0.0077
+  },
+  "decision": "auto_report",
+  "urgency": "routine",
+  "dme_risk": 2,
+  "clinical_features": {
+    "counts": {
+      "microaneurysm": 1,
+      "hemorrhage": 0,
+      "hard_exudate": 33,
+      "soft_exudate": 1,
+      "neovascularization": 0
+    },
+    "per_quadrant": {
+      "microaneurysm": {
+        "superior": 1,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "hemorrhage": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "hard_exudate": {
+        "superior": 0,
+        "inferior": 5,
+        "nasal": 0,
+        "temporal": 28
+      },
+      "soft_exudate": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 1
+      },
+      "neovascularization": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      }
+    },
+    "quadrants_with_hemorrhage": 0,
+    "quadrants_with_beading": 0,
+    "nv_at_disc": false,
+    "nv_elsewhere": false,
+    "lesions_within_1dd_of_fovea": 5,
+    "nearest_lesion_dd": 0.62
+  },
+  "evidence": [
+    {
+      "finding": "microaneurysm",
+      "count": 1,
+      "per_quadrant": {
+        "superior": 1
+      },
+      "area_percent": 0.008
+    },
+    {
+      "finding": "hard exudate",
+      "count": 33,
+      "per_quadrant": {
+        "inferior": 5,
+        "temporal": 28
+      },
+      "area_percent": 0.493
+    },
+    {
+      "finding": "soft exudate",
+      "count": 1,
+      "per_quadrant": {
+        "temporal": 1
+      },
+      "area_percent": 0.227
+    },
+    {
+      "criterion": "More than microaneurysms alone but less than severe NPDR: 1 microaneurysm, 33 hard-exudate focus/foci, 1 cotton-wool spot."
+    },
+    {
+      "macular_assessment": "4 hard-exudate focus/foci within 1 disc diameter of the fovea - clinically significant macular oedema likely; urgent referral."
+    },
+    {
+      "caution": "The deep model graded 0 (No apparent DR) while the rule-based criteria give 2 (Moderate NPDR). Flagged for human adjudication."
+    }
+  ],
+  "rule_based_grade": 2,
+  "rule_based_reasons": [
+    "More than microaneurysms alone but less than severe NPDR: 1 microaneurysm, 33 hard-exudate focus/foci, 1 cotton-wool spot."
+  ],
+  "agreement": "disagree",
+  "recapture_advice": [],
+  "timing_ms": {
+    "geometry": 511.82,
+    "landmarks": 38.64,
+    "quality": 21.92,
+    "enhancement": 66.63,
+    "quality_recheck": 23.01,
+    "segmentation": 99.6,
+    "clinical_features": 18.47,
+    "grading": 52.77,
+    "explanation": 23.57,
+    "total": 878.17
+  },
+  "model_version": "drscreen-1.0.0"
+}

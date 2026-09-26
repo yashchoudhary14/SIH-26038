@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>docs test</title>
+<script>document.write('<script src="report-pdf.js?v=' + Date.now() + '"><\/script><script src="docs-pdf.js?v=' + Date.now() + '"><\/script>')</script>
+<pre id="out">PENDING</pre>
+<script>
+(async () => {
+  const kind = location.hash.slice(1) || "results";
+  const {doc, name} = await DRDocs.build(kind);
+  document.getElementById("out").textContent = name + "\n" + doc.getNumberOfPages() + "\n" + doc.output("datauristring").split(",")[1];
+})().catch(e => { document.getElementById("out").textContent = "ERR " + (e && e.stack || e); });
+</script>

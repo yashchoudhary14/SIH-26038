@@ -1,0 +1,7 @@
+outputs/
+dist/
+tools/*.log
+__pycache__/
+# Packaged copies of ../web and the project docs, written by deploy/sync_web.m
+web/
+docs/

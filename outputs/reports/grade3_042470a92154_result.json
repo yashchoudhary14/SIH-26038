@@ -1,0 +1,187 @@
+{
+  "image_id": "grade3_042470a92154",
+  "gradeable": true,
+  "quality": {
+    "scores": {
+      "focus": 0.8085,
+      "illumination": 0.7115,
+      "contrast": 0.7958,
+      "fov": 0.9133,
+      "macula": 0.7581,
+      "artifact": 1.0,
+      "under_exposure": 0.6727,
+      "over_exposure": 1.0,
+      "noise": 1.0
+    },
+    "verdicts": {
+      "focus": "pass",
+      "illumination": "pass",
+      "contrast": "pass",
+      "fov": "pass",
+      "macula": "pass",
+      "artifact": "pass",
+      "under_exposure": "pass",
+      "over_exposure": "pass",
+      "noise": "pass"
+    },
+    "overall": "good",
+    "gradeable": true,
+    "needs_enhancement": false,
+    "issues": [],
+    "advice": [],
+    "confidence": 0.7976,
+    "first_pass": {
+      "overall": "good",
+      "issues": [],
+      "scores": {
+        "focus": 0.7952,
+        "illumination": 0.6286,
+        "contrast": 0.8199,
+        "fov": 0.9133,
+        "macula": 0.7581,
+        "artifact": 1.0,
+        "under_exposure": 0.8364,
+        "over_exposure": 1.0,
+        "noise": 1.0
+      }
+    }
+  },
+  "enhancement_applied": [
+    "grey_world"
+  ],
+  "landmarks": {
+    "disc_xy": [
+      371,
+      273
+    ],
+    "disc_radius": 27.87461985704259,
+    "disc_confidence": 1.0,
+    "fovea_xy": [
+      217,
+      298
+    ],
+    "fovea_confidence": 0.4625,
+    "laterality": "OD",
+    "disc_diameter_px": 55.74923971408518
+  },
+  "grade": 2,
+  "grade_label": "Moderate NPDR",
+  "class_probabilities": [
+    0.0858,
+    0.1513,
+    0.479,
+    0.1858,
+    0.0982
+  ],
+  "referable": true,
+  "referable_probability": 0.875,
+  "confidence": 0.47896841168403625,
+  "uncertainty": {
+    "entropy": 1.3895,
+    "epistemic_variance": 0.00578
+  },
+  "decision": "refer",
+  "urgency": "urgent",
+  "dme_risk": 2,
+  "clinical_features": {
+    "counts": {
+      "microaneurysm": 1,
+      "hemorrhage": 0,
+      "hard_exudate": 102,
+      "soft_exudate": 1,
+      "neovascularization": 0
+    },
+    "per_quadrant": {
+      "microaneurysm": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 1,
+        "temporal": 0
+      },
+      "hemorrhage": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "hard_exudate": {
+        "superior": 41,
+        "inferior": 8,
+        "nasal": 24,
+        "temporal": 29
+      },
+      "soft_exudate": {
+        "superior": 1,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "neovascularization": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      }
+    },
+    "quadrants_with_hemorrhage": 0,
+    "quadrants_with_beading": 0,
+    "nv_at_disc": false,
+    "nv_elsewhere": false,
+    "lesions_within_1dd_of_fovea": 16,
+    "nearest_lesion_dd": 0.33
+  },
+  "evidence": [
+    {
+      "finding": "microaneurysm",
+      "count": 1,
+      "per_quadrant": {
+        "nasal": 1
+      },
+      "area_percent": 0.003
+    },
+    {
+      "finding": "hard exudate",
+      "count": 102,
+      "per_quadrant": {
+        "superior": 41,
+        "inferior": 8,
+        "nasal": 24,
+        "temporal": 29
+      },
+      "area_percent": 2.167
+    },
+    {
+      "finding": "soft exudate",
+      "count": 1,
+      "per_quadrant": {
+        "superior": 1
+      },
+      "area_percent": 0.153
+    },
+    {
+      "criterion": "More than microaneurysms alone but less than severe NPDR: 1 microaneurysm, 102 hard-exudate focus/foci, 1 cotton-wool spot."
+    },
+    {
+      "macular_assessment": "16 hard-exudate focus/foci within 1 disc diameter of the fovea - clinically significant macular oedema likely; urgent referral."
+    }
+  ],
+  "rule_based_grade": 2,
+  "rule_based_reasons": [
+    "More than microaneurysms alone but less than severe NPDR: 1 microaneurysm, 102 hard-exudate focus/foci, 1 cotton-wool spot."
+  ],
+  "agreement": "exact",
+  "recapture_advice": [],
+  "timing_ms": {
+    "geometry": 330.56,
+    "landmarks": 42.83,
+    "quality": 22.95,
+    "enhancement": 11.14,
+    "quality_recheck": 20.93,
+    "segmentation": 94.93,
+    "clinical_features": 22.19,
+    "grading": 50.4,
+    "explanation": 22.82,
+    "total": 640.58
+  },
+  "model_version": "drscreen-1.0.0"
+}

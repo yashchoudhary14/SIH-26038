@@ -1,0 +1,191 @@
+{
+  "image_id": "grade4_10fca1abf338",
+  "gradeable": true,
+  "quality": {
+    "scores": {
+      "focus": 0.6025,
+      "illumination": 0.9337,
+      "contrast": 0.7617,
+      "fov": 0.9351,
+      "macula": 0.8959,
+      "artifact": 1.0,
+      "under_exposure": 0.7636,
+      "over_exposure": 1.0,
+      "noise": 1.0
+    },
+    "verdicts": {
+      "focus": "pass",
+      "illumination": "pass",
+      "contrast": "pass",
+      "fov": "pass",
+      "macula": "pass",
+      "artifact": "pass",
+      "under_exposure": "pass",
+      "over_exposure": "pass",
+      "noise": "pass"
+    },
+    "overall": "good",
+    "gradeable": true,
+    "needs_enhancement": false,
+    "issues": [],
+    "advice": [],
+    "confidence": 0.7959,
+    "first_pass": {
+      "overall": "borderline",
+      "issues": [
+        "illumination"
+      ],
+      "scores": {
+        "focus": 0.537,
+        "illumination": 0.3661,
+        "contrast": 0.7152,
+        "fov": 0.9351,
+        "macula": 0.8959,
+        "artifact": 1.0,
+        "under_exposure": 1.0,
+        "over_exposure": 1.0,
+        "noise": 1.0
+      }
+    }
+  },
+  "enhancement_applied": [
+    "grey_world",
+    "illumination_normalize"
+  ],
+  "landmarks": {
+    "disc_xy": [
+      145,
+      224
+    ],
+    "disc_radius": 29.672295920342346,
+    "disc_confidence": 1.0,
+    "fovea_xy": [
+      271,
+      382
+    ],
+    "fovea_confidence": 0.7687,
+    "laterality": "OS",
+    "disc_diameter_px": 59.34459184068469
+  },
+  "grade": 1,
+  "grade_label": "Mild NPDR",
+  "class_probabilities": [
+    0.2187,
+    0.3424,
+    0.2285,
+    0.0817,
+    0.1288
+  ],
+  "referable": false,
+  "referable_probability": 0.37037037037037035,
+  "confidence": 0.3423668146133423,
+  "uncertainty": {
+    "entropy": 1.5053,
+    "epistemic_variance": 0.00546
+  },
+  "decision": "auto_report",
+  "urgency": "routine",
+  "dme_risk": 2,
+  "clinical_features": {
+    "counts": {
+      "microaneurysm": 15,
+      "hemorrhage": 0,
+      "hard_exudate": 28,
+      "soft_exudate": 1,
+      "neovascularization": 0
+    },
+    "per_quadrant": {
+      "microaneurysm": {
+        "superior": 2,
+        "inferior": 6,
+        "nasal": 7,
+        "temporal": 0
+      },
+      "hemorrhage": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "hard_exudate": {
+        "superior": 9,
+        "inferior": 9,
+        "nasal": 10,
+        "temporal": 0
+      },
+      "soft_exudate": {
+        "superior": 0,
+        "inferior": 1,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "neovascularization": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      }
+    },
+    "quadrants_with_hemorrhage": 0,
+    "quadrants_with_beading": 0,
+    "nv_at_disc": false,
+    "nv_elsewhere": false,
+    "lesions_within_1dd_of_fovea": 2,
+    "nearest_lesion_dd": 0.24
+  },
+  "evidence": [
+    {
+      "finding": "microaneurysm",
+      "count": 15,
+      "per_quadrant": {
+        "superior": 2,
+        "inferior": 6,
+        "nasal": 7
+      },
+      "area_percent": 0.049
+    },
+    {
+      "finding": "hard exudate",
+      "count": 28,
+      "per_quadrant": {
+        "superior": 9,
+        "inferior": 9,
+        "nasal": 10
+      },
+      "area_percent": 0.248
+    },
+    {
+      "finding": "soft exudate",
+      "count": 1,
+      "per_quadrant": {
+        "inferior": 1
+      },
+      "area_percent": 0.115
+    },
+    {
+      "criterion": "More than microaneurysms alone but less than severe NPDR: 15 microaneurysms, 28 hard-exudate focus/foci, 1 cotton-wool spot."
+    },
+    {
+      "macular_assessment": "2 hard-exudate focus/foci within 1 disc diameter of the fovea - clinically significant macular oedema likely; urgent referral."
+    }
+  ],
+  "rule_based_grade": 2,
+  "rule_based_reasons": [
+    "More than microaneurysms alone but less than severe NPDR: 15 microaneurysms, 28 hard-exudate focus/foci, 1 cotton-wool spot."
+  ],
+  "agreement": "within_one_grade",
+  "recapture_advice": [],
+  "timing_ms": {
+    "geometry": 169.81,
+    "landmarks": 39.72,
+    "quality": 22.64,
+    "enhancement": 63.77,
+    "quality_recheck": 22.46,
+    "segmentation": 96.55,
+    "clinical_features": 20.24,
+    "grading": 53.05,
+    "explanation": 21.11,
+    "total": 530.64
+  },
+  "model_version": "drscreen-1.0.0"
+}

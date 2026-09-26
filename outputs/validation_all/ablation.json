@@ -1,0 +1,143 @@
+{
+  "n": 1852,
+  "reference": "cnn",
+  "arms": {
+    "cnn": {
+      "name": "cnn",
+      "description": "Deep learning only: ordinal CNN on the enhanced image",
+      "threshold": 0.32069757215032035,
+      "metrics": {
+        "auc": 0.9641700119110532,
+        "auc_ci": [
+          0.9560223354471957,
+          0.9708542001336306
+        ],
+        "sensitivity": {
+          "value": 0.9152915291529153,
+          "lower": 0.895396381284001,
+          "upper": 0.9316913815520446,
+          "numerator": 832,
+          "denominator": 909
+        },
+        "specificity": {
+          "value": 0.8865323435843054,
+          "lower": 0.8647014286001825,
+          "upper": 0.9052268346889863,
+          "numerator": 836,
+          "denominator": 943
+        },
+        "ppv": {
+          "value": 0.88604898828541,
+          "lower": 0.8641329175073891,
+          "upper": 0.904819267631807,
+          "numerator": 832,
+          "denominator": 939
+        },
+        "npv": {
+          "value": 0.9156626506024096,
+          "lower": 0.8958491329585971,
+          "upper": 0.931993012155869,
+          "numerator": 836,
+          "denominator": 913
+        },
+        "youden_j": 0.8018238727372209,
+        "auprc": 0.9645085871494334,
+        "qwk": {
+          "value": 0.866684404943328,
+          "lower": 0.8505530743555202,
+          "upper": 0.8827491401798869
+        },
+        "exact_accuracy": 0.7321814254859611,
+        "adjacent_accuracy": 0.949244060475162,
+        "meets_targets": true
+      }
+    },
+    "rule_based": {
+      "name": "rule_based",
+      "description": "Classical CV: lesion segmentation to ICDR criteria (no deep grader)",
+      "threshold": 0.5,
+      "metrics": {
+        "auc": 0.8813520270372743,
+        "auc_ci": [
+          0.8653949652360293,
+          0.8956455308192339
+        ],
+        "sensitivity": {
+          "value": 0.8503850385038504,
+          "lower": 0.8257245392376943,
+          "upper": 0.8720965268902009,
+          "numerator": 773,
+          "denominator": 909
+        },
+        "specificity": {
+          "value": 0.7242841993637328,
+          "lower": 0.6948957827398229,
+          "upper": 0.7518527157119171,
+          "numerator": 683,
+          "denominator": 943
+        },
+        "ppv": {
+          "value": 0.7483059051306873,
+          "lower": 0.7209538683586179,
+          "upper": 0.7738180137220692,
+          "numerator": 773,
+          "denominator": 1033
+        },
+        "npv": {
+          "value": 0.833943833943834,
+          "lower": 0.8069105957798484,
+          "upper": 0.8578590194798965,
+          "numerator": 683,
+          "denominator": 819
+        },
+        "youden_j": 0.5746692378675831,
+        "auprc": 0.863649544440519,
+        "qwk": {
+          "value": 0.3380136397156569,
+          "lower": 0.31385227846169783,
+          "upper": 0.3642427158567643
+        },
+        "exact_accuracy": 0.3029157667386609,
+        "adjacent_accuracy": 0.44330453563714906,
+        "meets_targets": false
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "reference": "cnn",
+      "arm": "rule_based",
+      "auc_test": {
+        "metric": "AUC",
+        "value_a": 0.9641700119110532,
+        "value_b": 0.8813520270372743,
+        "difference": 0.0828179848737789,
+        "ci": [
+          0.06954905013971734,
+          0.09608691960784045
+        ],
+        "p_value": 0.0,
+        "significant": true,
+        "interpretation": "cnn has the higher AUC by 0.0828; the difference is statistically significant (DeLong p = 0)."
+      },
+      "decision_test": {
+        "metric": "accuracy",
+        "value_a": 0.9006479481641468,
+        "value_b": 0.7861771058315334,
+        "difference": 0.1144708423326134,
+        "ci": [
+          0.09467193919933807,
+          0.1342697454658887
+        ],
+        "p_value": 0.0,
+        "significant": true,
+        "interpretation": "cnn is more accurate by 0.1145 (281 vs 69 discordant cases); significant (McNemar chi-square with continuity correction, p = 0)."
+      },
+      "reference_better": true,
+      "significant": true
+    }
+  ],
+  "integrated_beats_every_single_technique": true,
+  "integrated_beats_every_single_technique_significantly": true,
+  "verdict": "The integrated pipeline (cnn) has a higher referable-DR AUC than every single-technique arm, and every difference is statistically significant (DeLong, alpha=0.05)."
+}

@@ -1,0 +1,40 @@
+{
+  "arch": "attention_unet",
+  "widths": [
+    24,
+    48,
+    96,
+    192,
+    384
+  ],
+  "encoder_groups": [
+    3,
+    6,
+    12,
+    24,
+    32
+  ],
+  "decoder_groups": [
+    24,
+    12,
+    6,
+    3
+  ],
+  "gn_eps": 1e-05,
+  "out_channels": 5,
+  "size": 1024,
+  "lesion_classes": [
+    "microaneurysm",
+    "hemorrhage",
+    "hard_exudate",
+    "soft_exudate",
+    "neovascularization"
+  ],
+  "supervised_lesion_classes": [
+    "microaneurysm",
+    "hemorrhage",
+    "hard_exudate",
+    "soft_exudate"
+  ],
+  "dice": 0.5549592971801758
+}

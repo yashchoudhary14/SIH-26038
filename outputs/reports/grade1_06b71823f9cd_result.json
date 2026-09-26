@@ -1,0 +1,191 @@
+{
+  "image_id": "grade1_06b71823f9cd",
+  "gradeable": true,
+  "quality": {
+    "scores": {
+      "focus": 0.7006,
+      "illumination": 0.9346,
+      "contrast": 0.7446,
+      "fov": 0.9307,
+      "macula": 1.0,
+      "artifact": 1.0,
+      "under_exposure": 0.7818,
+      "over_exposure": 1.0,
+      "noise": 1.0
+    },
+    "verdicts": {
+      "focus": "pass",
+      "illumination": "pass",
+      "contrast": "pass",
+      "fov": "pass",
+      "macula": "pass",
+      "artifact": "pass",
+      "under_exposure": "pass",
+      "over_exposure": "pass",
+      "noise": "pass"
+    },
+    "overall": "good",
+    "gradeable": true,
+    "needs_enhancement": false,
+    "issues": [],
+    "advice": [],
+    "confidence": 0.8421,
+    "first_pass": {
+      "overall": "borderline",
+      "issues": [
+        "illumination"
+      ],
+      "scores": {
+        "focus": 0.5803,
+        "illumination": 0.2076,
+        "contrast": 0.7254,
+        "fov": 0.9307,
+        "macula": 1.0,
+        "artifact": 1.0,
+        "under_exposure": 0.8329,
+        "over_exposure": 1.0,
+        "noise": 1.0
+      }
+    }
+  },
+  "enhancement_applied": [
+    "grey_world",
+    "illumination_normalize"
+  ],
+  "landmarks": {
+    "disc_xy": [
+      164,
+      237
+    ],
+    "disc_radius": 32.586527589007176,
+    "disc_confidence": 1.0,
+    "fovea_xy": [
+      308,
+      349
+    ],
+    "fovea_confidence": 1.0,
+    "laterality": "OS",
+    "disc_diameter_px": 65.17305517801435
+  },
+  "grade": 0,
+  "grade_label": "No apparent DR",
+  "class_probabilities": [
+    0.2996,
+    0.2571,
+    0.1631,
+    0.0324,
+    0.2478
+  ],
+  "referable": false,
+  "referable_probability": 0.37037037037037035,
+  "confidence": 0.2996349334716797,
+  "uncertainty": {
+    "entropy": 1.4628,
+    "epistemic_variance": 0.00557
+  },
+  "decision": "auto_report",
+  "urgency": "routine",
+  "dme_risk": 1,
+  "clinical_features": {
+    "counts": {
+      "microaneurysm": 1,
+      "hemorrhage": 0,
+      "hard_exudate": 32,
+      "soft_exudate": 1,
+      "neovascularization": 0
+    },
+    "per_quadrant": {
+      "microaneurysm": {
+        "superior": 0,
+        "inferior": 1,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "hemorrhage": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "hard_exudate": {
+        "superior": 0,
+        "inferior": 17,
+        "nasal": 15,
+        "temporal": 0
+      },
+      "soft_exudate": {
+        "superior": 0,
+        "inferior": 1,
+        "nasal": 0,
+        "temporal": 0
+      },
+      "neovascularization": {
+        "superior": 0,
+        "inferior": 0,
+        "nasal": 0,
+        "temporal": 0
+      }
+    },
+    "quadrants_with_hemorrhage": 0,
+    "quadrants_with_beading": 0,
+    "nv_at_disc": false,
+    "nv_elsewhere": false,
+    "lesions_within_1dd_of_fovea": 0,
+    "nearest_lesion_dd": 1.6
+  },
+  "evidence": [
+    {
+      "finding": "microaneurysm",
+      "count": 1,
+      "per_quadrant": {
+        "inferior": 1
+      },
+      "area_percent": 0.004
+    },
+    {
+      "finding": "hard exudate",
+      "count": 32,
+      "per_quadrant": {
+        "inferior": 17,
+        "nasal": 15
+      },
+      "area_percent": 0.22
+    },
+    {
+      "finding": "soft exudate",
+      "count": 1,
+      "per_quadrant": {
+        "inferior": 1
+      },
+      "area_percent": 0.079
+    },
+    {
+      "criterion": "More than microaneurysms alone but less than severe NPDR: 1 microaneurysm, 32 hard-exudate focus/foci, 1 cotton-wool spot."
+    },
+    {
+      "macular_assessment": "Hard exudates present but the nearest is 1.6 DD from the fovea."
+    },
+    {
+      "caution": "The deep model graded 0 (No apparent DR) while the rule-based criteria give 2 (Moderate NPDR). Flagged for human adjudication."
+    }
+  ],
+  "rule_based_grade": 2,
+  "rule_based_reasons": [
+    "More than microaneurysms alone but less than severe NPDR: 1 microaneurysm, 32 hard-exudate focus/foci, 1 cotton-wool spot."
+  ],
+  "agreement": "disagree",
+  "recapture_advice": [],
+  "timing_ms": {
+    "geometry": 930.59,
+    "landmarks": 42.15,
+    "quality": 23.03,
+    "enhancement": 64.81,
+    "quality_recheck": 22.03,
+    "segmentation": 98.5,
+    "clinical_features": 17.81,
+    "grading": 49.82,
+    "explanation": 23.17,
+    "total": 1292.92
+  },
+  "model_version": "drscreen-1.0.0"
+}

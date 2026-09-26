@@ -1,0 +1,65 @@
+==============================================================================
+DR SCREENING - CLINICAL VALIDATION
+==============================================================================
+
+Grader: outputs\grader_cnn\best.pt  (arm=cnn, backbone=tf_efficientnet_b0, clinical=False)
+
+[1/5] Calibration and operating point (fitted on VAL only)
+  temperature T = 2.7080
+  ECE  0.0500 -> 0.0254
+  MCE  0.2461 -> 0.1453
+  Brier 0.0701 -> 0.0606
+  ECE for isotonic on P(referable), out-of-fold: 0.0160 vs 0.0254 temperature-only -> adopted
+  threshold = 0.1999   sens 0.987  spec 0.858
+  grade cut-points (macro_recall, val): P(y>0) > 0.30  P(y>1) > 0.39  P(y>2) > 0.39  P(y>3) > 0.36
+  Meets both targets (sens>=90%, spec>=85%); takes the most sensitive point clearing the specificity floor (screening policy). PPV/NPV restated at 18.0% deployment prevalence.
+
+[2/5] Internal held-out test
+  n = 631   Sens 0.986 [0.964-0.995] (280/284)  Spec 0.873 [0.834-0.904] (303/347)  AUC 0.9883 [0.9790-0.9935]
+  QWK 0.8970 [0.8738, 0.9169]
+  ECE 0.0280
+
+[3/5] External validation (zero-shot; nothing fitted on this split)
+  n = 1744   Sens 0.707 [0.663-0.747] (323/457)  Spec 0.922 [0.906-0.936] (1187/1287)  AUC 0.9082 [0.8903-0.9234]
+  QWK 0.6486
+  ECE 0.1133
+  AUC drop internal -> external: +0.0801
+
+[4/5] Ablation: does the integrated pipeline beat single techniques?
+  loaded arm 'fusion' (T=2.849, thr=0.250)
+  loaded arm 'clinical_only' (T=1.378, thr=0.461)
+  built arm 'rule_based' from cached lesion features
+
+arm                  AUC            95% CI    Sens    Spec     QWK  targets
+---------------------------------------------------------------------------
+cnn *             0.9883 [0.9790,0.9935]   0.986   0.873  0.8939     PASS
+fusion            0.9850 [0.9757,0.9908]   0.989   0.882  0.8817     PASS
+clinical_only     0.9272 [0.9058,0.9441]   0.880   0.813  0.6904     fail
+rule_based        0.9115 [0.8860,0.9317]   1.000   0.075  0.0000     fail
+
+* = integrated pipeline (cnn)
+
+The integrated pipeline (cnn) has a higher referable-DR AUC than every single-technique arm, and every difference is statistically significant (DeLong, alpha=0.05).
+
+Paired tests vs the integrated pipeline:
+  vs fusion           cnn has the higher AUC by 0.0032; the difference is statistically significant (DeLong p = 0.03364).
+  vs clinical_only    cnn has the higher AUC by 0.0610; the difference is statistically significant (DeLong p = 1.715e-11).
+  vs rule_based       cnn has the higher AUC by 0.0768; the difference is statistically significant (DeLong p = 1.495e-12).
+
+[5/6] Explanation quality (is the heatmap worth showing a clinician?)
+  faithfulness +0.252 (insertion 0.961 - deletion 0.709)
+  attention sparsity (Gini) 0.739 over 40 referable images
+
+[6/6] Writing artefacts
+  lesion thresholds (F1-optimal on held-out IDRiD): {'microaneurysm': 0.6, 'hemorrhage': 0.9, 'hard_exudate': 0.95, 'soft_exudate': 0.95}
+  outputs\validation\validation.json
+  outputs\validation\summary.md
+  outputs\validation\model_card.md
+  deployable bundle -> outputs\artifacts
+
+==============================================================================
+TARGET: sensitivity >= 90%, specificity >= 85% for referable DR
+INTERNAL TEST: sensitivity 0.986 [0.964-0.995] PASS
+               specificity 0.873 [0.834-0.904] PASS
+EXTERNAL:      sensitivity 0.707 specificity 0.922
+==============================================================================

@@ -1,0 +1,307 @@
+{
+  "n": 2551,
+  "reference": "cnn",
+  "arms": {
+    "cnn": {
+      "name": "cnn",
+      "description": "Deep learning only: ordinal CNN on the enhanced image",
+      "threshold": 0.46245200230981875,
+      "metrics": {
+        "auc": 0.9533150454204877,
+        "auc_ci": [
+          0.94543401197331,
+          0.9601058424995836
+        ],
+        "sensitivity": {
+          "value": 0.8902229845626072,
+          "lower": 0.8709819400486877,
+          "upper": 0.9069012450090227,
+          "numerator": 1038,
+          "denominator": 1166
+        },
+        "specificity": {
+          "value": 0.8570397111913357,
+          "lower": 0.8376167005083338,
+          "upper": 0.8744876176042523,
+          "numerator": 1187,
+          "denominator": 1385
+        },
+        "ppv": {
+          "value": 0.8398058252427184,
+          "lower": 0.8183095239817018,
+          "upper": 0.8591964539188814,
+          "numerator": 1038,
+          "denominator": 1236
+        },
+        "npv": {
+          "value": 0.9026615969581749,
+          "lower": 0.8854481504192594,
+          "upper": 0.9175293363113716,
+          "numerator": 1187,
+          "denominator": 1315
+        },
+        "youden_j": 0.747262695753943,
+        "auprc": 0.9481574552532237,
+        "qwk": {
+          "value": 0.8459171566754535,
+          "lower": 0.8284870061967579,
+          "upper": 0.863256580331686
+        },
+        "exact_accuracy": 0.738141905135241,
+        "adjacent_accuracy": 0.9478635829086632,
+        "meets_targets": false
+      }
+    },
+    "fusion": {
+      "name": "fusion",
+      "description": "Integrated: CNN image features fused with clinical lesion features",
+      "threshold": 0.4673150505489343,
+      "metrics": {
+        "auc": 0.9535453988147946,
+        "auc_ci": [
+          0.9456040160692706,
+          0.9603759844998834
+        ],
+        "sensitivity": {
+          "value": 0.9005145797598628,
+          "lower": 0.8819972438275846,
+          "upper": 0.9164015417151644,
+          "numerator": 1050,
+          "denominator": 1166
+        },
+        "specificity": {
+          "value": 0.8577617328519855,
+          "lower": 0.8383753749462757,
+          "upper": 0.8751689923434847,
+          "numerator": 1188,
+          "denominator": 1385
+        },
+        "ppv": {
+          "value": 0.8420208500400962,
+          "lower": 0.8207312427130876,
+          "upper": 0.8612096971117059,
+          "numerator": 1050,
+          "denominator": 1247
+        },
+        "npv": {
+          "value": 0.911042944785276,
+          "lower": 0.8943597125103127,
+          "upper": 0.9253115043408819,
+          "numerator": 1188,
+          "denominator": 1304
+        },
+        "youden_j": 0.7582763126118484,
+        "auprc": 0.9479965812392146,
+        "qwk": {
+          "value": 0.8439372718142036,
+          "lower": 0.8252871188601137,
+          "upper": 0.8602223682377662
+        },
+        "exact_accuracy": 0.7565660525284202,
+        "adjacent_accuracy": 0.9349274794198353,
+        "meets_targets": true
+      }
+    },
+    "clinical_only": {
+      "name": "clinical_only",
+      "description": "Lesion-feature vector only, through the ordinal head",
+      "threshold": 0.24879185137110693,
+      "metrics": {
+        "auc": 0.8124768562953972,
+        "auc_ci": [
+          0.7956210497507725,
+          0.8282426130434439
+        ],
+        "sensitivity": {
+          "value": 0.8902229845626072,
+          "lower": 0.8709819400486877,
+          "upper": 0.9069012450090227,
+          "numerator": 1038,
+          "denominator": 1166
+        },
+        "specificity": {
+          "value": 0.47653429602888087,
+          "lower": 0.45033197078160625,
+          "upper": 0.5028664309602358,
+          "numerator": 660,
+          "denominator": 1385
+        },
+        "ppv": {
+          "value": 0.5887691435053886,
+          "lower": 0.5656315662216069,
+          "upper": 0.6115207178372677,
+          "numerator": 1038,
+          "denominator": 1763
+        },
+        "npv": {
+          "value": 0.8375634517766497,
+          "lower": 0.8101827672227094,
+          "upper": 0.8616688945888843,
+          "numerator": 660,
+          "denominator": 788
+        },
+        "youden_j": 0.36675728059148804,
+        "auprc": 0.7949277854151511,
+        "qwk": {
+          "value": 0.5502981809651732,
+          "lower": 0.5239779821304931,
+          "upper": 0.5773578066976341
+        },
+        "exact_accuracy": 0.38455507644061154,
+        "adjacent_accuracy": 0.8643669149353195,
+        "meets_targets": false
+      }
+    },
+    "rule_based": {
+      "name": "rule_based",
+      "description": "Classical CV: lesion segmentation to ICDR criteria (no deep grader)",
+      "threshold": 0.5,
+      "metrics": {
+        "auc": 0.7929853676056251,
+        "auc_ci": [
+          0.7751893896849684,
+          0.809718411020774
+        ],
+        "sensitivity": {
+          "value": 0.9905660377358491,
+          "lower": 0.9831861387146186,
+          "upper": 0.9947241510722173,
+          "numerator": 1155,
+          "denominator": 1166
+        },
+        "specificity": {
+          "value": 0.11046931407942238,
+          "lower": 0.0950252715199105,
+          "upper": 0.12806819739466924,
+          "numerator": 153,
+          "denominator": 1385
+        },
+        "ppv": {
+          "value": 0.4838709677419355,
+          "lower": 0.46386522048681833,
+          "upper": 0.5039285452955514,
+          "numerator": 1155,
+          "denominator": 2387
+        },
+        "npv": {
+          "value": 0.9329268292682927,
+          "lower": 0.8838986124358266,
+          "upper": 0.9621378853266203,
+          "numerator": 153,
+          "denominator": 164
+        },
+        "youden_j": 0.10103535181527135,
+        "auprc": 0.7428302545787893,
+        "qwk": {
+          "value": 0.0,
+          "lower": 0.0,
+          "upper": 0.0
+        },
+        "exact_accuracy": 0.07683261466091729,
+        "adjacent_accuracy": 0.10819286554292434,
+        "meets_targets": false
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "reference": "cnn",
+      "arm": "fusion",
+      "auc_test": {
+        "metric": "AUC",
+        "value_a": 0.9533150454204877,
+        "value_b": 0.9535453988147946,
+        "difference": -0.0002303533943068814,
+        "ci": [
+          -0.0044719936731587116,
+          0.004011286884544949
+        ],
+        "p_value": 0.9152324788154704,
+        "significant": false,
+        "interpretation": "fusion has the higher AUC by 0.0002; the difference is not statistically significant (DeLong p = 0.9152)."
+      },
+      "decision_test": {
+        "metric": "accuracy",
+        "value_a": 0.8722069776558212,
+        "value_b": 0.8773030184241474,
+        "difference": -0.005096040768326149,
+        "ci": [
+          -0.015879813971094663,
+          0.005687732434442363
+        ],
+        "p_value": 0.3925707457427998,
+        "significant": false,
+        "interpretation": "fusion is more accurate by 0.0051 (92 vs 105 discordant cases); not significant (McNemar chi-square with continuity correction, p = 0.3926)."
+      },
+      "reference_better": false,
+      "significant": false
+    },
+    {
+      "reference": "cnn",
+      "arm": "clinical_only",
+      "auc_test": {
+        "metric": "AUC",
+        "value_a": 0.9533150454204877,
+        "value_b": 0.8124768562953972,
+        "difference": 0.1408381891250905,
+        "ci": [
+          0.12574495408066613,
+          0.15593142416951486
+        ],
+        "p_value": 0.0,
+        "significant": true,
+        "interpretation": "cnn has the higher AUC by 0.1408; the difference is statistically significant (DeLong p = 0)."
+      },
+      "decision_test": {
+        "metric": "accuracy",
+        "value_a": 0.8722069776558212,
+        "value_b": 0.6656213249705998,
+        "difference": 0.20658565268522144,
+        "ci": [
+          0.18508664012441306,
+          0.22808466524602983
+        ],
+        "p_value": 0.0,
+        "significant": true,
+        "interpretation": "cnn is more accurate by 0.2066 (655 vs 128 discordant cases); significant (McNemar chi-square with continuity correction, p = 0)."
+      },
+      "reference_better": true,
+      "significant": true
+    },
+    {
+      "reference": "cnn",
+      "arm": "rule_based",
+      "auc_test": {
+        "metric": "AUC",
+        "value_a": 0.9533150454204877,
+        "value_b": 0.7929853676056251,
+        "difference": 0.16032967781486263,
+        "ci": [
+          0.1439920678656385,
+          0.17666728776408674
+        ],
+        "p_value": 0.0,
+        "significant": true,
+        "interpretation": "cnn has the higher AUC by 0.1603; the difference is statistically significant (DeLong p = 0)."
+      },
+      "decision_test": {
+        "metric": "accuracy",
+        "value_a": 0.8722069776558212,
+        "value_b": 0.5127401019208153,
+        "difference": 0.3594668757350059,
+        "ci": [
+          0.3331080618378046,
+          0.3858256896322072
+        ],
+        "p_value": 0.0,
+        "significant": true,
+        "interpretation": "cnn is more accurate by 0.3595 (1047 vs 130 discordant cases); significant (McNemar chi-square with continuity correction, p = 0)."
+      },
+      "reference_better": true,
+      "significant": true
+    }
+  ],
+  "integrated_beats_every_single_technique": false,
+  "integrated_beats_every_single_technique_significantly": false,
+  "verdict": "The integrated pipeline (cnn) does NOT beat every single technique: fusion scored higher. This must be reported as-is."
+}
